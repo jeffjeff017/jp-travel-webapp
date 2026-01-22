@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
+import Link from 'next/link'
 import { getTrips, type Trip } from '@/lib/supabase'
+import { getSettings, type SiteSettings } from '@/lib/settings'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import UsagiWidget from '@/components/UsagiWidget'
 import DailyPopup from '@/components/DailyPopup'
@@ -28,11 +30,16 @@ const GoogleMapComponent = dynamic(
 export default function MainPage() {
   const [trips, setTrips] = useState<Trip[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isCleanMode, setIsCleanMode] = useState(false)
+  const [isSakuraMode, setIsSakuraMode] = useState(false) // Default OFF
   const [error, setError] = useState<string | null>(null)
+  const [settings, setSettings] = useState<SiteSettings | null>(null)
+  const [selectedTripId, setSelectedTripId] = useState<number | null>(null)
   const { t } = useLanguage()
 
   useEffect(() => {
+    // Load settings
+    setSettings(getSettings())
+
     async function fetchTrips() {
       try {
         const data = await getTrips()
@@ -50,17 +57,21 @@ export default function MainPage() {
     return () => clearInterval(interval)
   }, [])
 
-  const toggleCleanMode = () => {
-    setIsCleanMode(!isCleanMode)
+  const toggleSakuraMode = () => {
+    setIsSakuraMode(!isSakuraMode)
+  }
+
+  const handleTripClick = (tripId: number) => {
+    setSelectedTripId(tripId)
   }
 
   return (
-    <main className={`min-h-screen relative ${isCleanMode ? 'clean-mode' : ''}`}>
-      {/* Sakura Animation */}
-      <SakuraCanvas enabled={!isCleanMode} />
+    <main className={`min-h-screen relative ${!isSakuraMode ? 'clean-mode' : ''}`}>
+      {/* Sakura Animation - Only when toggled ON */}
+      <SakuraCanvas enabled={isSakuraMode} />
 
       {/* Mode Toggle */}
-      <ModeToggle isCleanMode={isCleanMode} onToggle={toggleCleanMode} />
+      <ModeToggle isSakuraMode={isSakuraMode} onToggle={toggleSakuraMode} />
 
       {/* Header */}
       <motion.header
@@ -72,7 +83,7 @@ export default function MainPage() {
           <div className="flex items-center gap-3">
             <span className="text-2xl">🌸</span>
             <h1 className="text-xl font-medium text-gray-800">
-              日本 <span className="text-sakura-500">旅遊</span>
+              {settings?.title || '日本'} <span className="text-sakura-500">旅遊</span>
             </h1>
           </div>
           
@@ -80,6 +91,14 @@ export default function MainPage() {
             <span className="text-sm text-gray-500">
               {trips.length} 個{t.main.destinations.toLowerCase()}
             </span>
+            {/* Admin Button */}
+            <Link
+              href="/admin"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-sakura-600 hover:bg-sakura-50 rounded-lg transition-colors"
+            >
+              <span>⚙️</span>
+              <span className="hidden sm:inline">管理</span>
+            </Link>
           </nav>
         </div>
       </motion.header>
@@ -97,6 +116,27 @@ export default function MainPage() {
             <h2 className="text-lg font-medium text-gray-800 mb-4 flex items-center gap-2">
               <span>📍</span> {t.main.destinations}
             </h2>
+
+            {/* Home Location Card */}
+            {settings?.homeLocation && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => setSelectedTripId(-1)} // -1 for home
+                className={`mb-4 p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                  selectedTripId === -1 
+                    ? 'border-blue-400 bg-blue-50' 
+                    : 'border-blue-200 bg-gradient-to-r from-blue-50 to-white hover:border-blue-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">🏠</span>
+                  <h3 className="font-medium text-gray-800">{settings.homeLocation.name}</h3>
+                </div>
+                <p className="text-sm text-gray-500 ml-7">{settings.homeLocation.address}</p>
+                <p className="text-xs text-blue-500 ml-7 mt-1">點擊查看位置及路線</p>
+              </motion.div>
+            )}
 
             {isLoading ? (
               <div className="space-y-3">
@@ -126,11 +166,16 @@ export default function MainPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="bg-gradient-to-r from-sakura-50 to-white p-4 rounded-xl border border-sakura-100 hover:border-sakura-300 hover:shadow-md transition-all cursor-pointer group"
+                    onClick={() => handleTripClick(trip.id)}
+                    className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                      selectedTripId === trip.id
+                        ? 'border-sakura-400 bg-sakura-50 shadow-md'
+                        : 'border-sakura-100 bg-gradient-to-r from-sakura-50 to-white hover:border-sakura-300 hover:shadow-md'
+                    }`}
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="font-medium text-gray-800 group-hover:text-sakura-600 transition-colors">
+                        <h3 className="font-medium text-gray-800">
                           {trip.title}
                         </h3>
                         <p className="text-sm text-gray-500 mt-1">
@@ -162,12 +207,17 @@ export default function MainPage() {
           transition={{ delay: 0.4 }}
           className="flex-1 relative"
         >
-          <GoogleMapComponent trips={trips} />
+          <GoogleMapComponent 
+            trips={trips} 
+            homeLocation={settings?.homeLocation}
+            selectedTripId={selectedTripId}
+            onTripSelect={setSelectedTripId}
+          />
         </motion.div>
       </div>
 
       {/* Usagi Widget - Bottom Left */}
-      {!isCleanMode && <UsagiWidget />}
+      {isSakuraMode && <UsagiWidget />}
 
       {/* Daily Popup - Bottom Right */}
       <DailyPopup />

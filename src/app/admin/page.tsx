@@ -12,10 +12,10 @@ import {
   deleteTrip,
   type Trip,
 } from '@/lib/supabase'
+import { getSettings, saveSettings, type SiteSettings } from '@/lib/settings'
 import { useLanguage } from '@/lib/i18n'
 import LanguageSwitch from '@/components/LanguageSwitch'
 
-// Dynamic import for PlacePicker (client-only)
 const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
   ssr: false,
   loading: () => (
@@ -49,9 +49,12 @@ export default function AdminPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [showPlacePicker, setShowPlacePicker] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null)
   const [formData, setFormData] = useState<FormData>(initialFormData)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null)
+  const [settingsForm, setSettingsForm] = useState({ title: '' })
   const router = useRouter()
   const { t } = useLanguage()
 
@@ -61,6 +64,11 @@ export default function AdminPage() {
       return
     }
     fetchTrips()
+    
+    // Load site settings
+    const settings = getSettings()
+    setSiteSettings(settings)
+    setSettingsForm({ title: settings.title })
   }, [router])
 
   const fetchTrips = async () => {
@@ -174,6 +182,13 @@ export default function AdminPage() {
     }
   }
 
+  const handleSaveSettings = () => {
+    saveSettings({ title: settingsForm.title })
+    setSiteSettings({ ...siteSettings!, title: settingsForm.title })
+    setMessage({ type: 'success', text: '設定已儲存！' })
+    setShowSettings(false)
+  }
+
   return (
     <main className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -220,6 +235,26 @@ export default function AdminPage() {
           )}
         </AnimatePresence>
 
+        {/* Site Settings Card */}
+        <div className="mb-6 bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-medium text-gray-800 flex items-center gap-2">
+                <span>🎨</span> 網站設定
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                目前標題：<span className="font-medium">{siteSettings?.title || '日本旅遊'}</span>
+              </p>
+            </div>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+            >
+              編輯設定
+            </button>
+          </div>
+        </div>
+
         {/* Action Bar */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-medium text-gray-800">
@@ -235,6 +270,63 @@ export default function AdminPage() {
             <span>+</span> {t.admin.addTrip}
           </button>
         </div>
+
+        {/* Settings Modal */}
+        <AnimatePresence>
+          {showSettings && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setShowSettings(false)
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-md"
+              >
+                <div className="p-6 border-b border-gray-100">
+                  <h3 className="text-lg font-medium text-gray-800">網站設定</h3>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      網站標題
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsForm.title}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, title: e.target.value })}
+                      placeholder="例如：日本旅遊"
+                      className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">此標題會顯示在主頁標題列</p>
+                  </div>
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowSettings(false)}
+                      className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveSettings}
+                      className="flex-1 py-2 bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg font-medium transition-colors"
+                    >
+                      儲存設定
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Form Modal */}
         <AnimatePresence>
@@ -348,7 +440,6 @@ export default function AdminPage() {
                         className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none resize-none font-mono text-sm"
                         required
                       />
-                      {/* Preview */}
                       {formData.info && (
                         <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
                           <p className="text-xs text-gray-500 mb-1">預覽：</p>
