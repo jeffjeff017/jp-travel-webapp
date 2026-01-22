@@ -523,64 +523,84 @@ export default function AdminPage() {
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t.admin.title}
-                    </th>
-                    <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t.admin.location}
-                    </th>
-                    <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t.admin.date}
-                    </th>
-                    <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      操作
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {trips.map((trip) => (
-                    <tr key={trip.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-gray-800">
-                          {trip.title}
+          <div className="grid gap-4">
+            {trips.map((trip) => (
+              <div 
+                key={trip.id} 
+                className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+              >
+                <div className="flex flex-col md:flex-row">
+                  {/* Image */}
+                  {trip.image_url && (
+                    <div className="w-full md:w-48 h-32 md:h-auto flex-shrink-0">
+                      <img 
+                        src={trip.image_url} 
+                        alt={trip.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Content */}
+                  <div className="flex-1 p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        {/* Title & Date */}
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-lg font-semibold text-gray-800">
+                            {trip.title}
+                          </h3>
+                          <span className="px-2 py-1 text-xs font-medium text-sakura-600 bg-sakura-50 rounded-full whitespace-nowrap">
+                            📅 {new Date(trip.date).toLocaleDateString('zh-TW', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </span>
                         </div>
-                        <div 
-                          className="text-sm text-gray-500 truncate max-w-xs"
-                          dangerouslySetInnerHTML={{ __html: trip.description?.substring(0, 100) || '' }}
-                        />
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {trip.location}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {new Date(trip.date).toLocaleDateString('zh-TW')}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleEdit(trip)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDelete(trip.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            🗑️
-                          </button>
+                        
+                        {/* Location */}
+                        <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                          <span>📍</span>
+                          <span className="truncate">{trip.location}</span>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        
+                        {/* Coordinates */}
+                        <div className="text-xs text-gray-400 mb-2">
+                          座標：{trip.lat?.toFixed(4)}, {trip.lng?.toFixed(4)}
+                        </div>
+                        
+                        {/* Description */}
+                        {trip.description && (
+                          <div 
+                            className="text-sm text-gray-600 line-clamp-2 prose prose-sm max-w-none"
+                            dangerouslySetInnerHTML={{ __html: trip.description }}
+                          />
+                        )}
+                      </div>
+                      
+                      {/* Actions */}
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={() => handleEdit(trip)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="編輯"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDelete(trip.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="刪除"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
