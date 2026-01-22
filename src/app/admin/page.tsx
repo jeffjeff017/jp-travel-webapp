@@ -25,6 +25,15 @@ const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
   ),
 })
 
+const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-40 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center">
+      <div className="w-6 h-6 border-2 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
+    </div>
+  ),
+})
+
 type FormData = {
   title: string
   date: string
@@ -454,32 +463,16 @@ export default function AdminPage() {
                       )}
                     </div>
 
-                    {/* Description - HTML Textarea */}
+                    {/* Description - Rich Text Editor */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         {t.admin.description} *
                       </label>
-                      <p className="text-xs text-gray-500 mb-2">
-                        支援 HTML 格式：&lt;a href=&quot;...&quot;&gt;連結&lt;/a&gt;、&lt;ul&gt;&lt;li&gt;列表&lt;/li&gt;&lt;/ul&gt;、&lt;b&gt;粗體&lt;/b&gt; 等
-                      </p>
-                      <textarea
-                        name="description"
+                      <RichTextEditor
                         value={formData.description}
-                        onChange={handleInputChange}
-                        rows={6}
-                        placeholder="輸入描述內容，支援 HTML 格式..."
-                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none resize-none font-mono text-sm"
-                        required
+                        onChange={(value) => setFormData(prev => ({ ...prev, description: value }))}
+                        placeholder="輸入描述內容..."
                       />
-                      {formData.description && (
-                        <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                          <p className="text-xs text-gray-500 mb-1">預覽：</p>
-                          <div
-                            className="text-sm text-gray-700 prose prose-sm max-w-none"
-                            dangerouslySetInnerHTML={{ __html: formData.description }}
-                          />
-                        </div>
-                      )}
                     </div>
 
                     <div className="flex gap-3 pt-4">
