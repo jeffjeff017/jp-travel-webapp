@@ -67,7 +67,7 @@ export default function GoogleMapComponent({
   const [showHomeInfo, setShowHomeInfo] = useState(false)
   const [map, setMap] = useState<google.maps.Map | null>(null)
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null)
-  const [showTraffic, setShowTraffic] = useState(true)
+  const [showTraffic, setShowTraffic] = useState(false)
   const [routeInfo, setRouteInfo] = useState<{
     distance: string
     duration: string
@@ -410,6 +410,16 @@ export default function GoogleMapComponent({
             }}
           >
             <div className="p-2 max-w-xs">
+              {/* Trip Image */}
+              {selectedTrip.image_url && (
+                <div className="mb-2 -mx-2 -mt-2">
+                  <img 
+                    src={selectedTrip.image_url} 
+                    alt={selectedTrip.title}
+                    className="w-full h-24 object-cover rounded-t"
+                  />
+                </div>
+              )}
               <h3 className="font-bold text-lg text-sakura-700 mb-1">
                 {selectedTrip.title}
               </h3>
@@ -423,7 +433,7 @@ export default function GoogleMapComponent({
               </p>
               <div 
                 className="text-sm text-gray-700"
-                dangerouslySetInnerHTML={{ __html: selectedTrip.info }}
+                dangerouslySetInnerHTML={{ __html: selectedTrip.description || '' }}
               />
               {routeInfo && (
                 <div className="bg-sakura-50 p-2 rounded text-xs text-sakura-700 mt-2 space-y-1">

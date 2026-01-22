@@ -28,19 +28,21 @@ const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
 type FormData = {
   title: string
   date: string
-  info: string
+  description: string
   location: string
   lat: number
   lng: number
+  image_url: string
 }
 
 const initialFormData: FormData = {
   title: '',
   date: '',
-  info: '',
+  description: '',
   location: '',
   lat: 35.6762,
   lng: 139.6503,
+  image_url: '',
 }
 
 export default function AdminPage() {
@@ -121,10 +123,11 @@ export default function AdminPage() {
       const tripData = {
         title: formData.title,
         date: formData.date,
-        info: formData.info,
+        description: formData.description,
         location: formData.location,
         lat: formData.lat,
         lng: formData.lng,
+        image_url: formData.image_url || null,
       }
 
       if (editingTrip) {
@@ -158,10 +161,11 @@ export default function AdminPage() {
     setFormData({
       title: trip.title,
       date: trip.date,
-      info: trip.info,
+      description: trip.description,
       location: trip.location,
       lat: trip.lat,
       lng: trip.lng,
+      image_url: trip.image_url || '',
     })
     setShowForm(true)
   }
@@ -423,6 +427,33 @@ export default function AdminPage() {
                       )}
                     </div>
 
+                    {/* Image URL */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        圖片網址（選填）
+                      </label>
+                      <input
+                        type="url"
+                        name="image_url"
+                        value={formData.image_url}
+                        onChange={handleInputChange}
+                        placeholder="https://example.com/image.jpg"
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                      />
+                      {formData.image_url && (
+                        <div className="mt-2">
+                          <img 
+                            src={formData.image_url} 
+                            alt="預覽" 
+                            className="max-h-32 rounded-lg object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none'
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+
                     {/* Description - HTML Textarea */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -432,20 +463,20 @@ export default function AdminPage() {
                         支援 HTML 格式：&lt;a href=&quot;...&quot;&gt;連結&lt;/a&gt;、&lt;ul&gt;&lt;li&gt;列表&lt;/li&gt;&lt;/ul&gt;、&lt;b&gt;粗體&lt;/b&gt; 等
                       </p>
                       <textarea
-                        name="info"
-                        value={formData.info}
+                        name="description"
+                        value={formData.description}
                         onChange={handleInputChange}
                         rows={6}
                         placeholder="輸入描述內容，支援 HTML 格式..."
                         className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none resize-none font-mono text-sm"
                         required
                       />
-                      {formData.info && (
+                      {formData.description && (
                         <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
                           <p className="text-xs text-gray-500 mb-1">預覽：</p>
                           <div
                             className="text-sm text-gray-700 prose prose-sm max-w-none"
-                            dangerouslySetInnerHTML={{ __html: formData.info }}
+                            dangerouslySetInnerHTML={{ __html: formData.description }}
                           />
                         </div>
                       )}
@@ -527,7 +558,7 @@ export default function AdminPage() {
                         </div>
                         <div 
                           className="text-sm text-gray-500 truncate max-w-xs"
-                          dangerouslySetInnerHTML={{ __html: trip.info.substring(0, 100) }}
+                          dangerouslySetInnerHTML={{ __html: trip.description?.substring(0, 100) || '' }}
                         />
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">

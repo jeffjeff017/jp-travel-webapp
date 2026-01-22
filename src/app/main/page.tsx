@@ -167,32 +167,44 @@ export default function MainPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
                     onClick={() => handleTripClick(trip.id)}
-                    className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                    className={`rounded-xl border-2 transition-all cursor-pointer overflow-hidden ${
                       selectedTripId === trip.id
                         ? 'border-sakura-400 bg-sakura-50 shadow-md'
                         : 'border-sakura-100 bg-gradient-to-r from-sakura-50 to-white hover:border-sakura-300 hover:shadow-md'
                     }`}
                   >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-medium text-gray-800">
-                          {trip.title}
-                        </h3>
-                        <p className="text-sm text-gray-500 mt-1">
-                          {trip.location}
-                        </p>
+                    {/* Trip Image */}
+                    {trip.image_url && (
+                      <div className="h-32 w-full overflow-hidden">
+                        <img 
+                          src={trip.image_url} 
+                          alt={trip.title}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
-                      <span className="text-xs text-sakura-500 bg-sakura-50 px-2 py-1 rounded-full">
-                        {new Date(trip.date).toLocaleDateString('zh-TW', {
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </span>
+                    )}
+                    <div className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-medium text-gray-800">
+                            {trip.title}
+                          </h3>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {trip.location}
+                          </p>
+                        </div>
+                        <span className="text-xs text-sakura-500 bg-sakura-50 px-2 py-1 rounded-full">
+                          {new Date(trip.date).toLocaleDateString('zh-TW', {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                      <div 
+                        className="text-sm text-gray-600 mt-2 line-clamp-2"
+                        dangerouslySetInnerHTML={{ __html: trip.description || '' }}
+                      />
                     </div>
-                    <div 
-                      className="text-sm text-gray-600 mt-2 line-clamp-2"
-                      dangerouslySetInnerHTML={{ __html: trip.info }}
-                    />
                   </motion.div>
                 ))}
               </div>

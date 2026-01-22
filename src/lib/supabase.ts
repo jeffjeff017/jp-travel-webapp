@@ -9,13 +9,17 @@ export type Trip = {
   id: number
   title: string
   date: string
-  info: string // HTML content
+  description: string // HTML content
   location: string
   lat: number
   lng: number
+  image_url?: string // Optional image URL
   created_at?: string
   updated_at?: string
 }
+
+// Alias for backwards compatibility
+export type TripWithInfo = Trip & { info: string }
 
 export async function getTrips(): Promise<Trip[]> {
   try {
@@ -43,7 +47,7 @@ export async function createTrip(trip: Omit<Trip, 'id' | 'created_at' | 'updated
       .insert([{
         title: trip.title,
         date: trip.date,
-        info: trip.info,
+        description: trip.description,
         location: trip.location,
         lat: trip.lat,
         lng: trip.lng,
