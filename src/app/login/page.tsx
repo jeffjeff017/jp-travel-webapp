@@ -1,0 +1,153 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
+import { login, isAuthenticated } from '@/lib/auth'
+import { useLanguage } from '@/lib/i18n'
+
+export default function LoginPage() {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
+  const { t } = useLanguage()
+
+  useEffect(() => {
+    if (isAuthenticated()) {
+      router.push('/admin')
+    }
+  }, [router])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setIsLoading(true)
+
+    try {
+      const success = login(username, password)
+      
+      if (success) {
+        router.push('/admin')
+      } else {
+        setError(t.login.invalidCredentials)
+      }
+    } catch (err) {
+      setError('發生錯誤，請重試')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center px-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md"
+      >
+        {/* Header */}
+        <div className="text-center mb-8">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+            className="w-16 h-16 bg-sakura-100 rounded-2xl flex items-center justify-center mx-auto mb-4"
+          >
+            <span className="text-3xl">🔐</span>
+          </motion.div>
+          <h1 className="text-2xl font-medium text-gray-800">{t.login.title}</h1>
+          <p className="text-gray-500 mt-2">{t.login.subtitle}</p>
+        </div>
+
+        {/* Login Form */}
+        <motion.form
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          onSubmit={handleSubmit}
+          className="bg-white rounded-2xl shadow-xl border border-sakura-100 p-6"
+        >
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm"
+            >
+              {error}
+            </motion.div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label
+                htmlFor="username"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                {t.login.username}
+              </label>
+              <input
+                type="text"
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none transition-all"
+                placeholder="輸入使用者名稱"
+                required
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                {t.login.password}
+              </label>
+              <input
+                type="password"
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none transition-all"
+                placeholder="輸入密碼"
+                required
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full mt-6 py-3 bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+          >
+            {isLoading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                {t.login.signingIn}
+              </>
+            ) : (
+              t.login.signIn
+            )}
+          </button>
+        </motion.form>
+
+        {/* Back Link */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="text-center mt-6"
+        >
+          <a
+            href="/main"
+            className="text-sakura-500 hover:text-sakura-600 text-sm"
+          >
+            {t.login.backToMain}
+          </a>
+        </motion.div>
+      </motion.div>
+    </main>
+  )
+}
