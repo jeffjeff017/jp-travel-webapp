@@ -551,11 +551,7 @@ export default function AdminPage() {
                             {trip.title}
                           </h3>
                           <span className="px-2 py-1 text-xs font-medium text-sakura-600 bg-sakura-50 rounded-full whitespace-nowrap">
-                            📅 {new Date(trip.date).toLocaleDateString('zh-TW', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric'
-                            })}
+                            📅 {new Date(trip.date).toLocaleDateString('zh-TW')}
                           </span>
                         </div>
                         
