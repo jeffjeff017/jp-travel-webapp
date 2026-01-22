@@ -83,7 +83,7 @@ export default function MainPage() {
           <div className="flex items-center gap-3">
             <span className="text-2xl">🌸</span>
             <h1 className="text-xl font-medium text-gray-800">
-              {settings?.title || '日本'} <span className="text-sakura-500">旅遊</span>
+              <span className="text-sakura-500">{settings?.title || '日本旅遊'}</span>
             </h1>
           </div>
           
