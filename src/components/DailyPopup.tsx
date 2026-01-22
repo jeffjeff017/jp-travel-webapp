@@ -8,7 +8,6 @@ const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
 
 export default function DailyPopup() {
   const [isVisible, setIsVisible] = useState(false)
-  const [isManuallyOpened, setIsManuallyOpened] = useState(false)
 
   useEffect(() => {
     const lastShown = localStorage.getItem(POPUP_STORAGE_KEY)
@@ -26,12 +25,10 @@ export default function DailyPopup() {
 
   const handleClose = () => {
     setIsVisible(false)
-    setIsManuallyOpened(false)
   }
 
   const handleOpen = () => {
     setIsVisible(true)
-    setIsManuallyOpened(true)
   }
 
   const travelItems = [
@@ -52,7 +49,7 @@ export default function DailyPopup() {
 
   return (
     <>
-      {/* Floating button to reopen popup */}
+      {/* Floating button - Bottom Right, Bigger Size */}
       <AnimatePresence>
         {!isVisible && (
           <motion.button
@@ -62,11 +59,11 @@ export default function DailyPopup() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={handleOpen}
-            className="fixed bottom-24 right-4 z-30 bg-sakura-500 text-white p-3 rounded-full shadow-lg hover:bg-sakura-600 transition-colors"
+            className="fixed bottom-6 right-6 z-30 bg-sakura-500 text-white p-4 rounded-2xl shadow-lg hover:bg-sakura-600 transition-colors flex items-center gap-2"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
+              className="h-6 w-6"
               viewBox="0 0 20 20"
               fill="currentColor"
             >
@@ -76,6 +73,7 @@ export default function DailyPopup() {
                 clipRule="evenodd"
               />
             </svg>
+            <span className="font-medium text-sm">旅遊須知</span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -88,7 +86,7 @@ export default function DailyPopup() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.9 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed bottom-24 right-4 z-50 w-80 max-w-[calc(100vw-2rem)]"
+            className="fixed bottom-6 right-6 z-50 w-80 max-w-[calc(100vw-3rem)]"
           >
             <div className="bg-white rounded-2xl shadow-xl border border-sakura-100 overflow-hidden">
               {/* Header */}

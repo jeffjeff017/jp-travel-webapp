@@ -9,9 +9,10 @@ const containerStyle = {
   height: '100%',
 }
 
-const defaultCenter = {
+// Tokyo coordinates as default center
+const tokyoCenter = {
   lat: 35.6762,
-  lng: 139.6503, // Tokyo
+  lng: 139.6503,
 }
 
 const mapStyles = [
@@ -53,18 +54,23 @@ export default function GoogleMapComponent({ trips }: GoogleMapComponentProps) {
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    libraries: ['places'],
   })
 
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map)
     
-    // Fit bounds to show all markers
+    // If there are trips, fit bounds to show all markers
+    // Otherwise, focus on Tokyo with zoom level 12
     if (trips.length > 0) {
       const bounds = new google.maps.LatLngBounds()
       trips.forEach((trip) => {
         bounds.extend({ lat: trip.lat, lng: trip.lng })
       })
       map.fitBounds(bounds)
+    } else {
+      map.setCenter(tokyoCenter)
+      map.setZoom(12)
     }
   }, [trips])
 
@@ -77,7 +83,7 @@ export default function GoogleMapComponent({ trips }: GoogleMapComponentProps) {
       <div className="w-full h-full flex items-center justify-center bg-sakura-50">
         <div className="text-center p-4">
           <div className="text-4xl mb-2">🗺️</div>
-          <p className="text-gray-600">Error loading maps</p>
+          <p className="text-gray-600">載入地圖時發生錯誤</p>
         </div>
       </div>
     )
@@ -88,7 +94,7 @@ export default function GoogleMapComponent({ trips }: GoogleMapComponentProps) {
       <div className="w-full h-full flex items-center justify-center bg-sakura-50">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading map...</p>
+          <p className="text-gray-600">載入地圖中...</p>
         </div>
       </div>
     )
@@ -97,8 +103,8 @@ export default function GoogleMapComponent({ trips }: GoogleMapComponentProps) {
   return (
     <GoogleMap
       mapContainerStyle={containerStyle}
-      center={defaultCenter}
-      zoom={6}
+      center={tokyoCenter}
+      zoom={12}
       onLoad={onLoad}
       onUnmount={onUnmount}
       options={{
@@ -139,13 +145,16 @@ export default function GoogleMapComponent({ trips }: GoogleMapComponentProps) {
             </h3>
             <p className="text-sm text-gray-600 mb-2">{selectedTrip.location}</p>
             <p className="text-xs text-gray-500 mb-2">
-              📅 {new Date(selectedTrip.date).toLocaleDateString('en-US', {
+              📅 {new Date(selectedTrip.date).toLocaleDateString('zh-TW', {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',
               })}
             </p>
-            <p className="text-sm text-gray-700">{selectedTrip.info}</p>
+            <div 
+              className="text-sm text-gray-700"
+              dangerouslySetInnerHTML={{ __html: selectedTrip.info }}
+            />
           </div>
         </InfoWindow>
       )}

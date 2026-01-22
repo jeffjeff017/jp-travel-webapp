@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
+import dynamic from 'next/dynamic'
 import { logout, isAuthenticated } from '@/lib/auth'
 import {
   getTrips,
@@ -14,13 +15,23 @@ import {
 import { useLanguage } from '@/lib/i18n'
 import LanguageSwitch from '@/components/LanguageSwitch'
 
+// Dynamic import for PlacePicker (client-only)
+const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-4 text-center">
+      <div className="w-8 h-8 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin mx-auto" />
+    </div>
+  ),
+})
+
 type FormData = {
   title: string
   date: string
   info: string
   location: string
-  lat: string
-  lng: string
+  lat: number
+  lng: number
 }
 
 const initialFormData: FormData = {
@@ -28,8 +39,8 @@ const initialFormData: FormData = {
   date: '',
   info: '',
   location: '',
-  lat: '',
-  lng: '',
+  lat: 35.6762,
+  lng: 139.6503,
 }
 
 export default function AdminPage() {
@@ -37,6 +48,7 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [showPlacePicker, setShowPlacePicker] = useState(false)
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null)
   const [formData, setFormData] = useState<FormData>(initialFormData)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -79,6 +91,17 @@ export default function AdminPage() {
     setFormData(initialFormData)
     setEditingTrip(null)
     setShowForm(false)
+    setShowPlacePicker(false)
+  }
+
+  const handlePlaceSelect = (place: { location: string; lat: number; lng: number }) => {
+    setFormData((prev) => ({
+      ...prev,
+      location: place.location,
+      lat: place.lat,
+      lng: place.lng,
+    }))
+    setShowPlacePicker(false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -92,31 +115,31 @@ export default function AdminPage() {
         date: formData.date,
         info: formData.info,
         location: formData.location,
-        lat: parseFloat(formData.lat),
-        lng: parseFloat(formData.lng),
+        lat: formData.lat,
+        lng: formData.lng,
       }
 
       if (editingTrip) {
-        const updated = await updateTrip(editingTrip.id, tripData)
-        if (updated) {
+        const { data, error } = await updateTrip(editingTrip.id, tripData)
+        if (data) {
           setMessage({ type: 'success', text: '行程更新成功！' })
           await fetchTrips()
           resetForm()
         } else {
-          setMessage({ type: 'error', text: '更新行程失敗' })
+          setMessage({ type: 'error', text: error || '更新行程失敗' })
         }
       } else {
-        const created = await createTrip(tripData)
-        if (created) {
+        const { data, error } = await createTrip(tripData)
+        if (data) {
           setMessage({ type: 'success', text: '行程建立成功！' })
           await fetchTrips()
           resetForm()
         } else {
-          setMessage({ type: 'error', text: '建立行程失敗' })
+          setMessage({ type: 'error', text: error || '建立行程失敗' })
         }
       }
-    } catch (err) {
-      setMessage({ type: 'error', text: '發生錯誤' })
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || '發生錯誤' })
     } finally {
       setIsSubmitting(false)
     }
@@ -129,8 +152,8 @@ export default function AdminPage() {
       date: trip.date,
       info: trip.info,
       location: trip.location,
-      lat: trip.lat.toString(),
-      lng: trip.lng.toString(),
+      lat: trip.lat,
+      lng: trip.lng,
     })
     setShowForm(true)
   }
@@ -139,15 +162,15 @@ export default function AdminPage() {
     if (!confirm(t.admin.confirmDelete)) return
 
     try {
-      const success = await deleteTrip(id)
+      const { success, error } = await deleteTrip(id)
       if (success) {
         setMessage({ type: 'success', text: '行程已刪除！' })
         await fetchTrips()
       } else {
-        setMessage({ type: 'error', text: '刪除行程失敗' })
+        setMessage({ type: 'error', text: error || '刪除行程失敗' })
       }
-    } catch (err) {
-      setMessage({ type: 'error', text: '發生錯誤' })
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || '發生錯誤' })
     }
   }
 
@@ -161,7 +184,6 @@ export default function AdminPage() {
             <h1 className="text-xl font-medium text-gray-800">{t.admin.dashboard}</h1>
           </div>
           <div className="flex items-center gap-4">
-            {/* Language Switch - Only visible in admin */}
             <LanguageSwitch />
             <a
               href="/main"
@@ -230,7 +252,7 @@ export default function AdminPage() {
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
               >
                 <div className="p-6 border-b border-gray-100">
                   <h3 className="text-lg font-medium text-gray-800">
@@ -238,123 +260,133 @@ export default function AdminPage() {
                   </h3>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t.admin.title} *
-                    </label>
-                    <input
-                      type="text"
-                      name="title"
-                      value={formData.title}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
-                      required
+                {showPlacePicker ? (
+                  <div className="p-6">
+                    <PlacePicker
+                      value={{
+                        location: formData.location,
+                        lat: formData.lat,
+                        lng: formData.lng,
+                      }}
+                      onChange={handlePlaceSelect}
+                      onClose={() => setShowPlacePicker(false)}
                     />
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t.admin.date} *
-                    </label>
-                    <input
-                      type="date"
-                      name="date"
-                      value={formData.date}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t.admin.location} *
-                    </label>
-                    <input
-                      type="text"
-                      name="location"
-                      value={formData.location}
-                      onChange={handleInputChange}
-                      placeholder="例如：東京, 日本"
-                      className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
+                ) : (
+                  <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {t.admin.latitude} *
+                        {t.admin.title} *
                       </label>
                       <input
-                        type="number"
-                        name="lat"
-                        value={formData.lat}
+                        type="text"
+                        name="title"
+                        value={formData.title}
                         onChange={handleInputChange}
-                        step="any"
-                        placeholder="35.6762"
                         className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
                         required
                       />
                     </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {t.admin.longitude} *
+                        {t.admin.date} *
                       </label>
                       <input
-                        type="number"
-                        name="lng"
-                        value={formData.lng}
+                        type="date"
+                        name="date"
+                        value={formData.date}
                         onChange={handleInputChange}
-                        step="any"
-                        placeholder="139.6503"
                         className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
                         required
                       />
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t.admin.description} *
-                    </label>
-                    <textarea
-                      name="info"
-                      value={formData.info}
-                      onChange={handleInputChange}
-                      rows={3}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none resize-none"
-                      required
-                    />
-                  </div>
-
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={resetForm}
-                      className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      {t.admin.cancel}
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="flex-1 py-2 bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          處理中...
-                        </>
-                      ) : editingTrip ? (
-                        t.admin.update
-                      ) : (
-                        t.admin.create
+                    {/* Location with Place Picker */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {t.admin.location} *
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={formData.location}
+                          readOnly
+                          placeholder="點擊選擇地點..."
+                          className="flex-1 px-4 py-2 rounded-lg border border-gray-200 bg-gray-50 cursor-pointer"
+                          onClick={() => setShowPlacePicker(true)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPlacePicker(true)}
+                          className="px-4 py-2 bg-sakura-100 hover:bg-sakura-200 text-sakura-700 rounded-lg transition-colors flex items-center gap-2"
+                        >
+                          <span>📍</span> 選擇地點
+                        </button>
+                      </div>
+                      {formData.location && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          座標：{formData.lat.toFixed(4)}, {formData.lng.toFixed(4)}
+                        </p>
                       )}
-                    </button>
-                  </div>
-                </form>
+                    </div>
+
+                    {/* Description - HTML Textarea */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {t.admin.description} *
+                      </label>
+                      <p className="text-xs text-gray-500 mb-2">
+                        支援 HTML 格式：&lt;a href=&quot;...&quot;&gt;連結&lt;/a&gt;、&lt;ul&gt;&lt;li&gt;列表&lt;/li&gt;&lt;/ul&gt;、&lt;b&gt;粗體&lt;/b&gt; 等
+                      </p>
+                      <textarea
+                        name="info"
+                        value={formData.info}
+                        onChange={handleInputChange}
+                        rows={6}
+                        placeholder="輸入描述內容，支援 HTML 格式..."
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none resize-none font-mono text-sm"
+                        required
+                      />
+                      {/* Preview */}
+                      {formData.info && (
+                        <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <p className="text-xs text-gray-500 mb-1">預覽：</p>
+                          <div
+                            className="text-sm text-gray-700 prose prose-sm max-w-none"
+                            dangerouslySetInnerHTML={{ __html: formData.info }}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={resetForm}
+                        className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        {t.admin.cancel}
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmitting || !formData.location}
+                        className="flex-1 py-2 bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            處理中...
+                          </>
+                        ) : editingTrip ? (
+                          t.admin.update
+                        ) : (
+                          t.admin.create
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                )}
               </motion.div>
             </motion.div>
           )}
@@ -390,9 +422,6 @@ export default function AdminPage() {
                     <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t.admin.date}
                     </th>
-                    <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      座標
-                    </th>
                     <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                       操作
                     </th>
@@ -405,18 +434,16 @@ export default function AdminPage() {
                         <div className="font-medium text-gray-800">
                           {trip.title}
                         </div>
-                        <div className="text-sm text-gray-500 truncate max-w-xs">
-                          {trip.info}
-                        </div>
+                        <div 
+                          className="text-sm text-gray-500 truncate max-w-xs"
+                          dangerouslySetInnerHTML={{ __html: trip.info.substring(0, 100) }}
+                        />
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {trip.location}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {new Date(trip.date).toLocaleDateString('zh-TW')}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {trip.lat.toFixed(4)}, {trip.lng.toFixed(4)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">

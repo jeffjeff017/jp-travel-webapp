@@ -11,12 +11,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isChecking, setIsChecking] = useState(true)
   const router = useRouter()
   const { t } = useLanguage()
 
   useEffect(() => {
+    // Check if already authenticated and redirect to admin
     if (isAuthenticated()) {
-      router.push('/admin')
+      router.replace('/admin')
+    } else {
+      setIsChecking(false)
     }
   }, [router])
 
@@ -29,7 +33,7 @@ export default function LoginPage() {
       const success = login(username, password)
       
       if (success) {
-        router.push('/admin')
+        router.replace('/admin')
       } else {
         setError(t.login.invalidCredentials)
       }
@@ -38,6 +42,15 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Show loading while checking auth
+  if (isChecking) {
+    return (
+      <main className="min-h-screen bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
+      </main>
+    )
   }
 
   return (

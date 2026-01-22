@@ -144,9 +144,10 @@ export default function MainPage() {
                         })}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600 mt-2 line-clamp-2">
-                      {trip.info}
-                    </p>
+                    <div 
+                      className="text-sm text-gray-600 mt-2 line-clamp-2"
+                      dangerouslySetInnerHTML={{ __html: trip.info }}
+                    />
                   </motion.div>
                 ))}
               </div>
@@ -168,7 +169,7 @@ export default function MainPage() {
       {/* Usagi Widget - Bottom Left */}
       {!isCleanMode && <UsagiWidget />}
 
-      {/* Daily Popup */}
+      {/* Daily Popup - Bottom Right */}
       <DailyPopup />
     </main>
   )
