@@ -47,13 +47,18 @@ const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), {
   ),
 })
 
+// Schedule item type for point-form list
+type ScheduleItem = {
+  id: string
+  time_start: string
+  time_end: string
+  content: string
+}
+
 // Form data type
 type TripFormData = {
   title: string
   date: string
-  time_start: string
-  time_end: string
-  description: string
   location: string
   lat: number
   lng: number
@@ -63,14 +68,18 @@ type TripFormData = {
 const initialFormData: TripFormData = {
   title: '',
   date: '',
-  time_start: '',
-  time_end: '',
-  description: '',
   location: '',
   lat: 35.6762,
   lng: 139.6503,
   image_url: '',
 }
+
+const createEmptyScheduleItem = (): ScheduleItem => ({
+  id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+  time_start: '',
+  time_end: '',
+  content: '',
+})
 
 // Pixel Heart Icon Component
 const PixelHeart = () => (
@@ -126,6 +135,7 @@ export default function MainPage() {
   const [showPlacePicker, setShowPlacePicker] = useState(false)
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null)
   const [formData, setFormData] = useState<TripFormData>(initialFormData)
+  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([createEmptyScheduleItem()])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formMessage, setFormMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   
@@ -200,6 +210,32 @@ export default function MainPage() {
     )
   }
 
+  // Parse schedule items from description JSON
+  const parseScheduleItems = (description: string): ScheduleItem[] => {
+    try {
+      const parsed = JSON.parse(description)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((item: any) => ({
+          id: item.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          time_start: item.time_start || '',
+          time_end: item.time_end || '',
+          content: item.content || '',
+        }))
+      }
+    } catch {
+      // If not JSON, treat as legacy plain text/HTML
+      if (description && description.trim()) {
+        return [{
+          id: Date.now().toString(),
+          time_start: '',
+          time_end: '',
+          content: description.replace(/<[^>]*>/g, ''), // Strip HTML tags
+        }]
+      }
+    }
+    return [createEmptyScheduleItem()]
+  }
+
   // Open form to add new trip
   const openAddForm = () => {
     // Set default date to selected day
@@ -212,6 +248,7 @@ export default function MainPage() {
     }
     
     setFormData({ ...initialFormData, date: defaultDate })
+    setScheduleItems([createEmptyScheduleItem()])
     setEditingTrip(null)
     setShowTripForm(true)
     setFormMessage(null)
@@ -223,14 +260,12 @@ export default function MainPage() {
     setFormData({
       title: trip.title,
       date: trip.date,
-      time_start: trip.time_start || '',
-      time_end: trip.time_end || '',
-      description: trip.description,
       location: trip.location,
       lat: trip.lat,
       lng: trip.lng,
       image_url: trip.image_url || '',
     })
+    setScheduleItems(parseScheduleItems(trip.description))
     setEditingTrip(trip)
     setShowTripForm(true)
     setFormMessage(null)
@@ -259,6 +294,7 @@ export default function MainPage() {
     setShowPlacePicker(false)
     setEditingTrip(null)
     setFormData(initialFormData)
+    setScheduleItems([createEmptyScheduleItem()])
     setFormMessage(null)
   }
 
@@ -280,12 +316,21 @@ export default function MainPage() {
     setFormMessage(null)
 
     try {
+      // Filter out empty schedule items and convert to JSON
+      const validScheduleItems = scheduleItems.filter(item => 
+        item.content.trim() || item.time_start || item.time_end
+      )
+      const descriptionJson = JSON.stringify(validScheduleItems)
+      
+      // Get first schedule item's time for sorting purposes
+      const firstItem = validScheduleItems[0]
+      
       const tripData = {
         title: formData.title,
         date: formData.date,
-        time_start: formData.time_start || undefined,
-        time_end: formData.time_end || undefined,
-        description: formData.description,
+        time_start: firstItem?.time_start || undefined,
+        time_end: firstItem?.time_end || undefined,
+        description: descriptionJson,
         location: formData.location,
         lat: formData.lat,
         lng: formData.lng,
@@ -771,7 +816,7 @@ export default function MainPage() {
                         )}
                       </div>
                       
-                      {/* Section 3: Description - Expandable */}
+                      {/* Section 3: Schedule Items - Expandable */}
                       <AnimatePresence>
                         {trip.description && expandedTrips.includes(trip.id) && (
                           <motion.div
@@ -781,10 +826,33 @@ export default function MainPage() {
                             transition={{ duration: 0.2 }}
                             className="overflow-hidden"
                           >
-                            <div 
-                              className="text-sm text-gray-500 bg-white border border-gray-100 rounded-lg px-3 py-2"
-                              dangerouslySetInnerHTML={{ __html: trip.description }}
-                            />
+                            <div className="bg-white border border-gray-100 rounded-lg p-3 space-y-2">
+                              {(() => {
+                                try {
+                                  const items = JSON.parse(trip.description)
+                                  if (Array.isArray(items)) {
+                                    return items.map((item: any, idx: number) => (
+                                      <div key={idx} className="flex items-start gap-2 text-sm">
+                                        {(item.time_start || item.time_end) && (
+                                          <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded whitespace-nowrap">
+                                            {item.time_start}{item.time_end ? ` - ${item.time_end}` : ''}
+                                          </span>
+                                        )}
+                                        <span className="text-gray-600">{item.content}</span>
+                                      </div>
+                                    ))
+                                  }
+                                } catch {
+                                  // Legacy: render as HTML if not JSON
+                                  return (
+                                    <div 
+                                      className="text-sm text-gray-500"
+                                      dangerouslySetInnerHTML={{ __html: trip.description }}
+                                    />
+                                  )
+                                }
+                              })()}
+                            </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -1008,30 +1076,6 @@ export default function MainPage() {
                     />
                   </div>
 
-                  {/* Time Range */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      時間（選填）
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="time"
-                        value={formData.time_start}
-                        onChange={(e) => setFormData(prev => ({ ...prev, time_start: e.target.value }))}
-                        className="flex-1 px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
-                        placeholder="開始時間"
-                      />
-                      <span className="text-gray-400">至</span>
-                      <input
-                        type="time"
-                        value={formData.time_end}
-                        onChange={(e) => setFormData(prev => ({ ...prev, time_end: e.target.value }))}
-                        className="flex-1 px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
-                        placeholder="結束時間"
-                      />
-                    </div>
-                  </div>
-
                   {/* Location */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1063,16 +1107,79 @@ export default function MainPage() {
                     onChange={(url) => setFormData(prev => ({ ...prev, image_url: url }))}
                   />
 
-                  {/* Description */}
+                  {/* Schedule Items - Point Form List */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      描述
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      行程明細
                     </label>
-                    <RichTextEditor
-                      value={formData.description}
-                      onChange={(value) => setFormData(prev => ({ ...prev, description: value }))}
-                      placeholder="輸入描述..."
-                    />
+                    <div className="space-y-3">
+                      {scheduleItems.map((item, index) => (
+                        <div key={item.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-medium text-gray-500 bg-white px-2 py-0.5 rounded">
+                              #{index + 1}
+                            </span>
+                            {/* Time Range for this item */}
+                            <input
+                              type="time"
+                              value={item.time_start}
+                              onChange={(e) => {
+                                const newItems = [...scheduleItems]
+                                newItems[index].time_start = e.target.value
+                                setScheduleItems(newItems)
+                              }}
+                              className="px-2 py-1 text-sm rounded border border-gray-200 focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none w-24"
+                              placeholder="開始"
+                            />
+                            <span className="text-gray-400 text-sm">至</span>
+                            <input
+                              type="time"
+                              value={item.time_end}
+                              onChange={(e) => {
+                                const newItems = [...scheduleItems]
+                                newItems[index].time_end = e.target.value
+                                setScheduleItems(newItems)
+                              }}
+                              className="px-2 py-1 text-sm rounded border border-gray-200 focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none w-24"
+                              placeholder="結束"
+                            />
+                            {/* Delete button (only show if more than 1 item) */}
+                            {scheduleItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setScheduleItems(scheduleItems.filter((_, i) => i !== index))
+                                }}
+                                className="ml-auto text-red-400 hover:text-red-600 transition-colors p-1"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                          {/* Content */}
+                          <input
+                            type="text"
+                            value={item.content}
+                            onChange={(e) => {
+                              const newItems = [...scheduleItems]
+                              newItems[index].content = e.target.value
+                              setScheduleItems(newItems)
+                            }}
+                            placeholder="輸入內容..."
+                            className="w-full px-3 py-2 rounded border border-gray-200 focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none text-sm"
+                          />
+                        </div>
+                      ))}
+                      {/* Add Item Button */}
+                      <button
+                        type="button"
+                        onClick={() => setScheduleItems([...scheduleItems, createEmptyScheduleItem()])}
+                        className="w-full py-2 border-2 border-dashed border-gray-300 hover:border-sakura-400 text-gray-500 hover:text-sakura-600 rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        <span className="text-lg">+</span>
+                        <span className="text-sm">新增項目</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Submit Buttons */}
