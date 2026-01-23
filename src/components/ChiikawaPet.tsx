@@ -15,13 +15,23 @@ const CHARACTER_IMAGES = [
   '/images/chii-pet.png',
 ]
 
-// Speech bubble messages (randomly selected on click)
-const SPEECH_MESSAGES = [
-  '呀哈！ヤハ！',
-  '噗嚕嚕嚕嚕！プルルルル！',
-  '嗚拉！ウラ！',
-  '哈？ハァ？',
-]
+// Character-specific messages
+const MESSAGES_BY_CHARACTER: Record<string, string[]> = {
+  '/images/chii-pet.png': [
+    'ウンッ！嗯！',
+    'ワッ！ワッ！哇！哇！',
+  ],
+  '/images/hachiware-pet.png': [
+    'チャリメラ〜 查露麵拉～',
+    'わははは！おかしいね！哇哈哈哈！太有趣了吧！',
+  ],
+  '/images/chiikawa-pet.png': [
+    '呀哈！ヤハ！',
+    '噗嚕嚕嚕嚕！プルルルル！',
+    '嗚拉！ウラ！',
+    '哈？ハァ？',
+  ],
+}
 
 export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
   const [isClicked, setIsClicked] = useState(false)
@@ -35,10 +45,11 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
     setCharacterImage(CHARACTER_IMAGES[randomIndex])
   }, [])
 
-  // Random speech message on click
+  // Random speech message on click based on current character
   const getRandomMessage = useCallback(() => {
-    return SPEECH_MESSAGES[Math.floor(Math.random() * SPEECH_MESSAGES.length)]
-  }, [])
+    const messages = MESSAGES_BY_CHARACTER[characterImage] || MESSAGES_BY_CHARACTER['/images/chiikawa-pet.png']
+    return messages[Math.floor(Math.random() * messages.length)]
+  }, [characterImage])
 
   // Handle click interaction
   const handleClick = useCallback(() => {
@@ -140,29 +151,26 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
     },
   }
 
-  // Check if current character is usagi (only usagi can speak)
-  const isUsagi = characterImage === '/images/chiikawa-pet.png'
-
   return (
     <div 
-      className="fixed bottom-20 right-4 md:bottom-6 md:left-6 md:right-auto z-50 cursor-pointer select-none w-16 h-16 md:w-20 md:h-20"
+      className="fixed bottom-20 right-4 md:bottom-6 md:left-6 md:right-auto z-50 cursor-pointer select-none w-16 h-16 md:w-20 md:h-20 flex flex-col items-center justify-center"
       onClick={handleClick}
     >
-      {/* Speech Bubble - positioned above character, stays upright and centered */}
+      {/* Speech Bubble - positioned precisely above character container, NOT affected by floating/rotation */}
       <AnimatePresence>
-        {isClicked && speechMessage && isUsagi && (
+        {isClicked && speechMessage && (
           <motion.div
             variants={speechBubbleVariants}
             initial="initial"
             animate="animate"
             exit="exit"
-            className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 w-max"
+            className="absolute bottom-[105%] left-1/2 -translate-x-1/2 whitespace-nowrap z-10 w-max"
           >
-            <div className="relative bg-white px-3 py-1.5 rounded-xl shadow-lg border-2 border-pink-200">
+            <div className="relative bg-white px-3 py-1.5 rounded-xl shadow-lg border-2 border-pink-200 flex flex-col items-center">
               <span className="text-xs font-bold text-pink-500 text-center block whitespace-nowrap">
                 {speechMessage}
               </span>
-              {/* Speech bubble tail - pointing down, precisely centered */}
+              {/* Speech bubble tail - pointing down */}
               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 
                 border-l-[6px] border-l-transparent 
                 border-r-[6px] border-r-transparent 
@@ -178,13 +186,13 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
       <motion.div
         variants={floatingVariants}
         animate="animate"
-        className="relative w-full h-full"
+        className="relative w-full h-full flex items-center justify-center"
       >
         <motion.div
           variants={isHappyBounce ? happyBounceVariants : clickVariants}
           initial="initial"
           animate={isHappyBounce ? 'bounce' : isClicked ? 'clicked' : 'initial'}
-          className="relative w-full h-full"
+          className="relative w-full h-full flex items-center justify-center"
         >
             {/* Glow effect on click */}
             <AnimatePresence>
