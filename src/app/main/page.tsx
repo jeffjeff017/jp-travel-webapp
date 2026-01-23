@@ -174,13 +174,13 @@ export default function MainPage() {
 
   useEffect(() => {
     async function initializeData() {
+      // Load settings first to avoid flickering
+      let loadedSettings = getSettings()
+      setSettings(loadedSettings)
+      
       try {
-        // Fetch trips first
+        // Fetch trips
         const data = await getTrips()
-        setTrips(data)
-        
-        // Load settings
-        let loadedSettings = getSettings()
         
         // Auto-sync tripStartDate from actual trip data
         // This ensures all browsers show the same dates based on actual trips
@@ -193,24 +193,28 @@ export default function MainPage() {
           const daysDiff = Math.ceil((latestDate.getTime() - earliestDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
           const syncedStartDate = earliestDate.toISOString().split('T')[0]
           
-          // Update settings if different
+          // Only update settings if dates don't match (to sync across browsers)
           if (loadedSettings.tripStartDate !== syncedStartDate || loadedSettings.totalDays < daysDiff) {
+            const newDaySchedules = [...loadedSettings.daySchedules]
+            while (newDaySchedules.length < Math.max(loadedSettings.totalDays, daysDiff)) {
+              newDaySchedules.push({
+                dayNumber: newDaySchedules.length + 1,
+                theme: `Day ${newDaySchedules.length + 1}`
+              })
+            }
+            
             loadedSettings = {
               ...loadedSettings,
               tripStartDate: syncedStartDate,
               totalDays: Math.max(loadedSettings.totalDays, daysDiff),
-            }
-            // Update daySchedules if needed
-            while (loadedSettings.daySchedules.length < loadedSettings.totalDays) {
-              loadedSettings.daySchedules.push({
-                dayNumber: loadedSettings.daySchedules.length + 1,
-                theme: `Day ${loadedSettings.daySchedules.length + 1}`
-              })
+              daySchedules: newDaySchedules,
             }
             saveSettings(loadedSettings)
           }
         }
         
+        // Set everything at once to minimize re-renders
+        setTrips(data)
         setSettings(loadedSettings)
         
         // Auto-select current day based on trip start date
@@ -226,8 +230,6 @@ export default function MainPage() {
       } catch (err) {
         console.error('Failed to fetch trips:', err)
         setError('載入行程失敗')
-        // Still load settings even if trips fail
-        setSettings(getSettings())
       } finally {
         setIsLoading(false)
       }
@@ -235,7 +237,7 @@ export default function MainPage() {
 
     initializeData()
     
-    // Refresh trips periodically
+    // Refresh trips periodically (without syncing settings to avoid flickering)
     const interval = setInterval(async () => {
       try {
         const data = await getTrips()

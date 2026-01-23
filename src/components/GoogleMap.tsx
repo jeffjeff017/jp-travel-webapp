@@ -448,15 +448,28 @@ export default function GoogleMapComponent({
             }}
           >
             <div style={{ width: '250px', overflow: 'hidden' }}>
-              {/* Trip Image */}
-              {selectedTrip.image_url && (
-                <img 
-                  src={selectedTrip.image_url} 
-                  alt={selectedTrip.title}
-                  className="w-full object-cover rounded-t"
-                  style={{ height: '120px' }}
-                />
-              )}
+              {/* Trip Image - Parse JSON array or single URL */}
+              {(() => {
+                let imageUrl = ''
+                if (selectedTrip.image_url) {
+                  try {
+                    const parsed = JSON.parse(selectedTrip.image_url)
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                      imageUrl = parsed[0]
+                    }
+                  } catch {
+                    imageUrl = selectedTrip.image_url
+                  }
+                }
+                return imageUrl ? (
+                  <img 
+                    src={imageUrl} 
+                    alt={selectedTrip.title}
+                    className="w-full object-cover rounded-t"
+                    style={{ height: '120px' }}
+                  />
+                ) : null
+              })()}
               <div className="p-3">
                 <h3 className="font-bold text-base text-sakura-700 mb-1">
                   {selectedTrip.title}
@@ -469,10 +482,27 @@ export default function GoogleMapComponent({
                     day: 'numeric',
                   })}
                 </p>
-                <div 
-                  className="text-sm text-gray-700 line-clamp-2"
-                  dangerouslySetInnerHTML={{ __html: selectedTrip.description || '' }}
-                />
+                {/* Description - Parse JSON schedule items or show plain text */}
+                <div className="text-sm text-gray-700 line-clamp-3">
+                  {(() => {
+                    if (!selectedTrip.description) return null
+                    try {
+                      const items = JSON.parse(selectedTrip.description)
+                      if (Array.isArray(items) && items.length > 0) {
+                        return items.slice(0, 2).map((item: any, idx: number) => (
+                          <div key={idx} className="text-xs mb-1">
+                            {item.time_start && <span className="text-blue-600">{item.time_start} </span>}
+                            <span>{item.content}</span>
+                          </div>
+                        ))
+                      }
+                    } catch {
+                      // Legacy: plain text or HTML
+                      return <span dangerouslySetInnerHTML={{ __html: selectedTrip.description }} />
+                    }
+                    return null
+                  })()}
+                </div>
                 
                 {/* Navigation Section */}
                 {homeLocation && (
