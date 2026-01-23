@@ -317,7 +317,18 @@ export default function MainPage() {
     setFormMessage(null)
   }
 
-  // Close form
+  // Close form without reverting (used after successful submission)
+  const closeFormSimple = () => {
+    setShowTripForm(false)
+    setShowPlacePicker(false)
+    setEditingTrip(null)
+    setFormData(initialFormData)
+    setScheduleItems([createEmptyScheduleItem()])
+    setFormMessage(null)
+    setPendingNewDay(null)
+  }
+
+  // Close form (may revert pending new day if cancelled)
   const closeForm = () => {
     // If there's a pending new day and we're closing without submitting, cancel the new day
     if (pendingNewDay && settings) {
@@ -336,12 +347,7 @@ export default function MainPage() {
       setPendingNewDay(null)
     }
     
-    setShowTripForm(false)
-    setShowPlacePicker(false)
-    setEditingTrip(null)
-    setFormData(initialFormData)
-    setScheduleItems([createEmptyScheduleItem()])
-    setFormMessage(null)
+    closeFormSimple()
   }
 
   // Handle place selection
@@ -388,9 +394,8 @@ export default function MainPage() {
         if (data) {
           setFormMessage({ type: 'success', text: '行程已更新！' })
           await fetchTrips()
-          // Clear pending new day before closing (so it doesn't get cancelled)
-          setPendingNewDay(null)
-          setTimeout(closeForm, 1000)
+          // Use closeFormSimple to avoid reverting day settings
+          setTimeout(closeFormSimple, 1000)
         } else {
           setFormMessage({ type: 'error', text: error || '更新失敗' })
         }
@@ -399,9 +404,8 @@ export default function MainPage() {
         if (data) {
           setFormMessage({ type: 'success', text: '行程已新增！' })
           await fetchTrips()
-          // Clear pending new day before closing (so it doesn't get cancelled)
-          setPendingNewDay(null)
-          setTimeout(closeForm, 1000)
+          // Use closeFormSimple to avoid reverting day settings
+          setTimeout(closeFormSimple, 1000)
         } else {
           setFormMessage({ type: 'error', text: error || '新增失敗' })
         }
