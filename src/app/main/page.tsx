@@ -173,35 +173,78 @@ export default function MainPage() {
   }, [])
 
   useEffect(() => {
-    // Load settings
-    const loadedSettings = getSettings()
-    setSettings(loadedSettings)
-    
-    // Auto-select current day based on trip start date
-    if (loadedSettings.tripStartDate) {
-      const startDate = new Date(loadedSettings.tripStartDate)
-      const today = new Date()
-      const diffTime = today.getTime() - startDate.getTime()
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
-      if (diffDays >= 1 && diffDays <= loadedSettings.totalDays) {
-        setSelectedDay(diffDays)
-      }
-    }
-
-    async function fetchTrips() {
+    async function initializeData() {
       try {
+        // Fetch trips first
         const data = await getTrips()
         setTrips(data)
+        
+        // Load settings
+        let loadedSettings = getSettings()
+        
+        // Auto-sync tripStartDate from actual trip data
+        // This ensures all browsers show the same dates based on actual trips
+        if (data.length > 0) {
+          const tripDates = data.map(t => new Date(t.date).getTime())
+          const earliestDate = new Date(Math.min(...tripDates))
+          const latestDate = new Date(Math.max(...tripDates))
+          
+          // Calculate total days needed
+          const daysDiff = Math.ceil((latestDate.getTime() - earliestDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+          const syncedStartDate = earliestDate.toISOString().split('T')[0]
+          
+          // Update settings if different
+          if (loadedSettings.tripStartDate !== syncedStartDate || loadedSettings.totalDays < daysDiff) {
+            loadedSettings = {
+              ...loadedSettings,
+              tripStartDate: syncedStartDate,
+              totalDays: Math.max(loadedSettings.totalDays, daysDiff),
+            }
+            // Update daySchedules if needed
+            while (loadedSettings.daySchedules.length < loadedSettings.totalDays) {
+              loadedSettings.daySchedules.push({
+                dayNumber: loadedSettings.daySchedules.length + 1,
+                theme: `Day ${loadedSettings.daySchedules.length + 1}`
+              })
+            }
+            saveSettings(loadedSettings)
+          }
+        }
+        
+        setSettings(loadedSettings)
+        
+        // Auto-select current day based on trip start date
+        if (loadedSettings.tripStartDate) {
+          const startDate = new Date(loadedSettings.tripStartDate)
+          const today = new Date()
+          const diffTime = today.getTime() - startDate.getTime()
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
+          if (diffDays >= 1 && diffDays <= loadedSettings.totalDays) {
+            setSelectedDay(diffDays)
+          }
+        }
       } catch (err) {
         console.error('Failed to fetch trips:', err)
         setError('載入行程失敗')
+        // Still load settings even if trips fail
+        setSettings(getSettings())
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchTrips()
-    const interval = setInterval(fetchTrips, 30000)
+    initializeData()
+    
+    // Refresh trips periodically
+    const interval = setInterval(async () => {
+      try {
+        const data = await getTrips()
+        setTrips(data)
+      } catch (err) {
+        console.error('Failed to refresh trips:', err)
+      }
+    }, 30000)
+    
     return () => clearInterval(interval)
   }, [])
 
