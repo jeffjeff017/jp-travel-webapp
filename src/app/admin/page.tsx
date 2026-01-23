@@ -16,6 +16,7 @@ import { getSettings, saveSettings, type SiteSettings } from '@/lib/settings'
 import { useLanguage } from '@/lib/i18n'
 import LanguageSwitch from '@/components/LanguageSwitch'
 import MediaUpload from '@/components/MediaUpload'
+import MultiMediaUpload from '@/components/MultiMediaUpload'
 
 const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
   ssr: false,
@@ -26,33 +27,76 @@ const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
   ),
 })
 
-const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), {
-  ssr: false,
-  loading: () => (
-    <div className="h-40 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center">
-      <div className="w-6 h-6 border-2 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
-    </div>
-  ),
-})
+// Schedule item type
+type ScheduleItem = {
+  id: string
+  time_start: string
+  time_end: string
+  content: string
+}
 
 type FormData = {
   title: string
   date: string
-  description: string
   location: string
   lat: number
   lng: number
-  image_url: string
+  images: string[]
+  scheduleItems: ScheduleItem[]
 }
+
+const createEmptyScheduleItem = (): ScheduleItem => ({
+  id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+  time_start: '',
+  time_end: '',
+  content: ''
+})
 
 const initialFormData: FormData = {
   title: '',
   date: '',
-  description: '',
   location: '',
   lat: 35.6762,
   lng: 139.6503,
-  image_url: '',
+  images: [],
+  scheduleItems: [createEmptyScheduleItem()]
+}
+
+// Helper to parse images from image_url field
+const parseImages = (imageUrl: string | undefined): string[] => {
+  if (!imageUrl) return []
+  try {
+    const parsed = JSON.parse(imageUrl)
+    if (Array.isArray(parsed)) return parsed
+  } catch {
+    if (imageUrl.trim()) return [imageUrl]
+  }
+  return []
+}
+
+// Helper to parse schedule items from description field
+const parseScheduleItems = (description: string | undefined): ScheduleItem[] => {
+  if (!description) return [createEmptyScheduleItem()]
+  try {
+    const parsed = JSON.parse(description)
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((item: any) => ({
+        id: item.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        time_start: item.time_start || '',
+        time_end: item.time_end || '',
+        content: item.content || ''
+      }))
+    }
+  } catch {
+    // Legacy: plain text - convert to single item
+    return [{
+      id: Date.now().toString(),
+      time_start: '',
+      time_end: '',
+      content: description
+    }]
+  }
+  return [createEmptyScheduleItem()]
 }
 
 export default function AdminPage() {
@@ -142,14 +186,25 @@ export default function AdminPage() {
     setMessage(null)
 
     try {
+      // Filter out empty schedule items and convert to JSON
+      const validScheduleItems = formData.scheduleItems.filter(item => 
+        item.content.trim() || item.time_start || item.time_end
+      )
+      const descriptionJson = JSON.stringify(validScheduleItems)
+      
+      // Get first schedule item's time for sorting purposes
+      const firstItem = validScheduleItems[0]
+      
       const tripData = {
         title: formData.title,
         date: formData.date,
-        description: formData.description,
+        description: descriptionJson,
         location: formData.location,
         lat: formData.lat,
         lng: formData.lng,
-        image_url: formData.image_url || undefined,
+        image_url: formData.images.length > 0 ? JSON.stringify(formData.images) : undefined,
+        time_start: firstItem?.time_start || undefined,
+        time_end: firstItem?.time_end || undefined,
       }
 
       if (editingTrip) {
@@ -183,13 +238,36 @@ export default function AdminPage() {
     setFormData({
       title: trip.title,
       date: trip.date,
-      description: trip.description,
       location: trip.location,
       lat: trip.lat,
       lng: trip.lng,
-      image_url: trip.image_url || '',
+      images: parseImages(trip.image_url),
+      scheduleItems: parseScheduleItems(trip.description),
     })
     setShowForm(true)
+  }
+
+  const addScheduleItem = () => {
+    setFormData(prev => ({
+      ...prev,
+      scheduleItems: [...prev.scheduleItems, createEmptyScheduleItem()]
+    }))
+  }
+
+  const removeScheduleItem = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      scheduleItems: prev.scheduleItems.filter(item => item.id !== id)
+    }))
+  }
+
+  const updateScheduleItem = (id: string, field: keyof ScheduleItem, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      scheduleItems: prev.scheduleItems.map(item =>
+        item.id === id ? { ...item, [field]: value } : item
+      )
+    }))
   }
 
   const handleDelete = async (id: number) => {
@@ -599,23 +677,66 @@ export default function AdminPage() {
                       )}
                     </div>
 
-                    {/* Image Upload */}
-                    <MediaUpload
+                    {/* Multi-Image Upload */}
+                    <MultiMediaUpload
                       label="行程圖片（選填）"
-                      value={formData.image_url}
-                      onChange={(url) => setFormData(prev => ({ ...prev, image_url: url }))}
+                      value={formData.images}
+                      onChange={(images) => setFormData(prev => ({ ...prev, images }))}
+                      maxImages={5}
                     />
 
-                    {/* Description - Rich Text Editor */}
+                    {/* Schedule Items */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        {t.admin.description} *
+                        行程明細 *
                       </label>
-                      <RichTextEditor
-                        value={formData.description}
-                        onChange={(value) => setFormData(prev => ({ ...prev, description: value }))}
-                        placeholder="輸入描述內容..."
-                      />
+                      <div className="space-y-3">
+                        {formData.scheduleItems.map((item, index) => (
+                          <div key={item.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs font-medium text-gray-500">#{index + 1}</span>
+                              <input
+                                type="time"
+                                value={item.time_start}
+                                onChange={(e) => updateScheduleItem(item.id, 'time_start', e.target.value)}
+                                className="px-2 py-1 text-sm rounded border border-gray-200 focus:border-sakura-400 outline-none"
+                                placeholder="開始"
+                              />
+                              <span className="text-gray-400">至</span>
+                              <input
+                                type="time"
+                                value={item.time_end}
+                                onChange={(e) => updateScheduleItem(item.id, 'time_end', e.target.value)}
+                                className="px-2 py-1 text-sm rounded border border-gray-200 focus:border-sakura-400 outline-none"
+                                placeholder="結束"
+                              />
+                              {formData.scheduleItems.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeScheduleItem(item.id)}
+                                  className="ml-auto text-red-500 hover:text-red-600 text-sm"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+                            <input
+                              type="text"
+                              value={item.content}
+                              onChange={(e) => updateScheduleItem(item.id, 'content', e.target.value)}
+                              placeholder="輸入行程內容..."
+                              className="w-full px-3 py-2 text-sm rounded border border-gray-200 focus:border-sakura-400 outline-none"
+                            />
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={addScheduleItem}
+                          className="w-full py-2 border-2 border-dashed border-gray-300 text-gray-500 hover:border-sakura-400 hover:text-sakura-600 rounded-lg transition-colors text-sm"
+                        >
+                          + 新增項目
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex gap-3 pt-4">
@@ -667,79 +788,106 @@ export default function AdminPage() {
           </div>
         ) : (
           <div className="grid gap-4">
-            {trips.map((trip) => (
-              <div 
-                key={trip.id} 
-                className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
-              >
-                <div className="flex flex-col md:flex-row">
-                  {/* Image */}
-                  {trip.image_url && (
-                    <div className="w-full md:w-48 h-32 md:h-auto flex-shrink-0">
-                      <img 
-                        src={trip.image_url} 
-                        alt={trip.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-                  
-                  {/* Content */}
-                  <div className="flex-1 p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        {/* Title & Date */}
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-gray-800">
-                            {trip.title}
-                          </h3>
-                          <span className="px-2 py-1 text-xs font-medium text-sakura-600 bg-sakura-50 rounded-full whitespace-nowrap">
-                            📅 {new Date(trip.date).toLocaleDateString('zh-TW')}
+            {trips.map((trip) => {
+              // Parse images
+              const tripImages = parseImages(trip.image_url)
+              const firstImage = tripImages[0]
+              
+              // Parse schedule items
+              const scheduleItems = parseScheduleItems(trip.description)
+              
+              return (
+                <div 
+                  key={trip.id} 
+                  className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                >
+                  <div className="flex flex-col md:flex-row">
+                    {/* Image */}
+                    {firstImage && (
+                      <div className="w-full md:w-48 h-32 md:h-auto flex-shrink-0 relative">
+                        <img 
+                          src={firstImage} 
+                          alt={trip.title}
+                          className="w-full h-full object-cover"
+                        />
+                        {tripImages.length > 1 && (
+                          <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded">
+                            +{tripImages.length - 1}
                           </span>
-                        </div>
-                        
-                        {/* Location */}
-                        <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                          <span>📍</span>
-                          <span className="truncate">{trip.location}</span>
-                        </div>
-                        
-                        {/* Coordinates */}
-                        <div className="text-xs text-gray-400 mb-2">
-                          座標：{trip.lat?.toFixed(4)}, {trip.lng?.toFixed(4)}
-                        </div>
-                        
-                        {/* Description */}
-                        {trip.description && (
-                          <div 
-                            className="text-sm text-gray-600 line-clamp-2 prose prose-sm max-w-none"
-                            dangerouslySetInnerHTML={{ __html: trip.description }}
-                          />
                         )}
                       </div>
-                      
-                      {/* Actions */}
-                      <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => handleEdit(trip)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="編輯"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => handleDelete(trip.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="刪除"
-                        >
-                          🗑️
-                        </button>
+                    )}
+                    
+                    {/* Content */}
+                    <div className="flex-1 p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          {/* Title & Date */}
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-semibold text-gray-800">
+                              {trip.title}
+                            </h3>
+                            <span className="px-2 py-1 text-xs font-medium text-sakura-600 bg-sakura-50 rounded-full whitespace-nowrap">
+                              📅 {new Date(trip.date).toLocaleDateString('zh-TW')}
+                            </span>
+                          </div>
+                          
+                          {/* Location */}
+                          <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                            <span>📍</span>
+                            <span className="truncate">{trip.location}</span>
+                          </div>
+                          
+                          {/* Coordinates */}
+                          <div className="text-xs text-gray-400 mb-2">
+                            座標：{trip.lat?.toFixed(4)}, {trip.lng?.toFixed(4)}
+                          </div>
+                          
+                          {/* Schedule Items */}
+                          {scheduleItems.length > 0 && scheduleItems[0].content && (
+                            <div className="text-sm text-gray-600 space-y-1">
+                              {scheduleItems.slice(0, 2).map((item, idx) => (
+                                <div key={idx} className="flex items-start gap-2">
+                                  {item.time_start && (
+                                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                                      {item.time_start}
+                                    </span>
+                                  )}
+                                  <span className="line-clamp-1">{item.content}</span>
+                                </div>
+                              ))}
+                              {scheduleItems.length > 2 && (
+                                <span className="text-xs text-gray-400">
+                                  +{scheduleItems.length - 2} 項目
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Actions */}
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() => handleEdit(trip)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="編輯"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDelete(trip.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="刪除"
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
