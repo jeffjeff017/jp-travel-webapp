@@ -144,3 +144,8 @@ button.gm-ui-hover-effect {
   margin: 0 !important;
   padding: 0 !important;
 }
+
+/* Hide the InfoWindow chrome/header bar that creates top spacing */
+.gm-style-iw-chr {
+  display: none !important;
+}
