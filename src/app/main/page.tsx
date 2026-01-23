@@ -283,8 +283,8 @@ export default function MainPage() {
       const tripData = {
         title: formData.title,
         date: formData.date,
-        time_start: formData.time_start || null,
-        time_end: formData.time_end || null,
+        time_start: formData.time_start || undefined,
+        time_end: formData.time_end || undefined,
         description: formData.description,
         location: formData.location,
         lat: formData.lat,
