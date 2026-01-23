@@ -17,12 +17,10 @@ const CHIIKAWA_IMAGE_URL = '/images/chiikawa-pet.png'
 
 // Speech bubble messages (randomly selected on click)
 const SPEECH_MESSAGES = [
-  'ハァ?',
-  'ウラ!',
-  'わぁ〜!',
-  'ふぃ〜',
-  'やったー!',
-  '♪',
+  '呀哈！ヤハ！',
+  '噗嚕嚕嚕嚕！プルルルル！',
+  '嗚拉！ウラ！',
+  '哈？ハァ？',
 ]
 
 export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
@@ -137,7 +135,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
 
   return (
     <div 
-      className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-50 cursor-pointer select-none"
+      className="fixed bottom-20 right-4 md:bottom-6 md:left-6 md:right-auto z-50 cursor-pointer select-none"
       onClick={handleClick}
     >
       {/* Speech Bubble */}
