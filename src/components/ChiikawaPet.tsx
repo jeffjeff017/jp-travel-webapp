@@ -12,7 +12,7 @@ interface ChiikawaPetProps {
 // 🎨 CUSTOMIZE YOUR CHIIKAWA IMAGE HERE
 // Replace this URL with your own Chiikawa PNG/GIF
 // ============================================
-const CHIIKAWA_IMAGE_URL = '/images/chiikawa-transition.png'
+const CHIIKAWA_IMAGE_URL = '/images/chiikawa-pet.png'
 // Alternative: 'https://your-cdn.com/chiikawa.png'
 
 // Speech bubble messages (randomly selected on click)
