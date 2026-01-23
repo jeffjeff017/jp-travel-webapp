@@ -9,6 +9,8 @@ export type Trip = {
   id: number
   title: string
   date: string
+  time_start?: string // Start time (HH:mm)
+  time_end?: string // End time (HH:mm)
   description: string // HTML content
   location: string
   lat: number
@@ -47,10 +49,13 @@ export async function createTrip(trip: Omit<Trip, 'id' | 'created_at' | 'updated
       .insert([{
         title: trip.title,
         date: trip.date,
+        time_start: trip.time_start || null,
+        time_end: trip.time_end || null,
         description: trip.description,
         location: trip.location,
         lat: trip.lat,
         lng: trip.lng,
+        image_url: trip.image_url || null,
       }])
       .select()
       .single()

@@ -23,6 +23,7 @@ body {
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -36,6 +37,35 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #f18ca4;
+}
+
+/* Horizontal scrollbar for day tabs */
+.day-tabs-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #f7b8c5 transparent;
+}
+
+.day-tabs-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.day-tabs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.day-tabs-scroll::-webkit-scrollbar-thumb {
+  background: #f7b8c5;
+  border-radius: 2px;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 /* Sakura animation styles */
@@ -61,4 +91,17 @@ body {
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+}
+
+/* Google Maps InfoWindow - hide scrollbar */
+.gm-style-iw-d {
+  overflow: hidden !important;
+}
+
+.gm-style-iw-c {
+  padding: 0 !important;
+}
+
+.gm-style-iw-tc {
+  display: none;
 }

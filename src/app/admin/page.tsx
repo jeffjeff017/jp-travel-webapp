@@ -15,6 +15,7 @@ import {
 import { getSettings, saveSettings, type SiteSettings } from '@/lib/settings'
 import { useLanguage } from '@/lib/i18n'
 import LanguageSwitch from '@/components/LanguageSwitch'
+import MediaUpload from '@/components/MediaUpload'
 
 const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
   ssr: false,
@@ -65,7 +66,13 @@ export default function AdminPage() {
   const [formData, setFormData] = useState<FormData>(initialFormData)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null)
-  const [settingsForm, setSettingsForm] = useState({ title: '' })
+  const [settingsForm, setSettingsForm] = useState({ 
+    title: '',
+    tripStartDate: '',
+    totalDays: 3,
+    daySchedules: [] as { dayNumber: number; theme: string; imageUrl?: string }[],
+    homeLocationImageUrl: ''
+  })
   const router = useRouter()
   const { t } = useLanguage()
 
@@ -79,7 +86,13 @@ export default function AdminPage() {
     // Load site settings
     const settings = getSettings()
     setSiteSettings(settings)
-    setSettingsForm({ title: settings.title })
+    setSettingsForm({ 
+      title: settings.title,
+      tripStartDate: settings.tripStartDate || new Date().toISOString().split('T')[0],
+      totalDays: settings.totalDays || 3,
+      daySchedules: settings.daySchedules || [],
+      homeLocationImageUrl: settings.homeLocation?.imageUrl || ''
+    })
   }, [router])
 
   const fetchTrips = async () => {
@@ -196,10 +209,61 @@ export default function AdminPage() {
   }
 
   const handleSaveSettings = () => {
-    saveSettings({ title: settingsForm.title })
-    setSiteSettings({ ...siteSettings!, title: settingsForm.title })
+    // Ensure daySchedules has entries for all days
+    const daySchedules = Array.from({ length: settingsForm.totalDays }, (_, i) => {
+      const existing = settingsForm.daySchedules.find(d => d.dayNumber === i + 1)
+      return existing || { dayNumber: i + 1, theme: `Day ${i + 1}` }
+    })
+    
+    // Update home location with image
+    const updatedHomeLocation = {
+      ...siteSettings!.homeLocation,
+      imageUrl: settingsForm.homeLocationImageUrl || undefined
+    }
+    
+    saveSettings({ 
+      title: settingsForm.title,
+      tripStartDate: settingsForm.tripStartDate,
+      totalDays: settingsForm.totalDays,
+      daySchedules,
+      homeLocation: updatedHomeLocation
+    })
+    setSiteSettings({ 
+      ...siteSettings!, 
+      title: settingsForm.title,
+      tripStartDate: settingsForm.tripStartDate,
+      totalDays: settingsForm.totalDays,
+      daySchedules,
+      homeLocation: updatedHomeLocation
+    })
     setMessage({ type: 'success', text: '設定已儲存！' })
     setShowSettings(false)
+  }
+
+  const updateDayTheme = (dayNumber: number, theme: string) => {
+    setSettingsForm(prev => {
+      const daySchedules = [...prev.daySchedules]
+      const index = daySchedules.findIndex(d => d.dayNumber === dayNumber)
+      if (index >= 0) {
+        daySchedules[index] = { ...daySchedules[index], theme }
+      } else {
+        daySchedules.push({ dayNumber, theme })
+      }
+      return { ...prev, daySchedules }
+    })
+  }
+
+  const updateDayImage = (dayNumber: number, imageUrl: string) => {
+    setSettingsForm(prev => {
+      const daySchedules = [...prev.daySchedules]
+      const index = daySchedules.findIndex(d => d.dayNumber === dayNumber)
+      if (index >= 0) {
+        daySchedules[index] = { ...daySchedules[index], imageUrl }
+      } else {
+        daySchedules.push({ dayNumber, theme: `Day ${dayNumber}`, imageUrl })
+      }
+      return { ...prev, daySchedules }
+    })
   }
 
   return (
@@ -251,13 +315,23 @@ export default function AdminPage() {
         {/* Site Settings Card */}
         <div className="mb-6 bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex-1">
               <h3 className="font-medium text-gray-800 flex items-center gap-2">
                 <span>🎨</span> 網站設定
               </h3>
-              <p className="text-sm text-gray-500 mt-1">
-                目前標題：<span className="font-medium">{siteSettings?.title || '日本旅遊'}</span>
-              </p>
+              <div className="mt-2 space-y-1">
+                <p className="text-sm text-gray-500">
+                  標題：<span className="font-medium text-gray-700">{siteSettings?.title || '日本旅遊'}</span>
+                </p>
+                <p className="text-sm text-gray-500">
+                  行程：<span className="font-medium text-gray-700">
+                    {siteSettings?.tripStartDate 
+                      ? `${new Date(siteSettings.tripStartDate).toLocaleDateString('zh-TW')} 起，共 ${siteSettings.totalDays || 3} 天`
+                      : '未設定'
+                    }
+                  </span>
+                </p>
+              </div>
             </div>
             <button
               onClick={() => setShowSettings(true)}
@@ -300,12 +374,13 @@ export default function AdminPage() {
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-white rounded-2xl shadow-xl w-full max-w-md"
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
               >
                 <div className="p-6 border-b border-gray-100">
                   <h3 className="text-lg font-medium text-gray-800">網站設定</h3>
                 </div>
-                <div className="p-6 space-y-4">
+                <div className="p-6 space-y-6">
+                  {/* Site Title */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       網站標題
@@ -317,8 +392,96 @@ export default function AdminPage() {
                       placeholder="例如：日本旅遊"
                       className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
                     />
-                    <p className="text-xs text-gray-500 mt-1">此標題會顯示在主頁標題列</p>
                   </div>
+
+                  {/* Home Location Image */}
+                  <div className="border-t border-gray-100 pt-6">
+                    <h4 className="text-sm font-medium text-gray-800 mb-4 flex items-center gap-2">
+                      🏠 住所設定
+                    </h4>
+                    <MediaUpload
+                      label="住所圖片"
+                      value={settingsForm.homeLocationImageUrl}
+                      onChange={(url) => setSettingsForm({ ...settingsForm, homeLocationImageUrl: url })}
+                    />
+                  </div>
+
+                  {/* Trip Schedule Section */}
+                  <div className="border-t border-gray-100 pt-6">
+                    <h4 className="text-sm font-medium text-gray-800 mb-4 flex items-center gap-2">
+                      📅 行程日期設定
+                    </h4>
+                    
+                    {/* Start Date */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        行程開始日期
+                      </label>
+                      <input
+                        type="date"
+                        value={settingsForm.tripStartDate}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, tripStartDate: e.target.value })}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                      />
+                    </div>
+
+                    {/* Total Days */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        總天數
+                      </label>
+                      <select
+                        value={settingsForm.totalDays}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, totalDays: Number(e.target.value) })}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                      >
+                        {Array.from({ length: 14 }, (_, i) => i + 1).map(n => (
+                          <option key={n} value={n}>{n} 天</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        超過 7 天時，主頁 Tab 將以滑動方式顯示
+                      </p>
+                    </div>
+
+                    {/* Day Themes */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        每日主題 ({settingsForm.totalDays} 天)
+                      </label>
+                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                        {Array.from({ length: settingsForm.totalDays }, (_, i) => i + 1).map(day => {
+                          const schedule = settingsForm.daySchedules.find(d => d.dayNumber === day)
+                          const startDate = new Date(settingsForm.tripStartDate)
+                          const dayDate = new Date(startDate)
+                          dayDate.setDate(startDate.getDate() + day - 1)
+                          const dateStr = dayDate.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })
+                          
+                          return (
+                            <div key={day} className="p-3 bg-gray-50 rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-sm font-medium text-sakura-600">Day {day}</span>
+                                <span className="text-xs text-gray-500">({dateStr})</span>
+                              </div>
+                              <input
+                                type="text"
+                                value={schedule?.theme || ''}
+                                onChange={(e) => updateDayTheme(day, e.target.value)}
+                                placeholder={`Day ${day} 主題`}
+                                className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none mb-2"
+                              />
+                              <MediaUpload
+                                value={schedule?.imageUrl || ''}
+                                onChange={(url) => updateDayImage(day, url)}
+                                placeholder="選擇圖片"
+                              />
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex gap-3 pt-4">
                     <button
                       type="button"
@@ -436,32 +599,12 @@ export default function AdminPage() {
                       )}
                     </div>
 
-                    {/* Image URL */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        圖片網址（選填）
-                      </label>
-                      <input
-                        type="url"
-                        name="image_url"
-                        value={formData.image_url}
-                        onChange={handleInputChange}
-                        placeholder="https://example.com/image.jpg"
-                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
-                      />
-                      {formData.image_url && (
-                        <div className="mt-2">
-                          <img 
-                            src={formData.image_url} 
-                            alt="預覽" 
-                            className="max-h-32 rounded-lg object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none'
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
+                    {/* Image Upload */}
+                    <MediaUpload
+                      label="行程圖片（選填）"
+                      value={formData.image_url}
+                      onChange={(url) => setFormData(prev => ({ ...prev, image_url: url }))}
+                    />
 
                     {/* Description - Rich Text Editor */}
                     <div>

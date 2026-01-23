@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow, DirectionsRenderer, TrafficLayer } from '@react-google-maps/api'
 import type { Trip } from '@/lib/supabase'
 
@@ -48,6 +48,7 @@ interface HomeLocation {
   address: string
   lat: number
   lng: number
+  imageUrl?: string
 }
 
 interface GoogleMapComponentProps {
@@ -76,6 +77,10 @@ export default function GoogleMapComponent({
     arrivalTime?: string
     steps?: google.maps.DirectionsStep[]
   } | null>(null)
+  
+  // Refs to prevent map jumping
+  const initialBoundsSet = useRef(false)
+  const lastTripIds = useRef<string>('')
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
@@ -155,99 +160,121 @@ export default function GoogleMapComponent({
     if (!map || selectedTripId === undefined) return
 
     if (selectedTripId === -1 && homeLocation) {
-      // Home selected
+      // Home selected - just show info, no auto navigation
       map.panTo({ lat: homeLocation.lat, lng: homeLocation.lng })
       map.setZoom(15)
       setShowHomeInfo(true)
       setSelectedTrip(null)
-      
-      // Calculate route if there are trips
-      if (trips.length > 0) {
-        calculateRoute(
-          { lat: homeLocation.lat, lng: homeLocation.lng },
-          { lat: trips[0].lat, lng: trips[0].lng }
-        )
-      } else {
-        setDirections(null)
-        setRouteInfo(null)
-      }
+      // Clear any existing directions
+      setDirections(null)
+      setRouteInfo(null)
     } else if (selectedTripId && selectedTripId > 0) {
-      // Trip selected
+      // Trip selected - just show info, no auto navigation
       const trip = trips.find(t => t.id === selectedTripId)
       if (trip) {
         map.panTo({ lat: trip.lat, lng: trip.lng })
         map.setZoom(15)
         setSelectedTrip(trip)
         setShowHomeInfo(false)
-        
-        // Calculate route from home to this trip
-        if (homeLocation) {
-          calculateRoute(
-            { lat: homeLocation.lat, lng: homeLocation.lng },
-            { lat: trip.lat, lng: trip.lng }
-          )
-        }
+        // Clear any existing directions
+        setDirections(null)
+        setRouteInfo(null)
       }
     } else {
-      // Nothing selected - clear directions
+      // Nothing selected - clear everything
       setDirections(null)
       setRouteInfo(null)
       setSelectedTrip(null)
       setShowHomeInfo(false)
     }
-  }, [selectedTripId, map, homeLocation, trips, calculateRoute])
+  }, [selectedTripId, map, homeLocation, trips])
 
-  // Auto-refresh route every 5 minutes for real-time updates
+  // Auto-refresh route every 5 minutes for real-time updates (only when route is shown)
   useEffect(() => {
-    if (!selectedTripId || !homeLocation) return
+    if (!directions || !homeLocation) return
 
     const interval = setInterval(() => {
-      if (selectedTripId === -1 && trips.length > 0) {
+      if (selectedTrip) {
         calculateRoute(
           { lat: homeLocation.lat, lng: homeLocation.lng },
-          { lat: trips[0].lat, lng: trips[0].lng }
+          { lat: selectedTrip.lat, lng: selectedTrip.lng }
         )
-      } else if (selectedTripId > 0) {
-        const trip = trips.find(t => t.id === selectedTripId)
-        if (trip) {
-          calculateRoute(
-            { lat: homeLocation.lat, lng: homeLocation.lng },
-            { lat: trip.lat, lng: trip.lng }
-          )
-        }
       }
     }, 5 * 60 * 1000) // Refresh every 5 minutes
 
     return () => clearInterval(interval)
-  }, [selectedTripId, homeLocation, trips, calculateRoute])
+  }, [directions, homeLocation, selectedTrip, calculateRoute])
+  
+  // Show navigation route from home to selected trip
+  const showNavigation = useCallback(() => {
+    if (!homeLocation || !selectedTrip) return
+    calculateRoute(
+      { lat: homeLocation.lat, lng: homeLocation.lng },
+      { lat: selectedTrip.lat, lng: selectedTrip.lng }
+    )
+  }, [homeLocation, selectedTrip, calculateRoute])
+  
+  // Clear navigation
+  const clearNavigation = useCallback(() => {
+    setDirections(null)
+    setRouteInfo(null)
+  }, [])
 
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map)
     
-    // Fit bounds to show all markers including home
-    if (trips.length > 0 || homeLocation) {
-      const bounds = new google.maps.LatLngBounds()
-      
-      if (homeLocation) {
-        bounds.extend({ lat: homeLocation.lat, lng: homeLocation.lng })
-      }
-      
-      trips.forEach((trip) => {
-        bounds.extend({ lat: trip.lat, lng: trip.lng })
-      })
-      
+    // Only fit bounds on initial load
+    if (!initialBoundsSet.current) {
       if (trips.length > 0 || homeLocation) {
+        const bounds = new google.maps.LatLngBounds()
+        
+        if (homeLocation) {
+          bounds.extend({ lat: homeLocation.lat, lng: homeLocation.lng })
+        }
+        
+        trips.forEach((trip) => {
+          bounds.extend({ lat: trip.lat, lng: trip.lng })
+        })
+        
         map.fitBounds(bounds)
         const listener = google.maps.event.addListener(map, 'idle', () => {
           if (map.getZoom()! > 14) map.setZoom(14)
           google.maps.event.removeListener(listener)
         })
+      } else {
+        map.setCenter(tokyoCenter)
+        map.setZoom(12)
       }
-    } else {
-      map.setCenter(tokyoCenter)
-      map.setZoom(12)
+      initialBoundsSet.current = true
+      lastTripIds.current = trips.map(t => t.id).join(',')
     }
   }, [trips, homeLocation])
+  
+  // Only refit bounds when trips list significantly changes (different day selected)
+  useEffect(() => {
+    if (!map) return
+    
+    const currentTripIds = trips.map(t => t.id).join(',')
+    if (currentTripIds !== lastTripIds.current && initialBoundsSet.current) {
+      lastTripIds.current = currentTripIds
+      
+      // Smoothly fit to new bounds without jarring animation
+      if (trips.length > 0 || homeLocation) {
+        const bounds = new google.maps.LatLngBounds()
+        
+        if (homeLocation) {
+          bounds.extend({ lat: homeLocation.lat, lng: homeLocation.lng })
+        }
+        
+        trips.forEach((trip) => {
+          bounds.extend({ lat: trip.lat, lng: trip.lng })
+        })
+        
+        // Use panToBounds for smoother transition
+        map.panToBounds(bounds, 50)
+      }
+    }
+  }, [map, trips, homeLocation])
 
   const onUnmount = useCallback(() => {
     setMap(null)
@@ -381,21 +408,28 @@ export default function GoogleMapComponent({
               setShowHomeInfo(false)
               onTripSelect?.(null)
             }}
+            options={{ 
+              pixelOffset: new google.maps.Size(0, -10),
+              maxWidth: 280
+            }}
           >
-            <div className="p-2 max-w-xs">
-              <h3 className="font-bold text-lg text-blue-700 mb-1 flex items-center gap-1">
-                🏠 {homeLocation.name}
-              </h3>
-              <p className="text-sm text-gray-600 mb-2">{homeLocation.address}</p>
-              {routeInfo && (
-                <div className="bg-blue-50 p-2 rounded text-xs text-blue-700 space-y-1">
-                  <p className="font-medium">🚃 實時路線資訊</p>
-                  <p>📏 距離：{routeInfo.distance}</p>
-                  <p>⏱️ 預計時間：{routeInfo.duration}</p>
-                  {routeInfo.departureTime && <p>🕐 出發時間：{routeInfo.departureTime}</p>}
-                  {routeInfo.arrivalTime && <p>🏁 抵達時間：{routeInfo.arrivalTime}</p>}
-                </div>
+            <div style={{ width: '250px', overflow: 'hidden' }}>
+              {/* Home Image */}
+              {homeLocation.imageUrl && (
+                <img 
+                  src={homeLocation.imageUrl} 
+                  alt={homeLocation.name}
+                  className="w-full object-cover rounded-t"
+                  style={{ height: '120px' }}
+                />
               )}
+              <div className="p-3">
+                <h3 className="font-bold text-base text-blue-700 mb-1 flex items-center gap-1">
+                  🏠 {homeLocation.name}
+                </h3>
+                <p className="text-sm text-gray-600">{homeLocation.address}</p>
+                <p className="text-xs text-blue-500 mt-1">點擊行程可查看導航路線</p>
+              </div>
             </div>
           </InfoWindow>
         )}
@@ -408,55 +442,83 @@ export default function GoogleMapComponent({
               setSelectedTrip(null)
               onTripSelect?.(null)
             }}
+            options={{ 
+              pixelOffset: new google.maps.Size(0, -10),
+              maxWidth: 280
+            }}
           >
-            <div className="p-2 max-w-xs">
+            <div style={{ width: '250px', overflow: 'hidden' }}>
               {/* Trip Image */}
               {selectedTrip.image_url && (
-                <div className="mb-2 -mx-2 -mt-2">
-                  <img 
-                    src={selectedTrip.image_url} 
-                    alt={selectedTrip.title}
-                    className="w-full h-24 object-cover rounded-t"
-                  />
-                </div>
+                <img 
+                  src={selectedTrip.image_url} 
+                  alt={selectedTrip.title}
+                  className="w-full object-cover rounded-t"
+                  style={{ height: '120px' }}
+                />
               )}
-              <h3 className="font-bold text-lg text-sakura-700 mb-1">
-                {selectedTrip.title}
-              </h3>
-              <p className="text-sm text-gray-600 mb-2">{selectedTrip.location}</p>
-              <p className="text-xs text-gray-500 mb-2">
-                📅 {new Date(selectedTrip.date).toLocaleDateString('zh-TW', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </p>
-              <div 
-                className="text-sm text-gray-700"
-                dangerouslySetInnerHTML={{ __html: selectedTrip.description || '' }}
-              />
-              {routeInfo && (
-                <div className="bg-sakura-50 p-2 rounded text-xs text-sakura-700 mt-2 space-y-1">
-                  <p className="font-medium">🚃 實時路線（從住所出發）</p>
-                  <p>📏 距離：{routeInfo.distance}</p>
-                  <p>⏱️ 預計時間：{routeInfo.duration}</p>
-                  {routeInfo.durationInTraffic && (
-                    <p>🚗 含交通狀況：{routeInfo.durationInTraffic}</p>
-                  )}
-                  {routeInfo.departureTime && <p>🕐 出發時間：{routeInfo.departureTime}</p>}
-                  {routeInfo.arrivalTime && <p>🏁 抵達時間：{routeInfo.arrivalTime}</p>}
-                  <button
-                    onClick={() => openGoogleMapsNavigation({ 
-                      lat: selectedTrip.lat, 
-                      lng: selectedTrip.lng, 
-                      name: selectedTrip.title 
-                    })}
-                    className="mt-2 w-full py-1.5 bg-sakura-500 hover:bg-sakura-600 text-white rounded text-xs font-medium transition-colors"
-                  >
-                    📍 開啟 Google Maps 導航
-                  </button>
-                </div>
-              )}
+              <div className="p-3">
+                <h3 className="font-bold text-base text-sakura-700 mb-1">
+                  {selectedTrip.title}
+                </h3>
+                <p className="text-sm text-gray-600 mb-2">{selectedTrip.location}</p>
+                <p className="text-xs text-gray-500 mb-2">
+                  📅 {new Date(selectedTrip.date).toLocaleDateString('zh-TW', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </p>
+                <div 
+                  className="text-sm text-gray-700 line-clamp-2"
+                  dangerouslySetInnerHTML={{ __html: selectedTrip.description || '' }}
+                />
+                
+                {/* Navigation Section */}
+                {homeLocation && (
+                  <div className="mt-3 space-y-2">
+                    {routeInfo && (
+                      <div className="bg-sakura-50 p-2 rounded text-xs text-sakura-700 space-y-1">
+                        <p className="font-medium">🚃 路線資訊（從住所出發）</p>
+                        <p>📏 距離：{routeInfo.distance}</p>
+                        <p>⏱️ 預計時間：{routeInfo.duration}</p>
+                        {routeInfo.durationInTraffic && (
+                          <p>🚗 含交通狀況：{routeInfo.durationInTraffic}</p>
+                        )}
+                        {routeInfo.departureTime && <p>🕐 出發時間：{routeInfo.departureTime}</p>}
+                        {routeInfo.arrivalTime && <p>🏁 抵達時間：{routeInfo.arrivalTime}</p>}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      {routeInfo ? (
+                        <button
+                          onClick={clearNavigation}
+                          className="flex-1 py-1.5 border border-gray-200 text-gray-600 rounded text-xs font-medium transition-colors hover:bg-gray-50"
+                        >
+                          隱藏路線
+                        </button>
+                      ) : (
+                        <button
+                          onClick={showNavigation}
+                          className="flex-1 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition-colors"
+                        >
+                          🗺️ 顯示路線
+                        </button>
+                      )}
+                      <button
+                        onClick={() => openGoogleMapsNavigation({ 
+                          lat: selectedTrip.lat, 
+                          lng: selectedTrip.lng, 
+                          name: selectedTrip.title 
+                        })}
+                        className="flex-1 py-1.5 bg-sakura-500 hover:bg-sakura-600 text-white rounded text-xs font-medium transition-colors"
+                      >
+                        📍 Google Maps
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </InfoWindow>
         )}

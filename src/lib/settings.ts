@@ -1,6 +1,12 @@
 // Site settings stored in localStorage
 const SETTINGS_KEY = 'site_settings'
 
+export interface DaySchedule {
+  dayNumber: number
+  theme: string
+  imageUrl?: string
+}
+
 export interface SiteSettings {
   title: string
   homeLocation: {
@@ -8,7 +14,11 @@ export interface SiteSettings {
     address: string
     lat: number
     lng: number
+    imageUrl?: string
   }
+  tripStartDate: string // ISO date string
+  totalDays: number // 1-7 days
+  daySchedules: DaySchedule[]
 }
 
 const defaultSettings: SiteSettings = {
@@ -19,6 +29,13 @@ const defaultSettings: SiteSettings = {
     lat: 35.6969,
     lng: 139.8144,
   },
+  tripStartDate: new Date().toISOString().split('T')[0],
+  totalDays: 3,
+  daySchedules: [
+    { dayNumber: 1, theme: 'Day 1' },
+    { dayNumber: 2, theme: 'Day 2' },
+    { dayNumber: 3, theme: 'Day 3' },
+  ],
 }
 
 export function getSettings(): SiteSettings {
