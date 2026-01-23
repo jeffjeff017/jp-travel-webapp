@@ -23,7 +23,7 @@ export default function UsagiWidget() {
   const currentEmoji = heartEmojis[clickCount % heartEmojis.length]
 
   return (
-    <div className="fixed bottom-4 left-4 z-40">
+    <div className="fixed bottom-24 right-6 md:bottom-4 md:left-4 md:right-auto z-40">
       <AnimatePresence>
         {showEmoji && (
           <motion.div
