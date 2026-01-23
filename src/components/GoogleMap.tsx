@@ -408,16 +408,23 @@ export default function GoogleMapComponent({
         {showHomeInfo && homeLocation && (
           <InfoWindow
             position={{ lat: homeLocation.lat, lng: homeLocation.lng }}
-            onCloseClick={() => {
-              setShowHomeInfo(false)
-              onTripSelect?.(null)
-            }}
             options={{ 
               pixelOffset: new google.maps.Size(0, -10),
               maxWidth: 280
             }}
           >
-            <div style={{ width: '250px', overflow: 'hidden' }}>
+            <div style={{ width: '250px', overflow: 'hidden' }} className="relative">
+              {/* Custom Circle Close Button */}
+              <button
+                onClick={() => {
+                  setShowHomeInfo(false)
+                  onTripSelect?.(null)
+                }}
+                className="absolute top-2 right-2 z-20 w-7 h-7 bg-white/90 hover:bg-white text-gray-600 hover:text-gray-800 rounded-full flex items-center justify-center shadow-md transition-colors"
+                style={{ fontSize: '16px', lineHeight: 1 }}
+              >
+                ✕
+              </button>
               {/* Home Image */}
               {homeLocation.imageUrl && (
                 <img 
