@@ -141,6 +141,9 @@ export default function MainPage() {
   // Check if user is admin
   const [isAdmin, setIsAdmin] = useState(false)
   
+  // Mobile map popup state
+  const [showMapPopup, setShowMapPopup] = useState(false)
+  
   useEffect(() => {
     setIsAdmin(isAuthenticated())
   }, [])
@@ -459,6 +462,10 @@ export default function MainPage() {
 
   const handleTripClick = (tripId: number) => {
     setSelectedTripId(tripId)
+    // On mobile, show map popup when clicking a trip
+    if (window.innerWidth < 768) {
+      setShowMapPopup(true)
+    }
   }
 
   return (
@@ -466,8 +473,10 @@ export default function MainPage() {
       {/* Sakura Animation - Only when toggled ON */}
       <SakuraCanvas enabled={isSakuraMode} />
 
-      {/* Mode Toggle */}
-      <ModeToggle isSakuraMode={isSakuraMode} onToggle={toggleSakuraMode} />
+      {/* Mode Toggle - Hidden on mobile, shown in popup */}
+      <div className="hidden md:block">
+        <ModeToggle isSakuraMode={isSakuraMode} onToggle={toggleSakuraMode} />
+      </div>
 
       {/* Header */}
       <motion.header
@@ -501,12 +510,12 @@ export default function MainPage() {
 
       {/* Main Content */}
       <div className="pt-16 h-screen flex flex-col md:flex-row">
-        {/* Sidebar - Trip List */}
+        {/* Sidebar - Trip List - Full height on mobile */}
         <motion.aside
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.2 }}
-          className="w-full h-[50vh] md:h-auto md:w-1/2 bg-white/90 backdrop-blur-sm border-r border-sakura-100 overflow-y-auto"
+          className="w-full h-full md:h-auto md:w-1/2 bg-white/90 backdrop-blur-sm border-r border-sakura-100 overflow-y-auto pb-20 md:pb-0"
         >
           <div className="p-4">
             {/* Home Location Card - Now at TOP */}
@@ -514,7 +523,12 @@ export default function MainPage() {
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                onClick={() => setSelectedTripId(-1)} // -1 for home
+                onClick={() => {
+                  setSelectedTripId(-1) // -1 for home
+                  if (window.innerWidth < 768) {
+                    setShowMapPopup(true)
+                  }
+                }}
                 className={`mb-4 rounded-xl border-2 transition-all cursor-pointer overflow-hidden ${
                   selectedTripId === -1 
                     ? 'border-blue-400 bg-blue-50' 
@@ -800,12 +814,12 @@ export default function MainPage() {
           </div>
         </motion.aside>
 
-        {/* Map */}
+        {/* Map - Hidden on mobile, shown in popup */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className="w-full h-[50vh] md:h-auto md:w-1/2 relative"
+          className="hidden md:block md:w-1/2 relative"
         >
           <GoogleMapComponent 
             trips={filteredTrips} 
@@ -815,6 +829,90 @@ export default function MainPage() {
           />
         </motion.div>
       </div>
+      
+      {/* Mobile: Floating Map Button */}
+      <div className="md:hidden fixed bottom-6 left-6 z-50 flex flex-col gap-2">
+        {/* Map Toggle Button */}
+        <button
+          onClick={() => setShowMapPopup(true)}
+          className="w-14 h-14 bg-sakura-500 hover:bg-sakura-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105"
+        >
+          <span className="text-2xl">🗺️</span>
+        </button>
+        
+        {/* Mode Toggle Button */}
+        <button
+          onClick={toggleSakuraMode}
+          className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 ${
+            isSakuraMode 
+              ? 'bg-pink-400 hover:bg-pink-500' 
+              : 'bg-gray-100 hover:bg-gray-200'
+          }`}
+        >
+          <span className="text-2xl">{isSakuraMode ? '🌸' : '🔘'}</span>
+        </button>
+      </div>
+      
+      {/* Mobile: Map Popup */}
+      <AnimatePresence>
+        {showMapPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="md:hidden fixed inset-0 bg-black/50 z-50"
+            onClick={() => setShowMapPopup(false)}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="absolute bottom-0 left-0 right-0 h-[85vh] bg-white rounded-t-3xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Popup Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <h3 className="font-medium text-gray-800">地圖</h3>
+                <div className="flex items-center gap-3">
+                  {/* Mode Toggle in Popup */}
+                  <button
+                    onClick={toggleSakuraMode}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                      isSakuraMode 
+                        ? 'bg-pink-100 text-pink-600' 
+                        : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    {isSakuraMode ? '🌸 櫻花' : '一般'}
+                  </button>
+                  <button
+                    onClick={() => setShowMapPopup(false)}
+                    className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              
+              {/* Map */}
+              <div className="h-[calc(85vh-60px)]">
+                <GoogleMapComponent 
+                  trips={filteredTrips} 
+                  homeLocation={settings?.homeLocation}
+                  selectedTripId={selectedTripId}
+                  onTripSelect={(id) => {
+                    setSelectedTripId(id)
+                    if (id === null) {
+                      setShowMapPopup(false)
+                    }
+                  }}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Usagi Widget - Bottom Left */}
       {isSakuraMode && <UsagiWidget />}
