@@ -8,7 +8,7 @@ import { getTrips, createTrip, updateTrip, deleteTrip, type Trip } from '@/lib/s
 import { getSettings, saveSettings, type SiteSettings } from '@/lib/settings'
 import { isAuthenticated } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
-import UsagiWidget from '@/components/UsagiWidget'
+import NekoWidget from '@/components/NekoWidget'
 import DailyPopup from '@/components/DailyPopup'
 import ModeToggle from '@/components/ModeToggle'
 import MediaUpload from '@/components/MediaUpload'
@@ -914,8 +914,8 @@ export default function MainPage() {
         )}
       </AnimatePresence>
 
-      {/* Usagi Widget - Bottom Left */}
-      {isSakuraMode && <UsagiWidget />}
+      {/* Neko Widget - Follows cursor when sakura mode is on */}
+      <NekoWidget enabled={isSakuraMode} />
 
       {/* Daily Popup - Bottom Right */}
       <DailyPopup />
