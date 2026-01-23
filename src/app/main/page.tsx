@@ -831,12 +831,6 @@ export default function MainPage() {
                               {trip.title}
                             </h3>
                             <div className="flex flex-col items-end gap-1">
-                              {/* Time Badge */}
-                              {trip.time_start && (
-                                <span className="text-xs font-medium text-blue-700 bg-blue-100 px-2.5 py-1 rounded-md whitespace-nowrap">
-                                  🕐 {trip.time_start}{trip.time_end ? ` - ${trip.time_end}` : ''}
-                                </span>
-                              )}
                               {/* Date Badge */}
                               <span className="text-xs text-sakura-600 bg-sakura-100 px-2 py-0.5 rounded whitespace-nowrap">
                                 {new Date(trip.date).toLocaleDateString('zh-TW', {
