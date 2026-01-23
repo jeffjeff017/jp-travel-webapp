@@ -102,39 +102,37 @@ export default function LandingPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 flex items-center justify-center bg-sakura-50 z-50"
+            className="fixed inset-0 flex flex-col items-center justify-center bg-sakura-50 z-50"
           >
-            {/* Centered circular container with image - perfectly centered */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{
-                  scale: [0, 1, 1.05],
-                }}
-                transition={{
-                  duration: 2.5,
-                  times: [0, 0.6, 1],
-                  ease: 'easeInOut',
-                }}
-                className="w-64 h-64 md:w-80 md:h-80 rounded-full overflow-hidden bg-white shadow-2xl"
-              >
-                <Image
-                  src="/images/chiikawa-transition.png"
-                  alt="Chiikawa"
-                  width={400}
-                  height={400}
-                  className="w-full h-full object-cover"
-                  priority
-                />
-              </motion.div>
-            </div>
+            {/* Centered circular container with image */}
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{
+                scale: [0, 1, 1.05],
+              }}
+              transition={{
+                duration: 2.5,
+                times: [0, 0.6, 1],
+                ease: 'easeInOut',
+              }}
+              className="w-64 h-64 md:w-80 md:h-80 rounded-full overflow-hidden bg-white shadow-2xl"
+            >
+              <Image
+                src="/images/chiikawa-transition.png"
+                alt="Chiikawa"
+                width={400}
+                height={400}
+                className="w-full h-full object-cover"
+                priority
+              />
+            </motion.div>
 
-            {/* Loading text - positioned at bottom */}
+            {/* Loading text - below the circle */}
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1 }}
-              className="absolute bottom-20 left-0 right-0 text-center text-sakura-600 font-medium"
+              className="mt-8 text-center text-sakura-600 font-medium"
             >
               {t.landing.loading}
             </motion.p>
