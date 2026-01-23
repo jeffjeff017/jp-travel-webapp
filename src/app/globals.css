@@ -93,7 +93,7 @@ body {
   -webkit-backdrop-filter: blur(10px);
 }
 
-/* Google Maps InfoWindow - hide scrollbar */
+/* Google Maps InfoWindow - hide scrollbar and default close button */
 .gm-style-iw-d {
   overflow: hidden !important;
 }
@@ -104,4 +104,13 @@ body {
 
 .gm-style-iw-tc {
   display: none;
+}
+
+/* Hide default Google Maps InfoWindow close button */
+.gm-ui-hover-effect {
+  display: none !important;
+}
+
+button.gm-ui-hover-effect {
+  display: none !important;
 }

@@ -442,16 +442,25 @@ export default function GoogleMapComponent({
         {selectedTrip && (
           <InfoWindow
             position={{ lat: selectedTrip.lat, lng: selectedTrip.lng }}
-            onCloseClick={() => {
-              setSelectedTrip(null)
-              onTripSelect?.(null)
-            }}
             options={{ 
               pixelOffset: new google.maps.Size(0, -10),
-              maxWidth: 280
+              maxWidth: 280,
+              disableAutoPan: false
             }}
           >
-            <div style={{ width: '250px', overflow: 'hidden' }}>
+            <div style={{ width: '250px', overflow: 'hidden' }} className="relative">
+              {/* Custom Circle Close Button */}
+              <button
+                onClick={() => {
+                  setSelectedTrip(null)
+                  onTripSelect?.(null)
+                }}
+                className="absolute top-2 right-2 z-20 w-7 h-7 bg-white/90 hover:bg-white text-gray-600 hover:text-gray-800 rounded-full flex items-center justify-center shadow-md transition-colors"
+                style={{ fontSize: '16px', lineHeight: 1 }}
+              >
+                ✕
+              </button>
+              
               {/* Trip Image Slider - Parse JSON array or single URL */}
               {(() => {
                 let images: string[] = []
@@ -470,43 +479,48 @@ export default function GoogleMapComponent({
                 
                 if (images.length === 0) return null
                 
+                // Touch/swipe handlers
+                let touchStartX = 0
+                const handleTouchStart = (e: React.TouchEvent) => {
+                  touchStartX = e.touches[0].clientX
+                }
+                const handleTouchEnd = (e: React.TouchEvent) => {
+                  const touchEndX = e.changedTouches[0].clientX
+                  const diff = touchStartX - touchEndX
+                  if (Math.abs(diff) > 50) {
+                    if (diff > 0) {
+                      // Swipe left - next image
+                      setInfoImageIndex((prev) => (prev + 1) % images.length)
+                    } else {
+                      // Swipe right - previous image
+                      setInfoImageIndex((prev) => (prev - 1 + images.length) % images.length)
+                    }
+                  }
+                }
+                
                 return (
-                  <div className="relative" style={{ height: '120px' }}>
+                  <div 
+                    className="relative" 
+                    style={{ height: '120px' }}
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
+                  >
                     <img 
                       src={images[infoImageIndex] || images[0]} 
                       alt={selectedTrip.title}
                       className="w-full h-full object-cover rounded-t"
                     />
-                    {/* Image slider controls - only show if multiple images */}
+                    {/* Dots indicator - only show if multiple images */}
                     {images.length > 1 && (
-                      <>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setInfoImageIndex((prev) => (prev - 1 + images.length) % images.length)
-                          }}
-                          className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center text-xs"
-                        >
-                          ‹
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setInfoImageIndex((prev) => (prev + 1) % images.length)
-                          }}
-                          className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center text-xs"
-                        >
-                          ›
-                        </button>
-                        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-1">
-                          {images.map((_, idx) => (
-                            <span 
-                              key={idx} 
-                              className={`w-1.5 h-1.5 rounded-full ${idx === infoImageIndex ? 'bg-white' : 'bg-white/50'}`}
-                            />
-                          ))}
-                        </div>
-                      </>
+                      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                        {images.map((_, idx) => (
+                          <span 
+                            key={idx} 
+                            onClick={() => setInfoImageIndex(idx)}
+                            className={`w-2 h-2 rounded-full cursor-pointer transition-colors ${idx === infoImageIndex ? 'bg-white' : 'bg-white/50'}`}
+                          />
+                        ))}
+                      </div>
                     )}
                   </div>
                 )
