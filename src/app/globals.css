@@ -96,10 +96,23 @@ body {
 /* Google Maps InfoWindow - hide scrollbar and default close button */
 .gm-style-iw-d {
   overflow: hidden !important;
+  padding: 0 !important;
 }
 
 .gm-style-iw-c {
   padding: 0 !important;
+}
+
+.gm-style-iw-t {
+  padding: 0 !important;
+}
+
+/* Remove top padding/margin from InfoWindow content */
+.gm-style-iw,
+.gm-style-iw-c,
+.gm-style-iw-d {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
 }
 
 .gm-style-iw-tc {
@@ -113,4 +126,21 @@ body {
 
 button.gm-ui-hover-effect {
   display: none !important;
+}
+
+/* Ensure InfoWindow content has no top spacing */
+.gm-style .gm-style-iw-c {
+  padding: 0 !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+.gm-style .gm-style-iw-d {
+  overflow: hidden !important;
+  max-height: none !important;
+}
+
+.gm-style .gm-style-iw-d > div {
+  margin: 0 !important;
+  padding: 0 !important;
 }
