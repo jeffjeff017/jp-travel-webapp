@@ -289,7 +289,7 @@ export default function MainPage() {
         location: formData.location,
         lat: formData.lat,
         lng: formData.lng,
-        image_url: formData.image_url || null,
+        image_url: formData.image_url || undefined,
       }
 
       if (editingTrip) {
