@@ -782,7 +782,7 @@ export default function MainPage() {
                         {/* Section 1: Title + Time/Date - Primary emphasis */}
                         <div className="pb-2 border-b border-gray-100">
                           <div className="flex items-start justify-between gap-2">
-                            <h3 className="font-semibold text-lg text-gray-800 leading-tight">
+                            <h3 className="font-semibold text-xl md:text-2xl text-gray-800 leading-tight">
                               {trip.title}
                             </h3>
                             <div className="flex flex-col items-end gap-1">
