@@ -69,6 +69,8 @@ export default function GoogleMapComponent({
   const [map, setMap] = useState<google.maps.Map | null>(null)
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null)
   const [showTraffic, setShowTraffic] = useState(false)
+  const [infoImageIndex, setInfoImageIndex] = useState(0)
+  const [showAllScheduleItems, setShowAllScheduleItems] = useState(false)
   const [routeInfo, setRouteInfo] = useState<{
     distance: string
     duration: string
@@ -283,6 +285,8 @@ export default function GoogleMapComponent({
   const handleMarkerClick = (trip: Trip) => {
     setSelectedTrip(trip)
     setShowHomeInfo(false)
+    setInfoImageIndex(0) // Reset image slider
+    setShowAllScheduleItems(false) // Reset dropdown
     onTripSelect?.(trip.id)
   }
 
@@ -448,27 +452,64 @@ export default function GoogleMapComponent({
             }}
           >
             <div style={{ width: '250px', overflow: 'hidden' }}>
-              {/* Trip Image - Parse JSON array or single URL */}
+              {/* Trip Image Slider - Parse JSON array or single URL */}
               {(() => {
-                let imageUrl = ''
+                let images: string[] = []
                 if (selectedTrip.image_url) {
                   try {
                     const parsed = JSON.parse(selectedTrip.image_url)
                     if (Array.isArray(parsed) && parsed.length > 0) {
-                      imageUrl = parsed[0]
+                      images = parsed
                     }
                   } catch {
-                    imageUrl = selectedTrip.image_url
+                    if (selectedTrip.image_url.trim()) {
+                      images = [selectedTrip.image_url]
+                    }
                   }
                 }
-                return imageUrl ? (
-                  <img 
-                    src={imageUrl} 
-                    alt={selectedTrip.title}
-                    className="w-full object-cover rounded-t"
-                    style={{ height: '120px' }}
-                  />
-                ) : null
+                
+                if (images.length === 0) return null
+                
+                return (
+                  <div className="relative" style={{ height: '120px' }}>
+                    <img 
+                      src={images[infoImageIndex] || images[0]} 
+                      alt={selectedTrip.title}
+                      className="w-full h-full object-cover rounded-t"
+                    />
+                    {/* Image slider controls - only show if multiple images */}
+                    {images.length > 1 && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setInfoImageIndex((prev) => (prev - 1 + images.length) % images.length)
+                          }}
+                          className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center text-xs"
+                        >
+                          ‹
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setInfoImageIndex((prev) => (prev + 1) % images.length)
+                          }}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center text-xs"
+                        >
+                          ›
+                        </button>
+                        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-1">
+                          {images.map((_, idx) => (
+                            <span 
+                              key={idx} 
+                              className={`w-1.5 h-1.5 rounded-full ${idx === infoImageIndex ? 'bg-white' : 'bg-white/50'}`}
+                            />
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
               })()}
               <div className="p-3">
                 <h3 className="font-bold text-base text-sakura-700 mb-1">
@@ -482,23 +523,43 @@ export default function GoogleMapComponent({
                     day: 'numeric',
                   })}
                 </p>
-                {/* Description - Parse JSON schedule items or show plain text */}
-                <div className="text-sm text-gray-700 line-clamp-3">
+                {/* Description - Parse JSON schedule items with dropdown for 3+ items */}
+                <div className="text-sm text-gray-700">
                   {(() => {
                     if (!selectedTrip.description) return null
                     try {
                       const items = JSON.parse(selectedTrip.description)
                       if (Array.isArray(items) && items.length > 0) {
-                        return items.slice(0, 2).map((item: any, idx: number) => (
-                          <div key={idx} className="text-xs mb-1">
-                            {item.time_start && <span className="text-blue-600">{item.time_start} </span>}
-                            <span>{item.content}</span>
-                          </div>
-                        ))
+                        const displayItems = showAllScheduleItems ? items : items.slice(0, 2)
+                        return (
+                          <>
+                            {displayItems.map((item: any, idx: number) => (
+                              <div key={idx} className="text-xs mb-1">
+                                {item.time_start && <span className="text-blue-600">{item.time_start} </span>}
+                                <span>{item.content}</span>
+                              </div>
+                            ))}
+                            {items.length > 2 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setShowAllScheduleItems(!showAllScheduleItems)
+                                }}
+                                className="text-xs text-sakura-500 hover:text-sakura-600 mt-1 flex items-center gap-1"
+                              >
+                                {showAllScheduleItems ? (
+                                  <>收起 ▲</>
+                                ) : (
+                                  <>查看更多 ({items.length - 2}) ▼</>
+                                )}
+                              </button>
+                            )}
+                          </>
+                        )
                       }
                     } catch {
                       // Legacy: plain text or HTML
-                      return <span dangerouslySetInnerHTML={{ __html: selectedTrip.description }} />
+                      return <span className="text-xs" dangerouslySetInnerHTML={{ __html: selectedTrip.description }} />
                     }
                     return null
                   })()}
