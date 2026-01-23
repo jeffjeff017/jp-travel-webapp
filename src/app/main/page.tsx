@@ -11,7 +11,8 @@ import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 import DailyPopup from '@/components/DailyPopup'
 import ModeToggle from '@/components/ModeToggle'
-import MediaUpload from '@/components/MediaUpload'
+import MultiMediaUpload from '@/components/MultiMediaUpload'
+import ImageSlider from '@/components/ImageSlider'
 import { useLanguage } from '@/lib/i18n'
 
 const GoogleMapComponent = dynamic(
@@ -62,7 +63,7 @@ type TripFormData = {
   location: string
   lat: number
   lng: number
-  image_url: string
+  images: string[] // Array of image URLs (stored as JSON in image_url field)
 }
 
 const initialFormData: TripFormData = {
@@ -71,7 +72,20 @@ const initialFormData: TripFormData = {
   location: '',
   lat: 35.6762,
   lng: 139.6503,
-  image_url: '',
+  images: [],
+}
+
+// Helper to parse images from image_url field (handles both old string and new JSON array)
+const parseImages = (imageUrl: string | undefined): string[] => {
+  if (!imageUrl) return []
+  try {
+    const parsed = JSON.parse(imageUrl)
+    if (Array.isArray(parsed)) return parsed
+  } catch {
+    // If not JSON, treat as single image URL
+    if (imageUrl.trim()) return [imageUrl]
+  }
+  return []
 }
 
 const createEmptyScheduleItem = (): ScheduleItem => ({
@@ -263,7 +277,7 @@ export default function MainPage() {
       location: trip.location,
       lat: trip.lat,
       lng: trip.lng,
-      image_url: trip.image_url || '',
+      images: parseImages(trip.image_url),
     })
     setScheduleItems(parseScheduleItems(trip.description))
     setEditingTrip(trip)
@@ -334,7 +348,7 @@ export default function MainPage() {
         location: formData.location,
         lat: formData.lat,
         lng: formData.lng,
-        image_url: formData.image_url || undefined,
+        image_url: formData.images.length > 0 ? JSON.stringify(formData.images) : undefined,
       }
 
       if (editingTrip) {
@@ -762,40 +776,32 @@ export default function MainPage() {
                         : 'border-sakura-100 bg-gradient-to-r from-sakura-50 to-white hover:border-sakura-300 hover:shadow-md'
                     }`}
                   >
-                    {/* Trip Image */}
-                    {trip.image_url && (
-                      <div className="h-32 w-full overflow-hidden">
-                        <img 
-                          src={trip.image_url} 
-                          alt={trip.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
-                    <div className="p-4 space-y-3">
-                      {/* Section 1: Title + Time/Date - Primary emphasis */}
-                      <div className="pb-2 border-b border-gray-100">
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="font-semibold text-lg text-gray-800 leading-tight">
-                            {trip.title}
-                          </h3>
-                          <div className="flex flex-col items-end gap-1">
-                            {/* Time Badge */}
-                            {trip.time_start && (
-                              <span className="text-xs font-medium text-blue-700 bg-blue-100 px-2.5 py-1 rounded-md whitespace-nowrap">
-                                🕐 {trip.time_start}{trip.time_end ? ` - ${trip.time_end}` : ''}
+                    <div className="flex">
+                      {/* Left: Content */}
+                      <div className="flex-1 p-4 space-y-3">
+                        {/* Section 1: Title + Time/Date - Primary emphasis */}
+                        <div className="pb-2 border-b border-gray-100">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="font-semibold text-lg text-gray-800 leading-tight">
+                              {trip.title}
+                            </h3>
+                            <div className="flex flex-col items-end gap-1">
+                              {/* Time Badge */}
+                              {trip.time_start && (
+                                <span className="text-xs font-medium text-blue-700 bg-blue-100 px-2.5 py-1 rounded-md whitespace-nowrap">
+                                  🕐 {trip.time_start}{trip.time_end ? ` - ${trip.time_end}` : ''}
+                                </span>
+                              )}
+                              {/* Date Badge */}
+                              <span className="text-xs text-sakura-600 bg-sakura-100 px-2 py-0.5 rounded whitespace-nowrap">
+                                {new Date(trip.date).toLocaleDateString('zh-TW', {
+                                  month: 'numeric',
+                                  day: 'numeric',
+                                })}
                               </span>
-                            )}
-                            {/* Date Badge */}
-                            <span className="text-xs text-sakura-600 bg-sakura-100 px-2 py-0.5 rounded whitespace-nowrap">
-                              {new Date(trip.date).toLocaleDateString('zh-TW', {
-                                month: 'numeric',
-                                day: 'numeric',
-                              })}
-                            </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
                       
                       {/* Section 2: Location - Clickable to expand description */}
                       <div 
@@ -857,23 +863,40 @@ export default function MainPage() {
                         )}
                       </AnimatePresence>
                       
-                      {/* Actions - Admin only */}
-                      {isAdmin && (
-                        <div className="flex items-center gap-2 pt-1">
-                          <button
-                            onClick={(e) => openEditForm(trip, e)}
-                            className="px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-1 border border-blue-100"
-                          >
-                            ✏️ 編輯
-                          </button>
-                          <button
-                            onClick={(e) => handleDeleteTrip(trip.id, e)}
-                            className="px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1 border border-red-100"
-                          >
-                            🗑️ 刪除
-                          </button>
-                        </div>
-                      )}
+                        {/* Actions - Admin only */}
+                        {isAdmin && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              onClick={(e) => openEditForm(trip, e)}
+                              className="px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-1 border border-blue-100"
+                            >
+                              ✏️ 編輯
+                            </button>
+                            <button
+                              onClick={(e) => handleDeleteTrip(trip.id, e)}
+                              className="px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1 border border-red-100"
+                            >
+                              🗑️ 刪除
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Right: Image Slider - Square Box */}
+                      {(() => {
+                        const images = parseImages(trip.image_url)
+                        if (images.length === 0) return null
+                        return (
+                          <div className="w-28 h-28 md:w-32 md:h-32 flex-shrink-0 rounded-lg overflow-hidden m-3 shadow-sm">
+                            <ImageSlider 
+                              images={images} 
+                              className="w-full h-full"
+                              autoPlay={images.length > 1}
+                              interval={4000}
+                            />
+                          </div>
+                        )
+                      })()}
                     </div>
                   </motion.div>
                 ))}
@@ -1100,11 +1123,12 @@ export default function MainPage() {
                     </div>
                   </div>
 
-                  {/* Image */}
-                  <MediaUpload
+                  {/* Images */}
+                  <MultiMediaUpload
                     label="圖片（選填）"
-                    value={formData.image_url}
-                    onChange={(url) => setFormData(prev => ({ ...prev, image_url: url }))}
+                    value={formData.images}
+                    onChange={(urls) => setFormData(prev => ({ ...prev, images: urls }))}
+                    maxImages={5}
                   />
 
                   {/* Schedule Items - Point Form List */}
