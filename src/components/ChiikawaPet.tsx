@@ -145,10 +145,10 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
 
   return (
     <div 
-      className="fixed bottom-20 right-4 md:bottom-6 md:left-6 md:right-auto z-50 cursor-pointer select-none"
+      className="fixed bottom-20 right-4 md:bottom-6 md:left-6 md:right-auto z-50 cursor-pointer select-none w-16 h-16 md:w-20 md:h-20"
       onClick={handleClick}
     >
-      {/* Speech Bubble - above character, only for usagi */}
+      {/* Speech Bubble - positioned above character, stays upright and centered */}
       <AnimatePresence>
         {isClicked && speechMessage && isUsagi && (
           <motion.div
@@ -156,13 +156,13 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="absolute -top-12 left-1/2 -translate-x-1/2 whitespace-nowrap z-10"
+            className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 w-max"
           >
             <div className="relative bg-white px-3 py-1.5 rounded-xl shadow-lg border-2 border-pink-200">
-              <span className="text-xs font-bold text-pink-500 text-center block">
+              <span className="text-xs font-bold text-pink-500 text-center block whitespace-nowrap">
                 {speechMessage}
               </span>
-              {/* Speech bubble tail - pointing down */}
+              {/* Speech bubble tail - pointing down, precisely centered */}
               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 
                 border-l-[6px] border-l-transparent 
                 border-r-[6px] border-r-transparent 
@@ -178,14 +178,14 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
       <motion.div
         variants={floatingVariants}
         animate="animate"
-        className="relative"
+        className="relative w-full h-full"
       >
-          <motion.div
-            variants={isHappyBounce ? happyBounceVariants : clickVariants}
-            initial="initial"
-            animate={isHappyBounce ? 'bounce' : isClicked ? 'clicked' : 'initial'}
-            className="relative"
-          >
+        <motion.div
+          variants={isHappyBounce ? happyBounceVariants : clickVariants}
+          initial="initial"
+          animate={isHappyBounce ? 'bounce' : isClicked ? 'clicked' : 'initial'}
+          className="relative w-full h-full"
+        >
             {/* Glow effect on click */}
             <AnimatePresence>
               {isClicked && (
@@ -199,7 +199,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
             </AnimatePresence>
 
             {/* Character Image */}
-            <div className="relative w-16 h-16 md:w-20 md:h-20">
+            <div className="relative w-full h-full">
               <Image
                 src={characterImage}
                 alt="Chiikawa"
@@ -244,21 +244,21 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
             )}
           </AnimatePresence>
         </motion.div>
-
-        {/* Subtle shadow underneath */}
-        <motion.div
-          animate={{
-            scale: [1, 0.9, 1, 0.95, 1],
-            opacity: [0.3, 0.2, 0.3, 0.25, 0.3],
-          }}
-          transition={{
-            duration: 4,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 md:w-14 h-2 bg-black/20 rounded-full blur-sm"
-        />
       </motion.div>
+
+      {/* Subtle shadow underneath - remains on ground */}
+      <motion.div
+        animate={{
+          scale: [1, 0.9, 1, 0.95, 1],
+          opacity: [0.3, 0.2, 0.3, 0.25, 0.3],
+        }}
+        transition={{
+          duration: 4,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 md:w-14 h-2 bg-black/20 rounded-full blur-sm"
+      />
     </div>
   )
 }
