@@ -184,30 +184,17 @@ export default function MainPage() {
         
         // Auto-sync tripStartDate from actual trip data
         // This ensures all browsers show the same dates based on actual trips
+        // Note: We only sync the start date, not totalDays (to respect manual day removal)
         if (data.length > 0) {
           const tripDates = data.map(t => new Date(t.date).getTime())
           const earliestDate = new Date(Math.min(...tripDates))
-          const latestDate = new Date(Math.max(...tripDates))
-          
-          // Calculate total days needed
-          const daysDiff = Math.ceil((latestDate.getTime() - earliestDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
           const syncedStartDate = earliestDate.toISOString().split('T')[0]
           
-          // Only update settings if dates don't match (to sync across browsers)
-          if (loadedSettings.tripStartDate !== syncedStartDate || loadedSettings.totalDays < daysDiff) {
-            const newDaySchedules = [...loadedSettings.daySchedules]
-            while (newDaySchedules.length < Math.max(loadedSettings.totalDays, daysDiff)) {
-              newDaySchedules.push({
-                dayNumber: newDaySchedules.length + 1,
-                theme: `Day ${newDaySchedules.length + 1}`
-              })
-            }
-            
+          // Only update start date if different (don't change totalDays to respect manual removal)
+          if (loadedSettings.tripStartDate !== syncedStartDate) {
             loadedSettings = {
               ...loadedSettings,
               tripStartDate: syncedStartDate,
-              totalDays: Math.max(loadedSettings.totalDays, daysDiff),
-              daySchedules: newDaySchedules,
             }
             saveSettings(loadedSettings)
           }
@@ -490,6 +477,22 @@ export default function MainPage() {
   // Remove the last day
   const handleRemoveDay = () => {
     if (!settings || settings.totalDays <= 1) return
+    
+    const dayToRemove = settings.totalDays
+    
+    // Check if there are trips on this day
+    const dayDate = getDayDate(dayToRemove)
+    const tripsOnDay = trips.filter(trip => {
+      const tripDate = new Date(trip.date).toISOString().split('T')[0]
+      return tripDate === dayDate
+    })
+    
+    let confirmMessage = `確定要刪除 Day ${dayToRemove} 嗎？`
+    if (tripsOnDay.length > 0) {
+      confirmMessage = `Day ${dayToRemove} 有 ${tripsOnDay.length} 個行程，確定要刪除此天嗎？\n（行程不會被刪除，但會被隱藏）`
+    }
+    
+    if (!confirm(confirmMessage)) return
     
     const newTotalDays = settings.totalDays - 1
     const newDaySchedules = settings.daySchedules?.filter(d => d.dayNumber <= newTotalDays) || []
