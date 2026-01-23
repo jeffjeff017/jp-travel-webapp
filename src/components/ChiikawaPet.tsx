@@ -146,10 +146,10 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="absolute -top-12 left-1/2 -translate-x-1/2 whitespace-nowrap"
+            className="absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap"
           >
-            <div className="relative bg-white px-3 py-1.5 rounded-full shadow-lg border-2 border-pink-200">
-              <span className="text-sm md:text-base font-bold text-pink-500">
+            <div className="relative bg-white px-2.5 py-1 rounded-full shadow-lg border-2 border-pink-200">
+              <span className="text-xs font-bold text-pink-500 text-center block">
                 {speechMessage}
               </span>
               {/* Speech bubble tail */}
