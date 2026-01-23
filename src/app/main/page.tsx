@@ -8,7 +8,7 @@ import { getTrips, createTrip, updateTrip, deleteTrip, type Trip } from '@/lib/s
 import { getSettings, saveSettings, type SiteSettings } from '@/lib/settings'
 import { isAuthenticated } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
-import NekoWidget from '@/components/NekoWidget'
+import ChiikawaPet from '@/components/ChiikawaPet'
 import DailyPopup from '@/components/DailyPopup'
 import ModeToggle from '@/components/ModeToggle'
 import MediaUpload from '@/components/MediaUpload'
@@ -914,8 +914,8 @@ export default function MainPage() {
         )}
       </AnimatePresence>
 
-      {/* Neko Widget - Follows cursor when sakura mode is on */}
-      <NekoWidget enabled={isSakuraMode} />
+      {/* Chiikawa Pet - Floating character when sakura mode is on */}
+      <ChiikawaPet enabled={isSakuraMode} />
 
       {/* Daily Popup - Bottom Right */}
       <DailyPopup />
