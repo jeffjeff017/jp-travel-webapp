@@ -8,12 +8,12 @@ interface ChiikawaPetProps {
   enabled?: boolean
 }
 
-// ============================================
-// 🎨 CUSTOMIZE YOUR CHIIKAWA IMAGE HERE
-// Replace this URL with your own Chiikawa PNG/GIF
-// ============================================
-const CHIIKAWA_IMAGE_URL = '/images/chiikawa-pet.png'
-// Alternative: 'https://your-cdn.com/chiikawa.png'
+// Array of character images (randomly selected on load)
+const CHARACTER_IMAGES = [
+  '/images/chiikawa-pet.png',
+  '/images/hachiware-pet.png',
+  '/images/chii-pet.png',
+]
 
 // Speech bubble messages (randomly selected on click)
 const SPEECH_MESSAGES = [
@@ -27,6 +27,13 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
   const [isClicked, setIsClicked] = useState(false)
   const [speechMessage, setSpeechMessage] = useState('')
   const [isHappyBounce, setIsHappyBounce] = useState(false)
+  const [characterImage, setCharacterImage] = useState(CHARACTER_IMAGES[0])
+
+  // Select random character on mount
+  useEffect(() => {
+    const randomIndex = Math.floor(Math.random() * CHARACTER_IMAGES.length)
+    setCharacterImage(CHARACTER_IMAGES[randomIndex])
+  }, [])
 
   // Random speech message on click
   const getRandomMessage = useCallback(() => {
@@ -138,67 +145,69 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
       className="fixed bottom-20 right-4 md:bottom-6 md:left-6 md:right-auto z-50 cursor-pointer select-none"
       onClick={handleClick}
     >
-      {/* Speech Bubble */}
-      <AnimatePresence>
-        {isClicked && speechMessage && (
-          <motion.div
-            variants={speechBubbleVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap"
-          >
-            <div className="relative bg-white px-2.5 py-1 rounded-full shadow-lg border-2 border-pink-200">
-              <span className="text-xs font-bold text-pink-500 text-center block">
-                {speechMessage}
-              </span>
-              {/* Speech bubble tail */}
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 
-                border-l-[6px] border-l-transparent 
-                border-r-[6px] border-r-transparent 
-                border-t-[8px] border-t-white
-                drop-shadow-sm" 
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Container for horizontal alignment of speech bubble and character */}
+      <div className="flex items-center gap-2">
+        {/* Speech Bubble - positioned to the left of character */}
+        <AnimatePresence>
+          {isClicked && speechMessage && (
+            <motion.div
+              variants={speechBubbleVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="whitespace-nowrap"
+            >
+              <div className="relative bg-white px-2.5 py-1.5 rounded-xl shadow-lg border-2 border-pink-200">
+                <span className="text-xs font-bold text-pink-500 text-center block">
+                  {speechMessage}
+                </span>
+                {/* Speech bubble tail - pointing right */}
+                <div className="absolute top-1/2 -right-2 -translate-y-1/2 w-0 h-0 
+                  border-t-[6px] border-t-transparent 
+                  border-b-[6px] border-b-transparent 
+                  border-l-[8px] border-l-white
+                  drop-shadow-sm" 
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Chiikawa Character */}
-      <motion.div
-        variants={floatingVariants}
-        animate="animate"
-        className="relative"
-      >
+        {/* Chiikawa Character */}
         <motion.div
-          variants={isHappyBounce ? happyBounceVariants : clickVariants}
-          initial="initial"
-          animate={isHappyBounce ? 'bounce' : isClicked ? 'clicked' : 'initial'}
+          variants={floatingVariants}
+          animate="animate"
           className="relative"
         >
-          {/* Glow effect on click */}
-          <AnimatePresence>
-            {isClicked && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1.2 }}
-                exit={{ opacity: 0, scale: 1.4 }}
-                className="absolute inset-0 rounded-full bg-pink-300/30 blur-xl"
-              />
-            )}
-          </AnimatePresence>
+          <motion.div
+            variants={isHappyBounce ? happyBounceVariants : clickVariants}
+            initial="initial"
+            animate={isHappyBounce ? 'bounce' : isClicked ? 'clicked' : 'initial'}
+            className="relative"
+          >
+            {/* Glow effect on click */}
+            <AnimatePresence>
+              {isClicked && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1.2 }}
+                  exit={{ opacity: 0, scale: 1.4 }}
+                  className="absolute inset-0 rounded-full bg-pink-300/30 blur-xl"
+                />
+              )}
+            </AnimatePresence>
 
-          {/* Character Image */}
-          <div className="relative w-16 h-16 md:w-20 md:h-20">
-            <Image
-              src={CHIIKAWA_IMAGE_URL}
-              alt="Chiikawa"
-              fill
-              className="object-contain drop-shadow-lg"
-              priority
-              unoptimized // Remove this if using optimized images from allowed domains
-            />
-          </div>
+            {/* Character Image */}
+            <div className="relative w-16 h-16 md:w-20 md:h-20">
+              <Image
+                src={characterImage}
+                alt="Chiikawa"
+                fill
+                className="object-contain drop-shadow-lg"
+                priority
+                unoptimized
+              />
+            </div>
 
           {/* Sparkles on happy bounce */}
           <AnimatePresence>
@@ -234,21 +243,22 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
             )}
           </AnimatePresence>
         </motion.div>
-      </motion.div>
 
-      {/* Subtle shadow underneath */}
-      <motion.div
-        animate={{
-          scale: [1, 0.9, 1, 0.95, 1],
-          opacity: [0.3, 0.2, 0.3, 0.25, 0.3],
-        }}
-        transition={{
-          duration: 4,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-        className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 md:w-14 h-2 bg-black/20 rounded-full blur-sm"
-      />
+        {/* Subtle shadow underneath */}
+        <motion.div
+          animate={{
+            scale: [1, 0.9, 1, 0.95, 1],
+            opacity: [0.3, 0.2, 0.3, 0.25, 0.3],
+          }}
+          transition={{
+            duration: 4,
+            repeat: Infinity,
+            ease: 'easeInOut',
+          }}
+          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 md:w-14 h-2 bg-black/20 rounded-full blur-sm"
+        />
+      </motion.div>
+      </div>
     </div>
   )
 }

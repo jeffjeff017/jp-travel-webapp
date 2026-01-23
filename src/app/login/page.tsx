@@ -3,8 +3,16 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import Image from 'next/image'
 import { login, isAuthenticated } from '@/lib/auth'
 import { useLanguage } from '@/lib/i18n'
+
+// Array of character images for login page (randomly selected)
+const LOGIN_CHARACTER_IMAGES = [
+  '/images/usagi-login.png',
+  '/images/chii-login.png',
+  '/images/hachi-login.png',
+]
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -12,10 +20,15 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isChecking, setIsChecking] = useState(true)
+  const [characterImage, setCharacterImage] = useState('')
   const router = useRouter()
   const { t } = useLanguage()
 
   useEffect(() => {
+    // Select random character on mount
+    const randomIndex = Math.floor(Math.random() * LOGIN_CHARACTER_IMAGES.length)
+    setCharacterImage(LOGIN_CHARACTER_IMAGES[randomIndex])
+    
     // Check if already authenticated and redirect to admin
     if (isAuthenticated()) {
       router.replace('/admin')
@@ -66,9 +79,18 @@ export default function LoginPage() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-            className="w-16 h-16 bg-sakura-100 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            className="w-24 h-24 mx-auto mb-4 relative"
           >
-            <span className="text-3xl">🔐</span>
+            {characterImage && (
+              <Image
+                src={characterImage}
+                alt="Character"
+                fill
+                className="object-contain"
+                priority
+                unoptimized
+              />
+            )}
           </motion.div>
           <h1 className="text-2xl font-medium text-gray-800">{t.login.title}</h1>
           <p className="text-gray-500 mt-2">{t.login.subtitle}</p>
