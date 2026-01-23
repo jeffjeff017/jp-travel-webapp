@@ -892,7 +892,7 @@ export default function MainPage() {
                               images={images} 
                               className="w-full h-full"
                               autoPlay={images.length > 1}
-                              interval={4000}
+                              interval={6000}
                             />
                           </div>
                         )
