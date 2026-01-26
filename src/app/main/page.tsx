@@ -1001,6 +1001,19 @@ export default function MainPage() {
                     </div>
                   </motion.div>
                 ))}
+                
+                {/* Add Trip Button - Admin only, max 10 per day */}
+                {isAdmin && filteredTrips.length < 10 && (
+                  <motion.button
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    onClick={openAddForm}
+                    className="w-full py-3 border-2 border-dashed border-sakura-300 rounded-xl text-sakura-500 hover:border-sakura-500 hover:bg-sakura-50 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span className="text-lg">+</span>
+                    <span>新增行程 ({filteredTrips.length}/10)</span>
+                  </motion.button>
+                )}
               </div>
             )}
           </div>
