@@ -452,3 +452,193 @@ export async function saveSupabaseChecklistState(state: ChecklistStateDB): Promi
     return { success: false, error: err.message || '儲存勾選狀態時發生錯誤' }
   }
 }
+
+// ============================================
+// Travel Destinations (Multi-destination support)
+// ============================================
+
+export type DestinationTheme = {
+  primary: string       // Primary color (Tailwind class prefix, e.g., 'sakura', 'thai', 'korean', 'taiwan')
+  primaryHex: string    // Primary color hex
+  secondary: string     // Secondary color
+  secondaryHex: string  // Secondary color hex
+  accent: string        // Accent color
+  accentHex: string     // Accent color hex
+  gradient: string      // Gradient classes
+  emoji: string         // Destination emoji
+}
+
+export type DestinationDB = {
+  id: string           // e.g., 'japan', 'thailand', 'korea', 'taiwan'
+  name: string         // Display name
+  name_en: string      // English name
+  flag: string         // Flag emoji
+  theme: DestinationTheme
+  is_active: boolean   // Whether this destination is enabled
+  sort_order: number   // Display order
+  created_at: string
+  updated_at: string
+}
+
+// Default destination themes
+export const DEFAULT_DESTINATIONS: Omit<DestinationDB, 'created_at' | 'updated_at'>[] = [
+  {
+    id: 'japan',
+    name: '日本',
+    name_en: 'Japan',
+    flag: '🇯🇵',
+    theme: {
+      primary: 'sakura',
+      primaryHex: '#F472B6',
+      secondary: 'pink',
+      secondaryHex: '#EC4899',
+      accent: 'rose',
+      accentHex: '#F43F5E',
+      gradient: 'from-pink-400 to-rose-500',
+      emoji: '🌸',
+    },
+    is_active: true,
+    sort_order: 1,
+  },
+  {
+    id: 'thailand',
+    name: '泰國',
+    name_en: 'Thailand',
+    flag: '🇹🇭',
+    theme: {
+      primary: 'thai',
+      primaryHex: '#F59E0B',
+      secondary: 'amber',
+      secondaryHex: '#D97706',
+      accent: 'orange',
+      accentHex: '#EA580C',
+      gradient: 'from-amber-400 to-orange-500',
+      emoji: '🐘',
+    },
+    is_active: true,
+    sort_order: 2,
+  },
+  {
+    id: 'korea',
+    name: '韓國',
+    name_en: 'Korea',
+    flag: '🇰🇷',
+    theme: {
+      primary: 'korean',
+      primaryHex: '#3B82F6',
+      secondary: 'blue',
+      secondaryHex: '#2563EB',
+      accent: 'indigo',
+      accentHex: '#4F46E5',
+      gradient: 'from-blue-400 to-indigo-500',
+      emoji: '🏯',
+    },
+    is_active: true,
+    sort_order: 3,
+  },
+  {
+    id: 'taiwan',
+    name: '台灣',
+    name_en: 'Taiwan',
+    flag: '🇹🇼',
+    theme: {
+      primary: 'taiwan',
+      primaryHex: '#10B981',
+      secondary: 'emerald',
+      secondaryHex: '#059669',
+      accent: 'teal',
+      accentHex: '#14B8A6',
+      gradient: 'from-emerald-400 to-teal-500',
+      emoji: '🧋',
+    },
+    is_active: true,
+    sort_order: 4,
+  },
+]
+
+export async function getSupabaseDestinations(): Promise<DestinationDB[]> {
+  try {
+    const { data, error } = await supabase
+      .from('destinations')
+      .select('*')
+      .order('sort_order', { ascending: true })
+
+    if (error) {
+      // Don't log error for missing table (expected when not set up)
+      if (!error.message.includes('does not exist')) {
+        console.error('Error fetching destinations:', error.message)
+      }
+      // Return defaults if table doesn't exist
+      return DEFAULT_DESTINATIONS.map(d => ({
+        ...d,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }))
+    }
+
+    // If no data, return defaults
+    if (!data || data.length === 0) {
+      return DEFAULT_DESTINATIONS.map(d => ({
+        ...d,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }))
+    }
+
+    return data
+  } catch (err) {
+    console.error('Supabase destinations error:', err)
+    return DEFAULT_DESTINATIONS.map(d => ({
+      ...d,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }))
+  }
+}
+
+export async function saveSupabaseDestination(destination: Omit<DestinationDB, 'created_at' | 'updated_at'>): Promise<{ data: DestinationDB | null; error: string | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('destinations')
+      .upsert({
+        ...destination,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error saving destination:', error)
+      return { data: null, error: error.message }
+    }
+
+    return { data, error: null }
+  } catch (err: any) {
+    console.error('Save destination error:', err)
+    return { data: null, error: err.message || '儲存目的地時發生錯誤' }
+  }
+}
+
+export async function deleteSupabaseDestination(id: string): Promise<{ success: boolean; error: string | null }> {
+  // Don't allow deleting the default Japan destination
+  if (id === 'japan') {
+    return { success: false, error: '無法刪除預設的日本目的地' }
+  }
+
+  try {
+    const { error } = await supabase
+      .from('destinations')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error deleting destination:', error)
+      return { success: false, error: error.message }
+    }
+
+    return { success: true, error: null }
+  } catch (err: any) {
+    console.error('Delete destination error:', err)
+    return { success: false, error: err.message || '刪除目的地時發生錯誤' }
+  }
+}

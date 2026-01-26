@@ -1,8 +1,10 @@
 // Site settings with Supabase sync
-import { getSupabaseSiteSettings, saveSupabaseSiteSettings, type SiteSettingsDB } from './supabase'
+import { getSupabaseSiteSettings, saveSupabaseSiteSettings, type SiteSettingsDB, type DestinationDB, getSupabaseDestinations, DEFAULT_DESTINATIONS } from './supabase'
 
 const SETTINGS_KEY = 'site_settings'
 const SETTINGS_CACHE_KEY = 'site_settings_cache_time'
+const DESTINATION_KEY = 'current_destination'
+const DESTINATIONS_CACHE_KEY = 'destinations_cache'
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes cache
 
 export interface DaySchedule {
@@ -237,3 +239,100 @@ export async function migrateSettingsToSupabase(): Promise<void> {
     await saveSupabaseSiteSettings(toSupabaseFormat(localSettings))
   }
 }
+
+// ============================================
+// Destination Management
+// ============================================
+
+// Get current destination from localStorage
+export function getCurrentDestination(): string {
+  if (typeof window === 'undefined') return 'japan'
+  
+  try {
+    return localStorage.getItem(DESTINATION_KEY) || 'japan'
+  } catch (e) {
+    console.error('Error reading current destination:', e)
+    return 'japan'
+  }
+}
+
+// Set current destination
+export function setCurrentDestination(destinationId: string): void {
+  if (typeof window === 'undefined') return
+  
+  try {
+    localStorage.setItem(DESTINATION_KEY, destinationId)
+  } catch (e) {
+    console.error('Error saving current destination:', e)
+  }
+}
+
+// Get all destinations (cached)
+export function getDestinations(): DestinationDB[] {
+  if (typeof window === 'undefined') {
+    return DEFAULT_DESTINATIONS.map(d => ({
+      ...d,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }))
+  }
+  
+  try {
+    const cached = localStorage.getItem(DESTINATIONS_CACHE_KEY)
+    if (cached) {
+      return JSON.parse(cached)
+    }
+  } catch (e) {
+    console.error('Error reading destinations cache:', e)
+  }
+  
+  return DEFAULT_DESTINATIONS.map(d => ({
+    ...d,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }))
+}
+
+// Get destinations async (fetch from Supabase)
+export async function getDestinationsAsync(): Promise<DestinationDB[]> {
+  try {
+    const destinations = await getSupabaseDestinations()
+    
+    // Cache the results
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(DESTINATIONS_CACHE_KEY, JSON.stringify(destinations))
+    }
+    
+    return destinations
+  } catch (err) {
+    console.error('Error fetching destinations:', err)
+    return getDestinations()
+  }
+}
+
+// Get destination by ID
+export function getDestinationById(id: string): DestinationDB | undefined {
+  const destinations = getDestinations()
+  return destinations.find(d => d.id === id)
+}
+
+// Get current destination data
+export function getCurrentDestinationData(): DestinationDB {
+  const currentId = getCurrentDestination()
+  const destination = getDestinationById(currentId)
+  
+  if (!destination) {
+    // Return Japan as default
+    const japan = DEFAULT_DESTINATIONS.find(d => d.id === 'japan')!
+    return {
+      ...japan,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+  }
+  
+  return destination
+}
+
+// Export destination type for use in components
+export type { DestinationDB } from './supabase'
