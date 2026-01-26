@@ -557,8 +557,24 @@ export default function AdminPage() {
                 選擇目的地以切換主題顏色和行程資料
               </p>
               
-              {/* Destination Switch Buttons */}
-              <div className="flex flex-wrap gap-2 mb-4">
+              {/* Destination Switch - Select on mobile, Buttons on desktop */}
+              {/* Mobile Select */}
+              <div className="md:hidden mb-4">
+                <select
+                  value={currentDestinationId}
+                  onChange={(e) => handleDestinationSwitch(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl font-medium bg-white text-gray-800 shadow-lg outline-none cursor-pointer"
+                >
+                  {destinations.filter(d => d.is_active).map((dest) => (
+                    <option key={dest.id} value={dest.id}>
+                      {dest.flag} {dest.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Desktop Buttons */}
+              <div className="hidden md:flex flex-wrap gap-2 mb-4">
                 {destinations.filter(d => d.is_active).map((dest) => (
                   <button
                     key={dest.id}
@@ -1687,7 +1703,7 @@ export default function AdminPage() {
           )}
         </AnimatePresence>
 
-        {/* Trips Table */}
+        {/* Trips Grid - 4 columns horizontal scroll */}
         {isLoading ? (
           <div className="bg-white rounded-xl border border-gray-200 p-8">
             <div className="flex items-center justify-center">
@@ -1703,37 +1719,37 @@ export default function AdminPage() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {trips.map((trip) => {
-              // Parse images
-              const tripImages = parseImages(trip.image_url)
-              const firstImage = tripImages[0]
-              
-              // Parse schedule items
-              const scheduleItems = parseScheduleItems(trip.description)
-              
-              // Calculate day number
-              const getDayNumber = () => {
-                if (!siteSettings?.tripStartDate || !trip.date) return null
-                const startDate = new Date(siteSettings.tripStartDate)
-                const tripDate = new Date(trip.date)
-                startDate.setHours(0, 0, 0, 0)
-                tripDate.setHours(0, 0, 0, 0)
-                const diffTime = tripDate.getTime() - startDate.getTime()
-                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-                return diffDays + 1
-              }
-              const dayNumber = getDayNumber()
-              
-              return (
-                <div 
-                  key={trip.id} 
-                  className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
-                >
-                  <div className="flex flex-col md:flex-row">
+          <div className="overflow-x-auto pb-4 -mx-4 px-4">
+            <div className="grid grid-flow-col auto-cols-[280px] md:auto-cols-[320px] gap-4" style={{ gridTemplateRows: '1fr' }}>
+              {trips.map((trip) => {
+                // Parse images
+                const tripImages = parseImages(trip.image_url)
+                const firstImage = tripImages[0]
+                
+                // Parse schedule items
+                const scheduleItems = parseScheduleItems(trip.description)
+                
+                // Calculate day number
+                const getDayNumber = () => {
+                  if (!siteSettings?.tripStartDate || !trip.date) return null
+                  const startDate = new Date(siteSettings.tripStartDate)
+                  const tripDate = new Date(trip.date)
+                  startDate.setHours(0, 0, 0, 0)
+                  tripDate.setHours(0, 0, 0, 0)
+                  const diffTime = tripDate.getTime() - startDate.getTime()
+                  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+                  return diffDays + 1
+                }
+                const dayNumber = getDayNumber()
+                
+                return (
+                  <div 
+                    key={trip.id} 
+                    className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col"
+                  >
                     {/* Image */}
                     {firstImage && (
-                      <div className="w-full md:w-48 h-32 md:h-auto flex-shrink-0 relative">
+                      <div className="w-full h-36 flex-shrink-0 relative">
                         <img 
                           src={firstImage} 
                           alt={trip.title}
@@ -1748,80 +1764,56 @@ export default function AdminPage() {
                     )}
                     
                     {/* Content */}
-                    <div className="flex-1 p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          {/* Title & Date & Day */}
-                          <div className="flex items-center gap-3 mb-2 flex-wrap">
-                            <h3 className="text-lg font-semibold text-gray-800">
-                              {trip.title}
-                            </h3>
-                            {dayNumber !== null && dayNumber > 0 && (
-                              <span className="px-2 py-1 text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded-full whitespace-nowrap">
-                                Day {dayNumber}
-                              </span>
-                            )}
-                            <span className="px-2 py-1 text-xs font-medium text-sakura-600 bg-sakura-50 rounded-full whitespace-nowrap">
-                              📅 {new Date(trip.date).toLocaleDateString('zh-TW')}
-                            </span>
-                          </div>
-                          
-                          {/* Location */}
-                          <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                            <span>📍</span>
-                            <span className="truncate">{trip.location}</span>
-                          </div>
-                          
-                          {/* Coordinates */}
-                          <div className="text-xs text-gray-400 mb-2">
-                            座標：{trip.lat?.toFixed(4)}, {trip.lng?.toFixed(4)}
-                          </div>
-                          
-                          {/* Schedule Items */}
-                          {scheduleItems.length > 0 && scheduleItems[0].content && (
-                            <div className="text-sm text-gray-600 space-y-1">
-                              {scheduleItems.slice(0, 2).map((item, idx) => (
-                                <div key={idx} className="flex items-start gap-2">
-                                  {item.time_start && (
-                                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-                                      {item.time_start}
-                                    </span>
-                                  )}
-                                  <span className="line-clamp-1">{item.content}</span>
-                                </div>
-                              ))}
-                              {scheduleItems.length > 2 && (
-                                <span className="text-xs text-gray-400">
-                                  +{scheduleItems.length - 2} 項目
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* Actions */}
-                        <div className="flex flex-col gap-2">
-                          <button
-                            onClick={() => handleEdit(trip)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="編輯"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDelete(trip.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="刪除"
-                          >
-                            🗑️
-                          </button>
-                        </div>
+                    <div className="flex-1 p-3">
+                      {/* Title & Day Badge */}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <h3 className="text-base font-semibold text-gray-800 line-clamp-1">
+                          {trip.title}
+                        </h3>
+                        {dayNumber !== null && dayNumber > 0 && (
+                          <span className="px-2 py-0.5 text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded-full whitespace-nowrap flex-shrink-0">
+                            Day {dayNumber}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Date */}
+                      <div className="flex items-center gap-1 text-xs text-sakura-600 mb-2">
+                        <span>📅</span>
+                        <span>{new Date(trip.date).toLocaleDateString('zh-TW')}</span>
+                      </div>
+                      
+                      {/* Location */}
+                      <div className="flex items-center gap-1 text-xs text-gray-500 mb-2">
+                        <span>📍</span>
+                        <span className="truncate">{trip.location}</span>
+                      </div>
+                      
+                      {/* Coordinates */}
+                      <div className="text-[10px] text-gray-400">
+                        座標：{trip.lat?.toFixed(4)}, {trip.lng?.toFixed(4)}
                       </div>
                     </div>
+                    
+                    {/* Actions */}
+                    <div className="flex border-t border-gray-100">
+                      <button
+                        onClick={() => handleEdit(trip)}
+                        className="flex-1 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1"
+                      >
+                        ✏️ 編輯
+                      </button>
+                      <button
+                        onClick={() => handleDelete(trip.id)}
+                        className="flex-1 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors flex items-center justify-center gap-1 border-l border-gray-100"
+                      >
+                        🗑️ 刪除
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
         )}
       </div>

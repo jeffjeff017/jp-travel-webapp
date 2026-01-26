@@ -169,7 +169,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
       className="fixed bottom-6 left-1/2 -translate-x-1/2 md:translate-x-0 md:bottom-6 md:left-6 z-50 cursor-pointer select-none w-16 h-16 md:w-20 md:h-20 flex flex-col items-center justify-center"
       onClick={handleClick}
     >
-      {/* Speech Bubble - positioned on the right side with vertical text */}
+      {/* Speech Bubble - positioned above on mobile, right side on desktop */}
       <AnimatePresence>
         {isClicked && speechMessage && (
           <motion.div
@@ -177,17 +177,24 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="absolute left-[105%] top-1/2 -translate-y-1/2 z-10"
+            className="absolute z-10 -top-12 left-1/2 -translate-x-1/2 md:top-1/2 md:left-[105%] md:-translate-y-1/2 md:translate-x-0"
           >
-            <div className="relative bg-white px-2 py-3 rounded-xl shadow-lg border-2 border-pink-200 flex items-center justify-center">
+            <div className="relative bg-white px-3 py-2 md:px-2 md:py-3 rounded-xl shadow-lg border-2 border-pink-200 flex items-center justify-center">
               <span 
-                className="text-xs font-bold text-pink-500 text-center"
-                style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+                className="text-xs font-bold text-pink-500 text-center whitespace-nowrap md:whitespace-normal"
+                style={{ writingMode: 'horizontal-tb' }}
               >
                 {speechMessage}
               </span>
-              {/* Speech bubble tail - pointing left */}
-              <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-0 h-0 
+              {/* Speech bubble tail - pointing down on mobile */}
+              <div className="md:hidden absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 h-0 
+                border-l-[6px] border-l-transparent 
+                border-r-[6px] border-r-transparent 
+                border-t-[8px] border-t-white
+                drop-shadow-sm" 
+              />
+              {/* Speech bubble tail - pointing left on desktop */}
+              <div className="hidden md:block absolute -left-2 top-1/2 -translate-y-1/2 w-0 h-0 
                 border-t-[6px] border-t-transparent 
                 border-b-[6px] border-b-transparent 
                 border-r-[8px] border-r-white
