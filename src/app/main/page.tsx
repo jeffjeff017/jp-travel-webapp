@@ -239,26 +239,11 @@ export default function MainPage() {
         // Fetch trips
         const data = await getTrips()
         
-        // Auto-sync tripStartDate from actual trip data
-        // This ensures all browsers show the same dates based on actual trips
-        // Note: We only sync the start date, not totalDays (to respect manual day removal)
-        if (data.length > 0) {
-          const tripDates = data.map(t => new Date(t.date).getTime())
-          const earliestDate = new Date(Math.min(...tripDates))
-          const syncedStartDate = earliestDate.toISOString().split('T')[0]
-          
-          // Only update start date if different (don't change totalDays to respect manual removal)
-          if (loadedSettings.tripStartDate !== syncedStartDate) {
-            loadedSettings = {
-              ...loadedSettings,
-              tripStartDate: syncedStartDate,
-            }
-            saveSettingsAsync(loadedSettings) // Sync to Supabase
-          }
+        // Only update state if we got valid data (not empty due to connection error)
+        // Don't auto-sync tripStartDate to avoid unexpected data loss
+        if (data && data.length >= 0) {
+          setTrips(data)
         }
-        
-        // Set everything at once to minimize re-renders
-        setTrips(data)
         setSettings(loadedSettings)
         
         // Auto-select current day based on trip start date

@@ -156,23 +156,33 @@ export async function getSettingsAsync(): Promise<SiteSettings> {
     return getLocalSettings()
   }
   
+  const localSettings = getLocalSettings()
+  
   try {
     const dbSettings = await getSupabaseSiteSettings()
     
     if (dbSettings) {
       const settings = fromSupabaseFormat(dbSettings)
-      // If Supabase has real data, use it; otherwise use localStorage
+      // If Supabase has real data, merge with local (prefer Supabase but keep local defaults)
       if (settings) {
-        saveLocalSettings(settings)
-        return settings
+        // Only update if Supabase data is more complete (has trips and daySchedules)
+        const supabaseHasData = settings.daySchedules && settings.daySchedules.length > 0
+        const localHasData = localSettings.daySchedules && localSettings.daySchedules.length > 0
+        
+        // If both have data, prefer the one with more totalDays (more complete data)
+        // If only one has data, use that one
+        if (supabaseHasData && (!localHasData || settings.totalDays >= localSettings.totalDays)) {
+          saveLocalSettings(settings)
+          return settings
+        }
       }
     }
   } catch (err) {
     console.error('Error fetching settings from Supabase:', err)
   }
   
-  // Fallback to local settings
-  return getLocalSettings()
+  // Fallback to local settings (more conservative - don't lose local data)
+  return localSettings
 }
 
 // Synchronous save - saves to localStorage only (for backwards compatibility)

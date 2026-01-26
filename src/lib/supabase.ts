@@ -23,6 +23,11 @@ export type Trip = {
 // Alias for backwards compatibility
 export type TripWithInfo = Trip & { info: string }
 
+// Local cache for trips (fallback when Supabase fails)
+let tripsCache: Trip[] = []
+let tripsCacheTime = 0
+const TRIPS_CACHE_DURATION = 60 * 1000 // 1 minute
+
 export async function getTrips(): Promise<Trip[]> {
   try {
     const { data, error } = await supabase
@@ -32,12 +37,28 @@ export async function getTrips(): Promise<Trip[]> {
 
     if (error) {
       console.error('Error fetching trips:', error.message)
+      // Return cached data if available and recent
+      if (tripsCache.length > 0 && Date.now() - tripsCacheTime < TRIPS_CACHE_DURATION * 5) {
+        console.log('Using cached trips due to error')
+        return tripsCache
+      }
       return []
+    }
+
+    // Update cache
+    if (data && data.length > 0) {
+      tripsCache = data
+      tripsCacheTime = Date.now()
     }
 
     return data || []
   } catch (err) {
     console.error('Supabase connection error:', err)
+    // Return cached data if available
+    if (tripsCache.length > 0) {
+      console.log('Using cached trips due to connection error')
+      return tripsCache
+    }
     return []
   }
 }
@@ -146,6 +167,9 @@ export type SiteSettingsDB = {
   updated_at: string
 }
 
+// Local cache for site settings (fallback when Supabase fails)
+let siteSettingsCache: SiteSettingsDB | null = null
+
 export async function getSupabaseSiteSettings(): Promise<SiteSettingsDB | null> {
   try {
     const { data, error } = await supabase
@@ -159,12 +183,27 @@ export async function getSupabaseSiteSettings(): Promise<SiteSettingsDB | null> 
       if (!error.message.includes('does not exist')) {
         console.error('Error fetching site settings:', error.message)
       }
+      // Return cached data if available
+      if (siteSettingsCache) {
+        console.log('Using cached site settings due to error')
+        return siteSettingsCache
+      }
       return null
+    }
+
+    // Update cache if we got valid data
+    if (data) {
+      siteSettingsCache = data
     }
 
     return data
   } catch (err) {
     console.error('Supabase site settings error:', err)
+    // Return cached data if available
+    if (siteSettingsCache) {
+      console.log('Using cached site settings due to connection error')
+      return siteSettingsCache
+    }
     return null
   }
 }
