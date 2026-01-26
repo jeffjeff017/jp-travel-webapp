@@ -159,8 +159,34 @@ export default function AdminPage() {
     primaryHex: '#F472B6',
     emoji: '',
   })
+  // Trash bin state
+  const [showTrashBin, setShowTrashBin] = useState(false)
+  const [trashItems, setTrashItems] = useState<{
+    trips: Trip[]
+    users: User[]
+    destinations: DestinationDB[]
+  }>({ trips: [], users: [], destinations: [] })
+  const [trashTab, setTrashTab] = useState<'trips' | 'users' | 'destinations'>('trips')
   const router = useRouter()
   const { t } = useLanguage()
+  
+  // Load trash from localStorage
+  useEffect(() => {
+    const savedTrash = localStorage.getItem('admin_trash_bin')
+    if (savedTrash) {
+      try {
+        setTrashItems(JSON.parse(savedTrash))
+      } catch (e) {
+        console.error('Failed to parse trash:', e)
+      }
+    }
+  }, [])
+  
+  // Save trash to localStorage
+  const saveTrash = (newTrash: typeof trashItems) => {
+    setTrashItems(newTrash)
+    localStorage.setItem('admin_trash_bin', JSON.stringify(newTrash))
+  }
 
   // Get current destination theme color
   const currentDestination = destinations.find(d => d.id === currentDestinationId) || destinations[0]
@@ -350,12 +376,23 @@ export default function AdminPage() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm(t.admin.confirmDelete)) return
+    if (!confirm('確定要將此行程移至垃圾桶嗎？')) return
 
     try {
+      // Find the trip to move to trash
+      const tripToDelete = trips.find(t => t.id === id)
+      if (tripToDelete) {
+        // Move to trash
+        const newTrash = {
+          ...trashItems,
+          trips: [...trashItems.trips, { ...tripToDelete, deletedAt: new Date().toISOString() }]
+        }
+        saveTrash(newTrash)
+      }
+      
       const { success, error } = await deleteTrip(id)
       if (success) {
-        setMessage({ type: 'success', text: '行程已刪除！' })
+        setMessage({ type: 'success', text: '行程已移至垃圾桶！' })
         await fetchTrips()
       } else {
         setMessage({ type: 'error', text: error || '刪除行程失敗' })
@@ -363,6 +400,29 @@ export default function AdminPage() {
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || '發生錯誤' })
     }
+  }
+  
+  // Permanently delete from trash
+  const handlePermanentDelete = (type: 'trips' | 'users' | 'destinations', id: number | string) => {
+    if (!confirm('確定要永久刪除此項目嗎？此操作無法復原！')) return
+    
+    const newTrash = { ...trashItems }
+    if (type === 'trips') {
+      newTrash.trips = newTrash.trips.filter(t => t.id !== id)
+    } else if (type === 'users') {
+      newTrash.users = newTrash.users.filter(u => u.username !== id)
+    } else if (type === 'destinations') {
+      newTrash.destinations = newTrash.destinations.filter(d => d.id !== id)
+    }
+    saveTrash(newTrash)
+    setMessage({ type: 'success', text: '項目已永久刪除！' })
+  }
+  
+  // Clear all trash
+  const handleClearTrash = () => {
+    if (!confirm('確定要清空垃圾桶嗎？所有項目將被永久刪除！')) return
+    saveTrash({ trips: [], users: [], destinations: [] })
+    setMessage({ type: 'success', text: '垃圾桶已清空！' })
   }
 
   // Handle destination switch
@@ -704,6 +764,30 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
+
+          {/* Trash Bin Card */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center mb-3">
+                  <span className="text-xl">🗑️</span>
+                </div>
+                <h3 className="font-semibold text-gray-800 mb-1">垃圾桶</h3>
+                <p className="text-xs text-gray-500">
+                  已刪除的項目
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {trashItems.trips.length + trashItems.users.length + trashItems.destinations.length} 個項目
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowTrashBin(true)}
+              className="mt-4 w-full py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
+            >
+              查看垃圾桶
+            </button>
+          </div>
         </div>
 
         {/* Action Bar */}
@@ -947,10 +1031,18 @@ export default function AdminPage() {
                           {user.username !== 'admin' && (
                             <button
                               onClick={async () => {
-                                if (confirm(`確定要刪除用戶 ${user.displayName} 嗎？`)) {
+                                if (confirm(`確定要將用戶 ${user.displayName} 移至垃圾桶嗎？`)) {
+                                  // Move to trash
+                                  const newTrash = {
+                                    ...trashItems,
+                                    users: [...trashItems.users, { ...user, deletedAt: new Date().toISOString() }]
+                                  }
+                                  saveTrash(newTrash)
+                                  
                                   await deleteUserAsync(user.username)
                                   const freshUsers = await getUsersAsync()
                                   setUsers(freshUsers)
+                                  setMessage({ type: 'success', text: '用戶已移至垃圾桶！' })
                                 }
                               }}
                               className="px-3 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-colors"
@@ -1376,7 +1468,14 @@ export default function AdminPage() {
                           {dest.id !== 'japan' && (
                             <button
                               onClick={async () => {
-                                if (confirm(`確定要刪除 ${dest.name} 嗎？`)) {
+                                if (confirm(`確定要將 ${dest.name} 移至垃圾桶嗎？`)) {
+                                  // Move to trash
+                                  const newTrash = {
+                                    ...trashItems,
+                                    destinations: [...trashItems.destinations, { ...dest, deletedAt: new Date().toISOString() }]
+                                  }
+                                  saveTrash(newTrash)
+                                  
                                   const { success, error } = await deleteSupabaseDestination(dest.id)
                                   if (error) {
                                     setMessage({ type: 'error', text: error })
@@ -1386,7 +1485,7 @@ export default function AdminPage() {
                                     if (currentDestinationId === dest.id) {
                                       handleDestinationSwitch('japan')
                                     }
-                                    setMessage({ type: 'success', text: '目的地已刪除！' })
+                                    setMessage({ type: 'success', text: '目的地已移至垃圾桶！' })
                                   }
                                 }
                               }}
@@ -1496,6 +1595,177 @@ export default function AdminPage() {
                         setEditingDestination(null)
                         setDestinationForm({ id: '', name: '', name_en: '', flag: '', primaryHex: '#F472B6', emoji: '' })
                       }}
+                      className="w-full py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      關閉
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Trash Bin Modal */}
+        <AnimatePresence>
+          {showTrashBin && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setShowTrashBin(false)
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              >
+                <div className="p-6 border-b border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-800">🗑️ 垃圾桶</h3>
+                    {(trashItems.trips.length + trashItems.users.length + trashItems.destinations.length) > 0 && (
+                      <button
+                        onClick={handleClearTrash}
+                        className="px-3 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-colors"
+                      >
+                        清空垃圾桶
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="p-6">
+                  {/* Category Tabs */}
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      onClick={() => setTrashTab('trips')}
+                      className={`flex-1 py-2 px-3 text-sm rounded-lg transition-colors ${
+                        trashTab === 'trips'
+                          ? 'bg-gray-800 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      🗓️ 行程 ({trashItems.trips.length})
+                    </button>
+                    <button
+                      onClick={() => setTrashTab('users')}
+                      className={`flex-1 py-2 px-3 text-sm rounded-lg transition-colors ${
+                        trashTab === 'users'
+                          ? 'bg-gray-800 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      👥 用戶 ({trashItems.users.length})
+                    </button>
+                    <button
+                      onClick={() => setTrashTab('destinations')}
+                      className={`flex-1 py-2 px-3 text-sm rounded-lg transition-colors ${
+                        trashTab === 'destinations'
+                          ? 'bg-gray-800 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      🌏 目的地 ({trashItems.destinations.length})
+                    </button>
+                  </div>
+
+                  {/* Trash Items List */}
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {trashTab === 'trips' && (
+                      trashItems.trips.length === 0 ? (
+                        <p className="text-center text-gray-400 text-sm py-8">沒有已刪除的行程</p>
+                      ) : (
+                        trashItems.trips.map((trip) => (
+                          <div key={trip.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-800 truncate">{trip.title}</p>
+                              <p className="text-xs text-gray-500">
+                                📅 {new Date(trip.date).toLocaleDateString('zh-TW')} · 📍 {trip.location}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => handlePermanentDelete('trips', trip.id)}
+                              className="ml-2 px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex-shrink-0"
+                            >
+                              永久刪除
+                            </button>
+                          </div>
+                        ))
+                      )
+                    )}
+                    
+                    {trashTab === 'users' && (
+                      trashItems.users.length === 0 ? (
+                        <p className="text-center text-gray-400 text-sm py-8">沒有已刪除的用戶</p>
+                      ) : (
+                        trashItems.users.map((user) => (
+                          <div key={user.username} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              {user.avatarUrl ? (
+                                <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">
+                                  {user.displayName.charAt(0)}
+                                </div>
+                              )}
+                              <div>
+                                <p className="font-medium text-gray-800">{user.displayName}</p>
+                                <p className="text-xs text-gray-500">@{user.username}</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handlePermanentDelete('users', user.username)}
+                              className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                            >
+                              永久刪除
+                            </button>
+                          </div>
+                        ))
+                      )
+                    )}
+                    
+                    {trashTab === 'destinations' && (
+                      trashItems.destinations.length === 0 ? (
+                        <p className="text-center text-gray-400 text-sm py-8">沒有已刪除的目的地</p>
+                      ) : (
+                        trashItems.destinations.map((dest) => (
+                          <div key={dest.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-white"
+                                style={{ backgroundColor: dest.theme.primaryHex }}
+                              >
+                                {dest.flag}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-800">{dest.name}</p>
+                                <p className="text-xs text-gray-500">{dest.name_en}</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handlePermanentDelete('destinations', dest.id)}
+                              className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                            >
+                              永久刪除
+                            </button>
+                          </div>
+                        ))
+                      )
+                    )}
+                  </div>
+
+                  {/* Note */}
+                  <p className="text-xs text-gray-400 mt-4 text-center">
+                    ⚠️ 垃圾桶中的項目在永久刪除前不會真正從資料庫移除
+                  </p>
+
+                  {/* Close Button */}
+                  <div className="mt-6 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => setShowTrashBin(false)}
                       className="w-full py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
                     >
                       關閉
