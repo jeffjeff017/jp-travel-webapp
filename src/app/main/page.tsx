@@ -437,8 +437,8 @@ export default function MainPage() {
   // Add a new day (and open trip form)
   const handleAddDay = () => {
     if (!settings) return
-    if (settings.totalDays >= 14) {
-      alert('最多只能新增 14 天')
+    if (settings.totalDays >= 7) {
+      alert('最多只能新增 7 天')
       return
     }
     
@@ -767,7 +767,7 @@ export default function MainPage() {
                   })}
                   
                   {/* Add Day Button - Admin only */}
-                  {isAdmin && settings.totalDays < 14 && (
+                  {isAdmin && settings.totalDays < 7 && (
                     <button
                       onClick={handleAddDay}
                       style={{ 
