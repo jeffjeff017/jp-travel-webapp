@@ -1,5 +1,9 @@
-// Site settings stored in localStorage
+// Site settings with Supabase sync
+import { getSupabaseSiteSettings, saveSupabaseSiteSettings, type SiteSettingsDB } from './supabase'
+
 const SETTINGS_KEY = 'site_settings'
+const SETTINGS_CACHE_KEY = 'site_settings_cache_time'
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes cache
 
 export interface DaySchedule {
   dayNumber: number
@@ -66,7 +70,36 @@ const defaultSettings: SiteSettings = {
   travelPreparations: defaultTravelPreparations,
 }
 
-export function getSettings(): SiteSettings {
+// Convert from Supabase format to local format
+function fromSupabaseFormat(db: SiteSettingsDB): SiteSettings {
+  return {
+    title: db.title || defaultSettings.title,
+    homeLocation: db.home_location || defaultSettings.homeLocation,
+    tripStartDate: db.trip_start_date || defaultSettings.tripStartDate,
+    totalDays: db.total_days || defaultSettings.totalDays,
+    daySchedules: db.day_schedules || defaultSettings.daySchedules,
+    travelEssentials: db.travel_essentials || defaultTravelEssentials,
+    travelPreparations: db.travel_preparations || defaultTravelPreparations,
+  }
+}
+
+// Convert from local format to Supabase format
+function toSupabaseFormat(settings: Partial<SiteSettings>): Partial<Omit<SiteSettingsDB, 'id' | 'updated_at'>> {
+  const result: Partial<Omit<SiteSettingsDB, 'id' | 'updated_at'>> = {}
+  
+  if (settings.title !== undefined) result.title = settings.title
+  if (settings.homeLocation !== undefined) result.home_location = settings.homeLocation
+  if (settings.tripStartDate !== undefined) result.trip_start_date = settings.tripStartDate
+  if (settings.totalDays !== undefined) result.total_days = settings.totalDays
+  if (settings.daySchedules !== undefined) result.day_schedules = settings.daySchedules
+  if (settings.travelEssentials !== undefined) result.travel_essentials = settings.travelEssentials
+  if (settings.travelPreparations !== undefined) result.travel_preparations = settings.travelPreparations
+  
+  return result
+}
+
+// Get settings from localStorage cache
+function getLocalSettings(): SiteSettings {
   if (typeof window === 'undefined') return defaultSettings
   
   try {
@@ -75,20 +108,121 @@ export function getSettings(): SiteSettings {
       return { ...defaultSettings, ...JSON.parse(stored) }
     }
   } catch (e) {
-    console.error('Error reading settings:', e)
+    console.error('Error reading settings from localStorage:', e)
   }
   
   return defaultSettings
 }
 
-export function saveSettings(settings: Partial<SiteSettings>): void {
+// Save settings to localStorage cache
+function saveLocalSettings(settings: SiteSettings): void {
   if (typeof window === 'undefined') return
   
   try {
-    const current = getSettings()
-    const updated = { ...current, ...settings }
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated))
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+    localStorage.setItem(SETTINGS_CACHE_KEY, Date.now().toString())
   } catch (e) {
-    console.error('Error saving settings:', e)
+    console.error('Error saving settings to localStorage:', e)
+  }
+}
+
+// Check if cache is still valid
+function isCacheValid(): boolean {
+  if (typeof window === 'undefined') return false
+  
+  const cacheTime = localStorage.getItem(SETTINGS_CACHE_KEY)
+  if (!cacheTime) return false
+  
+  return Date.now() - parseInt(cacheTime) < CACHE_DURATION
+}
+
+// Synchronous get - returns cached settings (for backwards compatibility)
+export function getSettings(): SiteSettings {
+  return getLocalSettings()
+}
+
+// Async get - fetches from Supabase and updates cache
+export async function getSettingsAsync(): Promise<SiteSettings> {
+  // If cache is valid, return local settings
+  if (isCacheValid()) {
+    return getLocalSettings()
+  }
+  
+  try {
+    const dbSettings = await getSupabaseSiteSettings()
+    
+    if (dbSettings) {
+      const settings = fromSupabaseFormat(dbSettings)
+      saveLocalSettings(settings)
+      return settings
+    }
+  } catch (err) {
+    console.error('Error fetching settings from Supabase:', err)
+  }
+  
+  // Fallback to local settings
+  return getLocalSettings()
+}
+
+// Synchronous save - saves to localStorage only (for backwards compatibility)
+export function saveSettings(settings: Partial<SiteSettings>): void {
+  if (typeof window === 'undefined') return
+  
+  const current = getLocalSettings()
+  const updated = { ...current, ...settings }
+  saveLocalSettings(updated)
+}
+
+// Async save - saves to both localStorage and Supabase
+export async function saveSettingsAsync(settings: Partial<SiteSettings>): Promise<{ success: boolean; error: string | null }> {
+  // Save to localStorage first (optimistic update)
+  const current = getLocalSettings()
+  const updated = { ...current, ...settings }
+  saveLocalSettings(updated)
+  
+  // Then sync to Supabase
+  try {
+    const dbFormat = toSupabaseFormat(settings)
+    const result = await saveSupabaseSiteSettings(dbFormat)
+    
+    if (!result.success) {
+      console.error('Failed to sync settings to Supabase:', result.error)
+    }
+    
+    return result
+  } catch (err: any) {
+    console.error('Error saving settings to Supabase:', err)
+    return { success: false, error: err.message || '儲存設定時發生錯誤' }
+  }
+}
+
+// Force refresh settings from Supabase
+export async function refreshSettings(): Promise<SiteSettings> {
+  try {
+    const dbSettings = await getSupabaseSiteSettings()
+    
+    if (dbSettings) {
+      const settings = fromSupabaseFormat(dbSettings)
+      saveLocalSettings(settings)
+      return settings
+    }
+  } catch (err) {
+    console.error('Error refreshing settings from Supabase:', err)
+  }
+  
+  return getLocalSettings()
+}
+
+// Migrate localStorage data to Supabase (call once)
+export async function migrateSettingsToSupabase(): Promise<void> {
+  const localSettings = getLocalSettings()
+  
+  // Check if Supabase has any data
+  const dbSettings = await getSupabaseSiteSettings()
+  
+  // If Supabase is empty or has default values, migrate local data
+  if (!dbSettings || !dbSettings.home_location) {
+    console.log('Migrating settings to Supabase...')
+    await saveSupabaseSiteSettings(toSupabaseFormat(localSettings))
   }
 }

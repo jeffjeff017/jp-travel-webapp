@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { getTrips, createTrip, updateTrip, deleteTrip, type Trip } from '@/lib/supabase'
-import { getSettings, saveSettings, type SiteSettings } from '@/lib/settings'
+import { getSettings, getSettingsAsync, saveSettings, saveSettingsAsync, type SiteSettings } from '@/lib/settings'
 import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, logout } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
@@ -179,8 +179,12 @@ export default function MainPage() {
 
   useEffect(() => {
     async function initializeData() {
-      // Load settings first to avoid flickering
-      let loadedSettings = getSettings()
+      // Load settings first to avoid flickering (use cached first, then async)
+      let loadedSettings = getSettings() // Use cached value first for instant display
+      setSettings(loadedSettings)
+      
+      // Then fetch fresh from Supabase
+      loadedSettings = await getSettingsAsync()
       setSettings(loadedSettings)
       
       try {
@@ -201,7 +205,7 @@ export default function MainPage() {
               ...loadedSettings,
               tripStartDate: syncedStartDate,
             }
-            saveSettings(loadedSettings)
+            saveSettingsAsync(loadedSettings) // Sync to Supabase
           }
         }
         
@@ -346,7 +350,7 @@ export default function MainPage() {
         daySchedules: previousDaySchedules
       }
       
-      saveSettings(revertedSettings)
+      saveSettingsAsync(revertedSettings) // Sync to Supabase
       setSettings(revertedSettings)
       setSelectedDay(Math.min(selectedDay, previousTotalDays))
       setPendingNewDay(null)
@@ -459,7 +463,7 @@ export default function MainPage() {
       daySchedules: newDaySchedules
     }
     
-    saveSettings(updatedSettings)
+    saveSettingsAsync(updatedSettings) // Sync to Supabase
     setSettings(updatedSettings)
     
     // Switch to the new day
@@ -512,7 +516,7 @@ export default function MainPage() {
       daySchedules: newDaySchedules
     }
     
-    saveSettings(updatedSettings)
+    saveSettingsAsync(updatedSettings) // Sync to Supabase
     setSettings(updatedSettings)
     
     // If current selected day is removed, select the last available day
@@ -580,7 +584,7 @@ export default function MainPage() {
       tripStartDate: newStartDate.toISOString().split('T')[0]
     }
     
-    saveSettings(updatedSettings)
+    saveSettingsAsync(updatedSettings) // Sync to Supabase
     setSettings(updatedSettings)
     setEditingDateDay(null)
   }

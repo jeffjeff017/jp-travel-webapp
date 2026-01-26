@@ -1,14 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import { getCurrentUser, getUserByUsername } from '@/lib/auth'
 import { getSettings, defaultTravelEssentials, defaultTravelPreparations, type TravelNoticeItem } from '@/lib/settings'
+import { getSupabaseChecklistStates, saveSupabaseChecklistState, type ChecklistStateDB } from '@/lib/supabase'
 
 const POPUP_STORAGE_KEY = 'travel_notice_last_shown'
-const CHECKLIST_STORAGE_KEY = 'travel_checklist_items_v3'
+const CHECKLIST_STORAGE_KEY = 'travel_checklist_items_v4'
+const CHECKLIST_CACHE_KEY = 'travel_checklist_cache_time'
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
 type CheckedBy = {
   username: string
@@ -41,38 +44,114 @@ export default function DailyPopup() {
     }
   }, [])
 
-  // Load checklist from settings and localStorage
+  // Load checklist from settings and Supabase
   useEffect(() => {
-    const settings = getSettings()
-    const essentials = settings.travelEssentials || defaultTravelEssentials
-    const preparations = settings.travelPreparations || defaultTravelPreparations
-    
-    // Combine essentials and preparations
-    const allItems: Omit<ChecklistItem, 'checkedBy'>[] = [
-      ...essentials,
-      ...preparations,
-    ]
-    
-    setEssentialsCount(essentials.length)
-    
-    // Load saved check states
-    const saved = localStorage.getItem(CHECKLIST_STORAGE_KEY)
-    if (saved) {
-      try {
-        const savedItems = JSON.parse(saved) as ChecklistItem[]
-        // Merge with settings items to handle new/changed items
-        const merged = allItems.map(item => {
-          const savedItem = savedItems.find(s => s.id === item.id)
-          return { ...item, checkedBy: savedItem?.checkedBy || [] }
-        })
-        setChecklist(merged)
-      } catch {
-        setChecklist(allItems.map(item => ({ ...item, checkedBy: [] })))
+    const loadChecklist = async () => {
+      const settings = getSettings()
+      const essentials = settings.travelEssentials || defaultTravelEssentials
+      const preparations = settings.travelPreparations || defaultTravelPreparations
+      
+      // Combine essentials and preparations
+      const allItems: Omit<ChecklistItem, 'checkedBy'>[] = [
+        ...essentials,
+        ...preparations,
+      ]
+      
+      setEssentialsCount(essentials.length)
+      
+      // Check cache first
+      const cacheTime = localStorage.getItem(CHECKLIST_CACHE_KEY)
+      const saved = localStorage.getItem(CHECKLIST_STORAGE_KEY)
+      
+      if (cacheTime && saved && Date.now() - parseInt(cacheTime) < CACHE_DURATION) {
+        try {
+          const savedItems = JSON.parse(saved) as ChecklistItem[]
+          const merged = allItems.map(item => {
+            const savedItem = savedItems.find(s => s.id === item.id)
+            return { ...item, checkedBy: savedItem?.checkedBy || [] }
+          })
+          setChecklist(merged)
+          return
+        } catch {
+          // Continue to load from Supabase
+        }
       }
-    } else {
-      setChecklist(allItems.map(item => ({ ...item, checkedBy: [] })))
+      
+      // Load from Supabase
+      try {
+        const dbStates = await getSupabaseChecklistStates()
+        
+        if (dbStates.length > 0) {
+          // Create a map of id -> checkedBy
+          const statesMap = new Map<string, CheckedBy[]>()
+          dbStates.forEach(state => {
+            statesMap.set(state.id, state.checked_by || [])
+          })
+          
+          const merged = allItems.map(item => ({
+            ...item,
+            checkedBy: statesMap.get(item.id) || []
+          }))
+          
+          setChecklist(merged)
+          // Save to cache
+          localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(merged))
+          localStorage.setItem(CHECKLIST_CACHE_KEY, Date.now().toString())
+        } else {
+          // No data in Supabase, use localStorage or defaults
+          if (saved) {
+            try {
+              const savedItems = JSON.parse(saved) as ChecklistItem[]
+              const merged = allItems.map(item => {
+                const savedItem = savedItems.find(s => s.id === item.id)
+                return { ...item, checkedBy: savedItem?.checkedBy || [] }
+              })
+              setChecklist(merged)
+              // Migrate to Supabase
+              migrateToSupabase(merged)
+            } catch {
+              setChecklist(allItems.map(item => ({ ...item, checkedBy: [] })))
+            }
+          } else {
+            setChecklist(allItems.map(item => ({ ...item, checkedBy: [] })))
+          }
+        }
+      } catch (err) {
+        console.error('Error loading checklist from Supabase:', err)
+        // Fallback to localStorage
+        if (saved) {
+          try {
+            const savedItems = JSON.parse(saved) as ChecklistItem[]
+            const merged = allItems.map(item => {
+              const savedItem = savedItems.find(s => s.id === item.id)
+              return { ...item, checkedBy: savedItem?.checkedBy || [] }
+            })
+            setChecklist(merged)
+          } catch {
+            setChecklist(allItems.map(item => ({ ...item, checkedBy: [] })))
+          }
+        } else {
+          setChecklist(allItems.map(item => ({ ...item, checkedBy: [] })))
+        }
+      }
     }
+    
+    loadChecklist()
   }, [])
+  
+  // Migrate local checklist to Supabase
+  const migrateToSupabase = async (items: ChecklistItem[]) => {
+    console.log('Migrating checklist to Supabase...')
+    for (const item of items) {
+      if (item.checkedBy.length > 0) {
+        await saveSupabaseChecklistState({
+          id: item.id,
+          checked_by: item.checkedBy,
+          updated_at: new Date().toISOString()
+        })
+      }
+    }
+  }
 
   // Auto-show popup
   useEffect(() => {
@@ -90,30 +169,40 @@ export default function DailyPopup() {
   }, [])
 
   // Toggle item checked status for current user
-  const toggleItem = (id: string) => {
+  const toggleItem = async (id: string) => {
     if (!currentUser) return // Must be logged in to check
 
+    let newCheckedBy: CheckedBy[] = []
+    
     const newChecklist = checklist.map(item => {
       if (item.id === id) {
         const userIndex = item.checkedBy.findIndex(u => u.username === currentUser.username)
         if (userIndex >= 0) {
           // User already checked - remove
-          return {
-            ...item,
-            checkedBy: item.checkedBy.filter(u => u.username !== currentUser.username)
-          }
+          newCheckedBy = item.checkedBy.filter(u => u.username !== currentUser.username)
         } else {
           // User hasn't checked - add
-          return {
-            ...item,
-            checkedBy: [...item.checkedBy, { username: currentUser.username, avatarUrl: currentUser.avatarUrl }]
-          }
+          newCheckedBy = [...item.checkedBy, { username: currentUser.username, avatarUrl: currentUser.avatarUrl }]
         }
+        return { ...item, checkedBy: newCheckedBy }
       }
       return item
     })
+    
     setChecklist(newChecklist)
     localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(newChecklist))
+    localStorage.setItem(CHECKLIST_CACHE_KEY, Date.now().toString())
+    
+    // Sync to Supabase
+    try {
+      await saveSupabaseChecklistState({
+        id,
+        checked_by: newCheckedBy,
+        updated_at: new Date().toISOString()
+      })
+    } catch (err) {
+      console.error('Error saving checklist state to Supabase:', err)
+    }
   }
 
   // Check if current user has checked an item

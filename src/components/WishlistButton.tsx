@@ -1,8 +1,15 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
+import { 
+  getSupabaseWishlistItems, 
+  saveSupabaseWishlistItem, 
+  updateSupabaseWishlistItem, 
+  deleteSupabaseWishlistItem,
+  type WishlistItemDB 
+} from '@/lib/supabase'
 
 // Main categories (tabs)
 const CATEGORIES = [
@@ -20,11 +27,12 @@ const FOOD_SUBTABS = [
 ]
 
 type WishlistItem = {
-  id: string
+  id: number | string
   name: string
   note?: string
   imageUrl?: string
   link?: string // For Threads links
+  category: string
   addedAt: string
   addedToDay?: number
   addedTime?: string
@@ -42,6 +50,38 @@ interface WishlistButtonProps {
 }
 
 const STORAGE_KEY = 'japan_travel_wishlist'
+const CACHE_KEY = 'japan_travel_wishlist_cache_time'
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
+// Convert from Supabase format to local format
+function fromSupabaseFormat(db: WishlistItemDB): WishlistItem {
+  return {
+    id: db.id,
+    name: db.name,
+    note: db.note || undefined,
+    imageUrl: db.image_url || undefined,
+    link: db.link || undefined,
+    category: db.category,
+    addedAt: db.created_at,
+    addedToDay: db.added_to_trip?.day,
+    addedTime: db.added_to_trip?.time,
+    isFavorite: db.is_favorite,
+  }
+}
+
+// Convert from local format to Supabase format
+function toSupabaseFormat(item: Omit<WishlistItem, 'id' | 'addedAt'>): Omit<WishlistItemDB, 'id' | 'created_at'> {
+  return {
+    category: item.category,
+    name: item.name,
+    note: item.note || null,
+    image_url: item.imageUrl || null,
+    map_link: null,
+    link: item.link || null,
+    added_to_trip: item.addedToDay ? { day: item.addedToDay, time: item.addedTime || '12:00' } : null,
+    is_favorite: item.isFavorite || false,
+  }
+}
 
 export default function WishlistButton({ 
   totalDays = 7, 
@@ -82,36 +122,127 @@ export default function WishlistButton({
   const [selectedDay, setSelectedDay] = useState(1)
   const [selectedTime, setSelectedTime] = useState('12:00')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Load wishlist from localStorage - merge with defaults to ensure all categories exist
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-        // Merge with default categories to ensure new categories exist
-        const merged = {
-          cafe: parsed.cafe || [],
-          restaurant: parsed.restaurant || [],
-          bakery: parsed.bakery || [],
-          shopping: parsed.shopping || [],
-          park: parsed.park || [],
-          threads: parsed.threads || [],
-        }
-        setWishlist(merged)
-        // Save merged back to ensure consistency
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
-      } catch (e) {
-        console.error('Failed to parse wishlist:', e)
-      }
+  // Group items by category
+  const groupByCategory = useCallback((items: WishlistItem[]): Wishlist => {
+    const grouped: Wishlist = {
+      cafe: [],
+      restaurant: [],
+      bakery: [],
+      shopping: [],
+      park: [],
+      threads: [],
     }
+    items.forEach(item => {
+      if (grouped[item.category]) {
+        grouped[item.category].push(item)
+      }
+    })
+    return grouped
   }, [])
 
-  // Save wishlist to localStorage
-  const saveWishlist = (newWishlist: Wishlist) => {
+  // Load wishlist from Supabase
+  useEffect(() => {
+    const loadWishlist = async () => {
+      setIsLoading(true)
+      
+      // Check cache first
+      const cacheTime = localStorage.getItem(CACHE_KEY)
+      const saved = localStorage.getItem(STORAGE_KEY)
+      
+      if (cacheTime && saved && Date.now() - parseInt(cacheTime) < CACHE_DURATION) {
+        try {
+          const parsed = JSON.parse(saved)
+          const merged = {
+            cafe: parsed.cafe || [],
+            restaurant: parsed.restaurant || [],
+            bakery: parsed.bakery || [],
+            shopping: parsed.shopping || [],
+            park: parsed.park || [],
+            threads: parsed.threads || [],
+          }
+          setWishlist(merged)
+          setIsLoading(false)
+          return
+        } catch (e) {
+          console.error('Failed to parse cached wishlist:', e)
+        }
+      }
+      
+      // Load from Supabase
+      try {
+        const dbItems = await getSupabaseWishlistItems()
+        if (dbItems.length > 0) {
+          const items = dbItems.map(fromSupabaseFormat)
+          const grouped = groupByCategory(items)
+          setWishlist(grouped)
+          // Save to cache
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(grouped))
+          localStorage.setItem(CACHE_KEY, Date.now().toString())
+        } else {
+          // Try loading from local storage if Supabase is empty
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved)
+              const merged = {
+                cafe: parsed.cafe || [],
+                restaurant: parsed.restaurant || [],
+                bakery: parsed.bakery || [],
+                shopping: parsed.shopping || [],
+                park: parsed.park || [],
+                threads: parsed.threads || [],
+              }
+              setWishlist(merged)
+              // Migrate local data to Supabase
+              migrateToSupabase(merged)
+            } catch (e) {
+              console.error('Failed to parse wishlist:', e)
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error loading wishlist from Supabase:', err)
+        // Fallback to localStorage
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved)
+            setWishlist({
+              cafe: parsed.cafe || [],
+              restaurant: parsed.restaurant || [],
+              bakery: parsed.bakery || [],
+              shopping: parsed.shopping || [],
+              park: parsed.park || [],
+              threads: parsed.threads || [],
+            })
+          } catch (e) {
+            console.error('Failed to parse wishlist:', e)
+          }
+        }
+      }
+      
+      setIsLoading(false)
+    }
+    
+    loadWishlist()
+  }, [groupByCategory])
+
+  // Migrate local data to Supabase
+  const migrateToSupabase = async (localWishlist: Wishlist) => {
+    console.log('Migrating wishlist to Supabase...')
+    for (const [category, items] of Object.entries(localWishlist)) {
+      for (const item of items) {
+        await saveSupabaseWishlistItem(toSupabaseFormat({ ...item, category }))
+      }
+    }
+  }
+
+  // Save wishlist to localStorage (cache) and Supabase
+  const saveWishlist = useCallback((newWishlist: Wishlist) => {
     setWishlist(newWishlist)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newWishlist))
-  }
+    localStorage.setItem(CACHE_KEY, Date.now().toString())
+  }, [])
 
   // Handle image upload
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -129,7 +260,7 @@ export default function WishlistButton({
   const isLinkOnlyCategory = CATEGORIES.find(c => c.id === activeTab)?.linkOnly
 
   // Add or update item
-  const saveItem = () => {
+  const saveItem = async () => {
     // For threads, require link; for others, require name
     if (isLinkOnlyCategory) {
       if (!newItemLink.trim()) return
@@ -137,35 +268,54 @@ export default function WishlistButton({
       if (!newItemName.trim()) return
     }
     
+    const catId = getActiveCategoryId()
+    
     if (editingItem) {
-      const catId = getActiveCategoryId()
+      // Update existing item
+      const updatedItem = {
+        ...editingItem,
+        name: isLinkOnlyCategory ? newItemLink.trim() : newItemName.trim(), 
+        note: newItemNote.trim() || undefined,
+        imageUrl: newItemImage || editingItem.imageUrl,
+        link: newItemLink.trim() || undefined
+      }
+      
       const newWishlist = {
         ...wishlist,
         [catId]: wishlist[catId].map(item => 
-          item.id === editingItem.id 
-            ? { 
-                ...item, 
-                name: isLinkOnlyCategory ? newItemLink.trim() : newItemName.trim(), 
-                note: newItemNote.trim() || undefined,
-                imageUrl: newItemImage || item.imageUrl,
-                link: newItemLink.trim() || undefined
-              }
-            : item
+          item.id === editingItem.id ? updatedItem : item
         ),
       }
       saveWishlist(newWishlist)
+      
+      // Sync to Supabase
+      if (typeof editingItem.id === 'number') {
+        await updateSupabaseWishlistItem(editingItem.id, {
+          name: updatedItem.name,
+          note: updatedItem.note || null,
+          image_url: updatedItem.imageUrl || null,
+          link: updatedItem.link || null,
+        })
+      }
     } else {
-      const newItem: WishlistItem = {
-        id: Date.now().toString(),
+      // Create new item - first save to Supabase to get the ID
+      const newItemData = {
+        category: catId,
         name: isLinkOnlyCategory ? newItemLink.trim() : newItemName.trim(),
         note: newItemNote.trim() || undefined,
         imageUrl: newItemImage || undefined,
         link: newItemLink.trim() || undefined,
-        addedAt: new Date().toISOString(),
         isFavorite: false,
       }
       
-      const catId = getActiveCategoryId()
+      const result = await saveSupabaseWishlistItem(toSupabaseFormat(newItemData))
+      
+      const newItem: WishlistItem = {
+        id: result.data?.id || Date.now(),
+        ...newItemData,
+        addedAt: new Date().toISOString(),
+      }
+      
       const newWishlist = {
         ...wishlist,
         [catId]: [...wishlist[catId], newItem],
@@ -197,27 +347,42 @@ export default function WishlistButton({
   }
 
   // Remove item
-  const removeItem = (itemId: string) => {
+  const removeItem = async (itemId: number | string) => {
     const catId = getActiveCategoryId()
     const newWishlist = {
       ...wishlist,
       [catId]: wishlist[catId].filter(item => item.id !== itemId),
     }
     saveWishlist(newWishlist)
+    
+    // Sync to Supabase
+    if (typeof itemId === 'number') {
+      await deleteSupabaseWishlistItem(itemId)
+    }
   }
 
   // Toggle favorite (moves to top)
-  const toggleFavorite = (itemId: string) => {
+  const toggleFavorite = async (itemId: number | string) => {
     const catId = getActiveCategoryId()
+    const item = wishlist[catId].find(i => i.id === itemId)
+    if (!item) return
+    
+    const newFavorite = !item.isFavorite
+    
     const newWishlist = {
       ...wishlist,
-      [catId]: wishlist[catId].map(item => 
-        item.id === itemId 
-          ? { ...item, isFavorite: !item.isFavorite }
-          : item
+      [catId]: wishlist[catId].map(i => 
+        i.id === itemId 
+          ? { ...i, isFavorite: newFavorite }
+          : i
       ),
     }
     saveWishlist(newWishlist)
+    
+    // Sync to Supabase
+    if (typeof itemId === 'number') {
+      await updateSupabaseWishlistItem(itemId, { is_favorite: newFavorite })
+    }
   }
 
   // Get sorted items (favorites first)
@@ -236,7 +401,7 @@ export default function WishlistButton({
   }
 
   // Add item to trip
-  const handleAddToTrip = (item: WishlistItem) => {
+  const handleAddToTrip = async (item: WishlistItem) => {
     const catId = getActiveCategoryId()
     const newWishlist = {
       ...wishlist,
@@ -248,11 +413,39 @@ export default function WishlistButton({
     }
     saveWishlist(newWishlist)
     
+    // Sync to Supabase
+    if (typeof item.id === 'number') {
+      await updateSupabaseWishlistItem(item.id, {
+        added_to_trip: { day: selectedDay, time: selectedTime }
+      })
+    }
+    
     if (onAddToTrip) {
       onAddToTrip({ ...item, addedToDay: selectedDay, addedTime: selectedTime }, selectedDay, selectedTime, catId)
     }
     
     setShowAddToTrip(null)
+  }
+  
+  // Remove item from trip
+  const handleRemoveFromTrip = async (item: WishlistItem) => {
+    const catId = getActiveCategoryId()
+    const newWishlist = {
+      ...wishlist,
+      [catId]: wishlist[catId].map(i => 
+        i.id === item.id 
+          ? { ...i, addedToDay: undefined, addedTime: undefined }
+          : i
+      ),
+    }
+    saveWishlist(newWishlist)
+    
+    // Sync to Supabase
+    if (typeof item.id === 'number') {
+      await updateSupabaseWishlistItem(item.id, {
+        added_to_trip: null
+      })
+    }
   }
 
   // Navigate to day
@@ -650,25 +843,14 @@ export default function WishlistButton({
                               {!isThreadsItem && (
                                 !item.addedToDay ? (
                                   <button
-                                    onClick={() => setShowAddToTrip(showAddToTrip === item.id ? null : item.id)}
+                                    onClick={() => setShowAddToTrip(showAddToTrip === String(item.id) ? null : String(item.id))}
                                     className="flex-1 py-2 text-xs text-pink-500 hover:bg-pink-50 transition-colors flex items-center justify-center gap-1 border-l border-gray-100"
                                   >
                                     ⭐ 加入行程
                                   </button>
                                 ) : (
                                   <button
-                                    onClick={() => {
-                                      const catId = getActiveCategoryId()
-                                      const newWishlist = {
-                                        ...wishlist,
-                                        [catId]: wishlist[catId].map(i => 
-                                          i.id === item.id 
-                                            ? { ...i, addedToDay: undefined, addedTime: undefined }
-                                            : i
-                                        ),
-                                      }
-                                      saveWishlist(newWishlist)
-                                    }}
+                                    onClick={() => handleRemoveFromTrip(item)}
                                     className="flex-1 py-2 text-xs text-orange-500 hover:bg-orange-50 transition-colors flex items-center justify-center gap-1 border-l border-gray-100"
                                   >
                                     ↩️ 取消行程
@@ -686,7 +868,7 @@ export default function WishlistButton({
                             {/* Add to Trip Panel - Only for non-threads items */}
                             {!isThreadsItem && (
                               <AnimatePresence>
-                                {showAddToTrip === item.id && (
+                                {showAddToTrip === String(item.id) && (
                                   <motion.div
                                     initial={{ height: 0, opacity: 0 }}
                                     animate={{ height: 'auto', opacity: 1 }}

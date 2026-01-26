@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
-import { logout, canAccessAdmin, getUsers, updateUser, deleteUser, type User, type UserRole } from '@/lib/auth'
+import { logout, canAccessAdmin, getUsers, getUsersAsync, updateUser, updateUserAsync, deleteUser, deleteUserAsync, type User, type UserRole } from '@/lib/auth'
 import {
   getTrips,
   createTrip,
@@ -12,7 +12,7 @@ import {
   deleteTrip,
   type Trip,
 } from '@/lib/supabase'
-import { getSettings, saveSettings, type SiteSettings, type TravelNoticeItem, defaultTravelEssentials, defaultTravelPreparations } from '@/lib/settings'
+import { getSettings, getSettingsAsync, saveSettings, saveSettingsAsync, type SiteSettings, type TravelNoticeItem, defaultTravelEssentials, defaultTravelPreparations } from '@/lib/settings'
 import { useLanguage } from '@/lib/i18n'
 import LanguageSwitch from '@/components/LanguageSwitch'
 import MediaUpload from '@/components/MediaUpload'
@@ -144,8 +144,8 @@ export default function AdminPage() {
       
       fetchTrips()
       
-      // Load site settings
-      const settings = getSettings()
+      // Load site settings from Supabase
+      const settings = await getSettingsAsync()
       setSiteSettings(settings)
       setSettingsForm({ 
         title: settings.title,
@@ -306,7 +306,7 @@ export default function AdminPage() {
     }
   }
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     // Ensure daySchedules has entries for all days
     const daySchedules = Array.from({ length: settingsForm.totalDays }, (_, i) => {
       const existing = settingsForm.daySchedules.find(d => d.dayNumber === i + 1)
@@ -319,20 +319,20 @@ export default function AdminPage() {
       imageUrl: settingsForm.homeLocationImageUrl || undefined
     }
     
-    saveSettings({ 
+    const settingsToSave = {
       title: settingsForm.title,
       tripStartDate: settingsForm.tripStartDate,
       totalDays: settingsForm.totalDays,
       daySchedules,
       homeLocation: updatedHomeLocation
-    })
+    }
+    
+    // Save to both localStorage and Supabase
+    await saveSettingsAsync(settingsToSave)
+    
     setSiteSettings({ 
       ...siteSettings!, 
-      title: settingsForm.title,
-      tripStartDate: settingsForm.tripStartDate,
-      totalDays: settingsForm.totalDays,
-      daySchedules,
-      homeLocation: updatedHomeLocation
+      ...settingsToSave
     })
     setMessage({ type: 'success', text: '設定已儲存！' })
     setShowSettings(false)
@@ -452,8 +452,9 @@ export default function AdminPage() {
               </p>
             </div>
             <button
-              onClick={() => {
-                setUsers(getUsers())
+              onClick={async () => {
+                const freshUsers = await getUsersAsync()
+                setUsers(freshUsers)
                 setShowUserManagement(true)
               }}
               className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
@@ -475,8 +476,8 @@ export default function AdminPage() {
               </p>
             </div>
             <button
-              onClick={() => {
-                const settings = getSettings()
+              onClick={async () => {
+                const settings = await getSettingsAsync()
                 setTravelEssentials(settings.travelEssentials || defaultTravelEssentials)
                 setTravelPreparations(settings.travelPreparations || defaultTravelPreparations)
                 setShowTravelNotice(true)
@@ -727,10 +728,11 @@ export default function AdminPage() {
                           </button>
                           {user.username !== 'admin' && (
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 if (confirm(`確定要刪除用戶 ${user.displayName} 嗎？`)) {
-                                  deleteUser(user.username)
-                                  setUsers(getUsers())
+                                  await deleteUserAsync(user.username)
+                                  const freshUsers = await getUsersAsync()
+                                  setUsers(freshUsers)
                                 }
                               }}
                               className="px-3 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-colors"
@@ -838,19 +840,20 @@ export default function AdminPage() {
                         </button>
                       )}
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (!userForm.username || !userForm.password || !userForm.displayName) {
                             alert('請填寫所有欄位')
                             return
                           }
-                          updateUser({
+                          await updateUserAsync({
                             username: userForm.username,
                             password: userForm.password,
                             displayName: userForm.displayName,
                             role: userForm.role,
                             avatarUrl: userForm.avatarUrl || undefined
                           })
-                          setUsers(getUsers())
+                          const freshUsers = await getUsersAsync()
+                          setUsers(freshUsers)
                           setEditingUser(null)
                           setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
                           setMessage({ type: 'success', text: editingUser ? '用戶已更新！' : '用戶已新增！' })
@@ -1048,9 +1051,9 @@ export default function AdminPage() {
                       取消
                     </button>
                     <button
-                      onClick={() => {
-                        // Save to settings
-                        saveSettings({
+                      onClick={async () => {
+                        // Save to settings (both localStorage and Supabase)
+                        await saveSettingsAsync({
                           travelEssentials,
                           travelPreparations
                         })
