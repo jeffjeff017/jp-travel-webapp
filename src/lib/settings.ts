@@ -7,6 +7,12 @@ export interface DaySchedule {
   imageUrl?: string
 }
 
+export interface TravelNoticeItem {
+  id: string
+  icon: string
+  text: string
+}
+
 export interface SiteSettings {
   title: string
   homeLocation: {
@@ -19,7 +25,27 @@ export interface SiteSettings {
   tripStartDate: string // ISO date string
   totalDays: number // 1-7 days
   daySchedules: DaySchedule[]
+  // Travel notice items (editable by admin)
+  travelEssentials?: TravelNoticeItem[]
+  travelPreparations?: TravelNoticeItem[]
 }
+
+// Default travel notice items
+export const defaultTravelEssentials: TravelNoticeItem[] = [
+  { id: 'passport', icon: '🛂', text: '護照及簽證文件' },
+  { id: 'money', icon: '💴', text: '日圓現金及信用卡' },
+  { id: 'sim', icon: '📱', text: 'SIM卡或WiFi蛋' },
+  { id: 'adapter', icon: '🔌', text: '日本規格轉換插頭' },
+  { id: 'medicine', icon: '💊', text: '常備藥物' },
+  { id: 'luggage', icon: '🧳', text: '輕便行李箱' },
+]
+
+export const defaultTravelPreparations: TravelNoticeItem[] = [
+  { id: 'jrpass', icon: '🚃', text: '購買JR Pass或交通卡' },
+  { id: 'hotel', icon: '🏨', text: '確認酒店預訂' },
+  { id: 'map', icon: '📋', text: '下載離線地圖' },
+  { id: 'weather', icon: '🌡️', text: '查看天氣預報' },
+]
 
 const defaultSettings: SiteSettings = {
   title: '日本旅遊',
@@ -36,6 +62,8 @@ const defaultSettings: SiteSettings = {
     { dayNumber: 2, theme: 'Day 2' },
     { dayNumber: 3, theme: 'Day 3' },
   ],
+  travelEssentials: defaultTravelEssentials,
+  travelPreparations: defaultTravelPreparations,
 }
 
 export function getSettings(): SiteSettings {

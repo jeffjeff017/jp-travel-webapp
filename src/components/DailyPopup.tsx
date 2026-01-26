@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
-import { getCurrentUser, getUserByUsername, getUsers } from '@/lib/auth'
+import { getCurrentUser, getUserByUsername } from '@/lib/auth'
+import { getSettings, defaultTravelEssentials, defaultTravelPreparations, type TravelNoticeItem } from '@/lib/settings'
 
 const POPUP_STORAGE_KEY = 'travel_notice_last_shown'
-const CHECKLIST_STORAGE_KEY = 'travel_checklist_items_v2'
+const CHECKLIST_STORAGE_KEY = 'travel_checklist_items_v3'
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
 
 type CheckedBy = {
@@ -24,23 +25,8 @@ type ChecklistItem = {
 export default function DailyPopup() {
   const [isVisible, setIsVisible] = useState(false)
   const [checklist, setChecklist] = useState<ChecklistItem[]>([])
+  const [essentialsCount, setEssentialsCount] = useState(6)
   const [currentUser, setCurrentUser] = useState<{ username: string; avatarUrl?: string } | null>(null)
-
-  // Initialize checklist
-  const defaultItems: Omit<ChecklistItem, 'checkedBy'>[] = [
-    // 必備物品
-    { id: 'passport', icon: '🛂', text: '護照及簽證文件' },
-    { id: 'money', icon: '💴', text: '日圓現金及信用卡' },
-    { id: 'sim', icon: '📱', text: 'SIM卡或WiFi蛋' },
-    { id: 'adapter', icon: '🔌', text: '日本規格轉換插頭' },
-    { id: 'medicine', icon: '💊', text: '常備藥物' },
-    { id: 'luggage', icon: '🧳', text: '輕便行李箱' },
-    // 出發前準備
-    { id: 'jrpass', icon: '🚃', text: '購買JR Pass或交通卡' },
-    { id: 'hotel', icon: '🏨', text: '確認酒店預訂' },
-    { id: 'map', icon: '📋', text: '下載離線地圖' },
-    { id: 'weather', icon: '🌡️', text: '查看天氣預報' },
-  ]
 
   // Load current user
   useEffect(() => {
@@ -55,23 +41,36 @@ export default function DailyPopup() {
     }
   }, [])
 
-  // Load checklist from localStorage
+  // Load checklist from settings and localStorage
   useEffect(() => {
+    const settings = getSettings()
+    const essentials = settings.travelEssentials || defaultTravelEssentials
+    const preparations = settings.travelPreparations || defaultTravelPreparations
+    
+    // Combine essentials and preparations
+    const allItems: Omit<ChecklistItem, 'checkedBy'>[] = [
+      ...essentials,
+      ...preparations,
+    ]
+    
+    setEssentialsCount(essentials.length)
+    
+    // Load saved check states
     const saved = localStorage.getItem(CHECKLIST_STORAGE_KEY)
     if (saved) {
       try {
         const savedItems = JSON.parse(saved) as ChecklistItem[]
-        // Merge with default items to handle new items
-        const merged = defaultItems.map(item => {
+        // Merge with settings items to handle new/changed items
+        const merged = allItems.map(item => {
           const savedItem = savedItems.find(s => s.id === item.id)
           return { ...item, checkedBy: savedItem?.checkedBy || [] }
         })
         setChecklist(merged)
       } catch {
-        setChecklist(defaultItems.map(item => ({ ...item, checkedBy: [] })))
+        setChecklist(allItems.map(item => ({ ...item, checkedBy: [] })))
       }
     } else {
-      setChecklist(defaultItems.map(item => ({ ...item, checkedBy: [] })))
+      setChecklist(allItems.map(item => ({ ...item, checkedBy: [] })))
     }
   }, [])
 
@@ -137,9 +136,9 @@ export default function DailyPopup() {
     setIsVisible(true)
   }
 
-  // Calculate counts
-  const essentialsItems = checklist.slice(0, 6)
-  const preparationItems = checklist.slice(6)
+  // Calculate counts - use dynamic essentialsCount from settings
+  const essentialsItems = checklist.slice(0, essentialsCount)
+  const preparationItems = checklist.slice(essentialsCount)
   const essentialsChecked = essentialsItems.filter(i => i.checkedBy.length > 0).length
   const preparationChecked = preparationItems.filter(i => i.checkedBy.length > 0).length
   const totalChecked = checklist.filter(i => i.checkedBy.length > 0).length

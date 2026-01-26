@@ -12,7 +12,7 @@ import {
   deleteTrip,
   type Trip,
 } from '@/lib/supabase'
-import { getSettings, saveSettings, type SiteSettings } from '@/lib/settings'
+import { getSettings, saveSettings, type SiteSettings, type TravelNoticeItem, defaultTravelEssentials, defaultTravelPreparations } from '@/lib/settings'
 import { useLanguage } from '@/lib/i18n'
 import LanguageSwitch from '@/components/LanguageSwitch'
 import MediaUpload from '@/components/MediaUpload'
@@ -122,6 +122,13 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([])
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [userForm, setUserForm] = useState({ username: '', password: '', displayName: '', role: 'user' as UserRole, avatarUrl: '' })
+  // Travel notice state
+  const [showTravelNotice, setShowTravelNotice] = useState(false)
+  const [travelEssentials, setTravelEssentials] = useState<TravelNoticeItem[]>([])
+  const [travelPreparations, setTravelPreparations] = useState<TravelNoticeItem[]>([])
+  const [newItemText, setNewItemText] = useState('')
+  const [newItemIcon, setNewItemIcon] = useState('📌')
+  const [editingNoticeType, setEditingNoticeType] = useState<'essentials' | 'preparations'>('essentials')
   const router = useRouter()
   const { t } = useLanguage()
 
@@ -452,6 +459,31 @@ export default function AdminPage() {
               className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
             >
               管理用戶
+            </button>
+          </div>
+        </div>
+
+        {/* Travel Notice Card */}
+        <div className="mb-6 bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <h3 className="font-medium text-gray-800 flex items-center gap-2">
+                <span>📋</span> 旅遊須知
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                管理旅遊須知清單項目
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                const settings = getSettings()
+                setTravelEssentials(settings.travelEssentials || defaultTravelEssentials)
+                setTravelPreparations(settings.travelPreparations || defaultTravelPreparations)
+                setShowTravelNotice(true)
+              }}
+              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+            >
+              編輯項目
             </button>
           </div>
         </div>
@@ -841,6 +873,193 @@ export default function AdminPage() {
                       className="w-full py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
                     >
                       關閉
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Travel Notice Modal */}
+        <AnimatePresence>
+          {showTravelNotice && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setShowTravelNotice(false)
+                  setNewItemText('')
+                  setNewItemIcon('📌')
+                }
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              >
+                <div className="p-6 border-b border-gray-100">
+                  <h3 className="text-lg font-medium text-gray-800">📋 旅遊須知設定</h3>
+                </div>
+                <div className="p-6">
+                  {/* Category Tabs */}
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      onClick={() => setEditingNoticeType('essentials')}
+                      className={`flex-1 py-2 px-3 text-sm rounded-lg transition-colors ${
+                        editingNoticeType === 'essentials'
+                          ? 'bg-sakura-500 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      🎒 必備物品 ({travelEssentials.length})
+                    </button>
+                    <button
+                      onClick={() => setEditingNoticeType('preparations')}
+                      className={`flex-1 py-2 px-3 text-sm rounded-lg transition-colors ${
+                        editingNoticeType === 'preparations'
+                          ? 'bg-sakura-500 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      📝 出發前準備 ({travelPreparations.length})
+                    </button>
+                  </div>
+
+                  {/* Items List */}
+                  <div className="space-y-2 mb-4 max-h-[300px] overflow-y-auto">
+                    {(editingNoticeType === 'essentials' ? travelEssentials : travelPreparations).map((item, index) => (
+                      <div key={item.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                        <span className="text-lg">{item.icon}</span>
+                        <span className="flex-1 text-sm text-gray-700">{item.text}</span>
+                        <button
+                          onClick={() => {
+                            if (editingNoticeType === 'essentials') {
+                              setTravelEssentials(travelEssentials.filter((_, i) => i !== index))
+                            } else {
+                              setTravelPreparations(travelPreparations.filter((_, i) => i !== index))
+                            }
+                          }}
+                          className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    ))}
+                    {(editingNoticeType === 'essentials' ? travelEssentials : travelPreparations).length === 0 && (
+                      <p className="text-center text-gray-400 text-sm py-4">尚無項目</p>
+                    )}
+                  </div>
+
+                  {/* Add New Item */}
+                  <div className="border-t border-gray-100 pt-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">新增項目</h4>
+                    <div className="flex gap-2">
+                      <select
+                        value={newItemIcon}
+                        onChange={(e) => setNewItemIcon(e.target.value)}
+                        className="w-16 px-2 py-2 text-lg border border-gray-200 rounded-lg focus:border-sakura-400 outline-none"
+                      >
+                        <option value="📌">📌</option>
+                        <option value="🛂">🛂</option>
+                        <option value="💴">💴</option>
+                        <option value="📱">📱</option>
+                        <option value="🔌">🔌</option>
+                        <option value="💊">💊</option>
+                        <option value="🧳">🧳</option>
+                        <option value="🚃">🚃</option>
+                        <option value="🏨">🏨</option>
+                        <option value="📋">📋</option>
+                        <option value="🌡️">🌡️</option>
+                        <option value="✈️">✈️</option>
+                        <option value="🎫">🎫</option>
+                        <option value="📷">📷</option>
+                        <option value="👕">👕</option>
+                        <option value="🧴">🧴</option>
+                        <option value="🔋">🔋</option>
+                        <option value="💳">💳</option>
+                        <option value="🗺️">🗺️</option>
+                        <option value="☂️">☂️</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={newItemText}
+                        onChange={(e) => setNewItemText(e.target.value)}
+                        placeholder="輸入項目內容"
+                        className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newItemText.trim()) {
+                            const newItem: TravelNoticeItem = {
+                              id: Date.now().toString(),
+                              icon: newItemIcon,
+                              text: newItemText.trim()
+                            }
+                            if (editingNoticeType === 'essentials') {
+                              setTravelEssentials([...travelEssentials, newItem])
+                            } else {
+                              setTravelPreparations([...travelPreparations, newItem])
+                            }
+                            setNewItemText('')
+                            setNewItemIcon('📌')
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          if (!newItemText.trim()) return
+                          const newItem: TravelNoticeItem = {
+                            id: Date.now().toString(),
+                            icon: newItemIcon,
+                            text: newItemText.trim()
+                          }
+                          if (editingNoticeType === 'essentials') {
+                            setTravelEssentials([...travelEssentials, newItem])
+                          } else {
+                            setTravelPreparations([...travelPreparations, newItem])
+                          }
+                          setNewItemText('')
+                          setNewItemIcon('📌')
+                        }}
+                        disabled={!newItemText.trim()}
+                        className="px-4 py-2 text-sm bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg transition-colors"
+                      >
+                        新增
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 mt-6 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => {
+                        setShowTravelNotice(false)
+                        setNewItemText('')
+                        setNewItemIcon('📌')
+                      }}
+                      className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Save to settings
+                        saveSettings({
+                          travelEssentials,
+                          travelPreparations
+                        })
+                        setMessage({ type: 'success', text: '旅遊須知已儲存！' })
+                        setShowTravelNotice(false)
+                        setNewItemText('')
+                        setNewItemIcon('📌')
+                      }}
+                      className="flex-1 py-2 bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg font-medium transition-colors"
+                    >
+                      儲存
                     </button>
                   </div>
                 </div>
