@@ -13,6 +13,7 @@ import DailyPopup from '@/components/DailyPopup'
 import ModeToggle from '@/components/ModeToggle'
 import MultiMediaUpload from '@/components/MultiMediaUpload'
 import ImageSlider from '@/components/ImageSlider'
+import WishlistButton from '@/components/WishlistButton'
 import { useLanguage } from '@/lib/i18n'
 
 const GoogleMapComponent = dynamic(
@@ -1124,6 +1125,9 @@ export default function MainPage() {
 
       {/* Daily Popup - Bottom Right */}
       <DailyPopup />
+
+      {/* Wishlist Button - Bottom Right */}
+      <WishlistButton />
 
       {/* Trip Form Modal */}
       <AnimatePresence>
