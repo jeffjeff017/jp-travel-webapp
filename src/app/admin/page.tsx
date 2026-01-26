@@ -1719,9 +1719,9 @@ export default function AdminPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto pb-4 -mx-4 px-4">
-            <div className="grid grid-flow-col auto-cols-[280px] md:auto-cols-[320px] gap-4" style={{ gridTemplateRows: '1fr' }}>
-              {trips.map((trip) => {
+          <div className="overflow-x-auto pb-4">
+            <div className="flex gap-4" style={{ minWidth: 'min-content' }}>
+              {[...trips].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((trip) => {
                 // Parse images
                 const tripImages = parseImages(trip.image_url)
                 const firstImage = tripImages[0]
@@ -1745,7 +1745,7 @@ export default function AdminPage() {
                 return (
                   <div 
                     key={trip.id} 
-                    className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col"
+                    className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col flex-shrink-0 w-[280px] md:w-[300px]"
                   >
                     {/* Image */}
                     {firstImage && (
