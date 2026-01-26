@@ -285,12 +285,14 @@ export default function WishlistButton({
                         }`}
                       >
                         <span className="text-base block">{cat.icon}</span>
-                        <span className="block mt-0.5">{cat.name}</span>
-                        {wishlist[cat.id].length > 0 && (
-                          <span className={`text-[10px] ${activeTab === cat.id ? 'text-pink-400' : 'text-white/70'}`}>
-                            ({wishlist[cat.id].length})
-                          </span>
-                        )}
+                        <span className="block mt-0.5">
+                          {cat.name}
+                          {wishlist[cat.id].length > 0 && (
+                            <span className={`ml-0.5 ${activeTab === cat.id ? 'text-pink-400' : 'text-white/70'}`}>
+                              ({wishlist[cat.id].length})
+                            </span>
+                          )}
+                        </span>
                       </button>
                     ))}
                   </div>
