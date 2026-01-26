@@ -94,7 +94,7 @@ export default function LandingPage() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 flex flex-col items-center justify-center bg-sakura-50 z-50"
           >
-            {/* Centered circular container with image - 25% smaller */}
+            {/* Centered circular container with image - smaller */}
             <motion.div
               initial={{ scale: 0 }}
               animate={{
@@ -105,7 +105,7 @@ export default function LandingPage() {
                 times: [0, 0.6, 1],
                 ease: 'easeInOut',
               }}
-              className="w-48 h-48 md:w-60 md:h-60 rounded-full overflow-hidden bg-white shadow-2xl"
+              className="w-36 h-36 md:w-44 md:h-44 rounded-full overflow-hidden bg-white shadow-2xl"
             >
               <Image
                 src="/images/chiikawa-transition.png"
