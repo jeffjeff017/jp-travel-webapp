@@ -169,54 +169,28 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
       className="fixed bottom-6 left-1/2 -translate-x-1/2 md:translate-x-0 md:bottom-6 md:left-6 z-50 cursor-pointer select-none w-16 h-16 md:w-20 md:h-20 flex flex-col items-center justify-center"
       onClick={handleClick}
     >
-      {/* Speech Bubble - positioned above on mobile, right side on desktop */}
+      {/* Speech Bubble - Always on top */}
       <AnimatePresence>
         {isClicked && speechMessage && (
-          <>
-            {/* Mobile: Above the character */}
-            <motion.div
-              variants={speechBubbleVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              className="md:hidden absolute z-10 -top-10 left-1/2 -translate-x-1/2"
-            >
-              <div className="relative bg-white px-3 py-2 rounded-xl shadow-lg border-2 border-pink-200">
-                <span className="text-xs font-bold text-pink-500 whitespace-nowrap">
-                  {speechMessage}
-                </span>
-                <div className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 h-0 
-                  border-l-[6px] border-l-transparent 
-                  border-r-[6px] border-r-transparent 
-                  border-t-[8px] border-t-white" 
-                />
-              </div>
-            </motion.div>
-            
-            {/* Desktop: Right side of character */}
-            <motion.div
-              variants={speechBubbleVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              className="hidden md:block absolute z-10 top-1/2 -translate-y-1/2"
-              style={{ left: 'calc(100% + 8px)' }}
-            >
-              <div className="relative bg-white px-2 py-3 rounded-xl shadow-lg border-2 border-pink-200">
-                <span 
-                  className="text-xs font-bold text-pink-500"
-                  style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
-                >
-                  {speechMessage}
-                </span>
-                <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-0 h-0 
-                  border-t-[6px] border-t-transparent 
-                  border-b-[6px] border-b-transparent 
-                  border-r-[8px] border-r-white" 
-                />
-              </div>
-            </motion.div>
-          </>
+          <motion.div
+            variants={speechBubbleVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-2"
+          >
+            <div className="relative bg-white px-3 py-2 rounded-xl shadow-lg border-2 border-pink-200">
+              <span className="text-xs font-bold text-pink-500 whitespace-nowrap">
+                {speechMessage}
+              </span>
+              {/* Arrow pointing down */}
+              <div className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 h-0 
+                border-l-[6px] border-l-transparent 
+                border-r-[6px] border-r-transparent 
+                border-t-[8px] border-t-white" 
+              />
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
