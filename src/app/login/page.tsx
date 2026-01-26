@@ -120,24 +120,26 @@ export default function LoginPage() {
       {petImage && (
         <motion.div
           className="fixed pointer-events-none z-50"
+          style={{
+            left: mousePosition.x + 15,
+            top: mousePosition.y + 15,
+          }}
           animate={{
-            x: mousePosition.x + 20,
-            y: mousePosition.y + 20,
+            scale: [1, 1.05, 1],
           }}
           transition={{
-            type: 'spring',
-            damping: 20,
-            stiffness: 200,
-            mass: 0.5,
+            duration: 2,
+            repeat: Infinity,
+            ease: 'easeInOut',
           }}
         >
           <motion.div
             animate={{
-              y: [0, -5, 0],
-              rotate: [-3, 3, -3],
+              y: [0, -3, 0],
+              rotate: [-2, 2, -2],
             }}
             transition={{
-              duration: 2,
+              duration: 1.5,
               repeat: Infinity,
               ease: 'easeInOut',
             }}
@@ -145,8 +147,8 @@ export default function LoginPage() {
             <Image
               src={petImage}
               alt="Pet"
-              width={50}
-              height={50}
+              width={45}
+              height={45}
               className="object-contain drop-shadow-md"
               unoptimized
             />
