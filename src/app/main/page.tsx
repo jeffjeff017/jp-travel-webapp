@@ -96,6 +96,47 @@ const createEmptyScheduleItem = (): ScheduleItem => ({
   content: '',
 })
 
+// Mode Toggle Click Hint - Mobile only
+const ModeToggleHint = () => {
+  const [show, setShow] = useState(true)
+  
+  useEffect(() => {
+    const clicked = localStorage.getItem('mode_toggle_clicked')
+    if (clicked) {
+      setShow(false)
+    }
+  }, [])
+  
+  if (!show) return null
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ 
+        opacity: 1, 
+        x: 0,
+        scale: [1, 1.05, 1],
+      }}
+      transition={{
+        opacity: { duration: 0.3 },
+        scale: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
+      }}
+      className="absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap"
+    >
+      <div className="px-2 py-1 bg-pink-500 text-white text-[10px] rounded-full shadow-lg flex items-center gap-1">
+        <span>👆</span>
+        <span>點擊</span>
+      </div>
+      {/* Arrow pointing left */}
+      <div className="absolute right-full top-1/2 -translate-y-1/2 mr-[-1px] w-0 h-0 
+        border-t-[5px] border-t-transparent 
+        border-b-[5px] border-b-transparent 
+        border-r-[6px] border-r-pink-500"
+      />
+    </motion.div>
+  )
+}
+
 // Pixel Heart Icon Component
 const PixelHeart = () => (
   <svg width="16" height="14" viewBox="0 0 16 14" className="inline-block">
@@ -1075,17 +1116,28 @@ export default function MainPage() {
           <span className="text-2xl">🗺️</span>
         </button>
         
-        {/* Mode Toggle Button */}
-        <button
-          onClick={toggleSakuraMode}
-          className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 ${
-            isSakuraMode 
-              ? 'bg-pink-400 hover:bg-pink-500' 
-              : 'bg-gray-100 hover:bg-gray-200'
-          }`}
-        >
-          <span className="text-2xl">{isSakuraMode ? '🌸' : '🔘'}</span>
-        </button>
+        {/* Mode Toggle Button with Click Hint */}
+        <div className="relative">
+          <button
+            onClick={() => {
+              toggleSakuraMode()
+              // Hide hint after first click
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('mode_toggle_clicked', 'true')
+              }
+            }}
+            className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 ${
+              isSakuraMode 
+                ? 'bg-pink-400 hover:bg-pink-500' 
+                : 'bg-gray-100 hover:bg-gray-200'
+            }`}
+          >
+            <span className="text-2xl">{isSakuraMode ? '🌸' : '🔘'}</span>
+          </button>
+          
+          {/* Click Hint - Only on mobile, hide after clicked */}
+          <ModeToggleHint />
+        </div>
       </div>
       
       {/* Mobile: Map Popup */}

@@ -38,18 +38,11 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
   const [speechMessage, setSpeechMessage] = useState('')
   const [isHappyBounce, setIsHappyBounce] = useState(false)
   const [characterImage, setCharacterImage] = useState(CHARACTER_IMAGES[0])
-  const [hasEverClicked, setHasEverClicked] = useState(false)
 
-  // Select random character on mount and check if user has clicked before
+  // Select random character on mount
   useEffect(() => {
     const randomIndex = Math.floor(Math.random() * CHARACTER_IMAGES.length)
     setCharacterImage(CHARACTER_IMAGES[randomIndex])
-    
-    // Check localStorage to see if user has clicked before
-    const clicked = localStorage.getItem('chiikawa_clicked')
-    if (clicked) {
-      setHasEverClicked(true)
-    }
   }, [])
 
   // Random speech message on click based on current character
@@ -62,12 +55,6 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
   const handleClick = useCallback(() => {
     if (isClicked) return // Prevent spam clicking
     
-    // Mark as clicked (hide hint permanently)
-    if (!hasEverClicked) {
-      setHasEverClicked(true)
-      localStorage.setItem('chiikawa_clicked', 'true')
-    }
-    
     setIsClicked(true)
     setSpeechMessage(getRandomMessage())
     
@@ -76,7 +63,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
       setIsClicked(false)
       setSpeechMessage('')
     }, 2000)
-  }, [isClicked, hasEverClicked, getRandomMessage])
+  }, [isClicked, getRandomMessage])
 
   // Happy bounce effect every 10 seconds
   useEffect(() => {
@@ -304,36 +291,6 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
         className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 md:w-14 h-2 bg-black/20 rounded-full blur-sm"
       />
 
-      {/* Click Hint - Only show if never clicked before */}
-      <AnimatePresence>
-        {!hasEverClicked && !isClicked && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 5 }}
-            animate={{ 
-              opacity: 1, 
-              scale: [1, 1.05, 1],
-              y: 0,
-            }}
-            exit={{ opacity: 0, scale: 0.8, y: 5 }}
-            transition={{
-              opacity: { duration: 0.3 },
-              scale: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
-            }}
-            className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap"
-          >
-            <div className="px-2 py-1 bg-pink-500 text-white text-[10px] rounded-full shadow-lg flex items-center gap-1">
-              <span>👆</span>
-              <span>點擊</span>
-            </div>
-            {/* Arrow pointing down */}
-            <div className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 
-              border-l-[5px] border-l-transparent 
-              border-r-[5px] border-r-transparent 
-              border-t-[6px] border-t-pink-500"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }
