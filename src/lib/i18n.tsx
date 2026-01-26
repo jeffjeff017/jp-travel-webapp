@@ -118,7 +118,7 @@ const translations: Record<Language, Translations> = {
       language: '語言',
     },
     login: {
-      title: '管理員登入',
+      title: '登入',
       subtitle: '登入以管理行程',
       username: '使用者名稱',
       password: '密碼',
@@ -187,7 +187,7 @@ const translations: Record<Language, Translations> = {
       language: 'Language',
     },
     login: {
-      title: 'Admin Login',
+      title: 'Login',
       subtitle: 'Sign in to manage trips',
       username: 'Username',
       password: 'Password',
@@ -256,7 +256,7 @@ const translations: Record<Language, Translations> = {
       language: '言語',
     },
     login: {
-      title: '管理者ログイン',
+      title: 'ログイン',
       subtitle: 'ログインして旅行を管理',
       username: 'ユーザー名',
       password: 'パスワード',

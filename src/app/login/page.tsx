@@ -6,12 +6,20 @@ import { motion } from 'framer-motion'
 import Image from 'next/image'
 import { login, isAuthenticated, isAdmin, getCurrentUser } from '@/lib/auth'
 import { useLanguage } from '@/lib/i18n'
+import SakuraCanvas from '@/components/SakuraCanvas'
 
 // Array of character images for login page (randomly selected)
 const LOGIN_CHARACTER_IMAGES = [
   '/images/usagi-login.png',
   '/images/chii-login.png',
   '/images/hachi-login.png',
+]
+
+// Pet images for mouse follower
+const PET_IMAGES = [
+  '/images/chiikawa-pet.png',
+  '/images/hachiware-pet.png',
+  '/images/chii-pet.png',
 ]
 
 export default function LoginPage() {
@@ -21,13 +29,18 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isChecking, setIsChecking] = useState(true)
   const [characterImage, setCharacterImage] = useState('')
+  const [petImage, setPetImage] = useState('')
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
   const router = useRouter()
   const { t } = useLanguage()
 
   useEffect(() => {
-    // Select random character on mount
+    // Select random character and pet on mount
     const randomIndex = Math.floor(Math.random() * LOGIN_CHARACTER_IMAGES.length)
     setCharacterImage(LOGIN_CHARACTER_IMAGES[randomIndex])
+    
+    const randomPetIndex = Math.floor(Math.random() * PET_IMAGES.length)
+    setPetImage(PET_IMAGES[randomPetIndex])
     
     // Check if already authenticated and redirect
     const checkAuth = async () => {
@@ -50,6 +63,16 @@ export default function LoginPage() {
     
     checkAuth()
   }, [router])
+
+  // Mouse follow effect
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY })
+    }
+    
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => window.removeEventListener('mousemove', handleMouseMove)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -82,17 +105,59 @@ export default function LoginPage() {
   if (isChecking) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center">
+        <SakuraCanvas />
         <div className="w-8 h-8 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center px-4">
+    <main className="min-h-screen bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Sakura Effect */}
+      <SakuraCanvas />
+      
+      {/* Mouse Following Chiikawa Pet */}
+      {petImage && (
+        <motion.div
+          className="fixed pointer-events-none z-50"
+          animate={{
+            x: mousePosition.x + 20,
+            y: mousePosition.y + 20,
+          }}
+          transition={{
+            type: 'spring',
+            damping: 20,
+            stiffness: 200,
+            mass: 0.5,
+          }}
+        >
+          <motion.div
+            animate={{
+              y: [0, -5, 0],
+              rotate: [-3, 3, -3],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+          >
+            <Image
+              src={petImage}
+              alt="Pet"
+              width={50}
+              height={50}
+              className="object-contain drop-shadow-md"
+              unoptimized
+            />
+          </motion.div>
+        </motion.div>
+      )}
+      
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md"
+        className="w-full max-w-md relative z-10"
       >
         {/* Header */}
         <div className="text-center mb-8">
@@ -123,7 +188,7 @@ export default function LoginPage() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
           onSubmit={handleSubmit}
-          className="bg-white rounded-2xl shadow-xl border border-sakura-100 p-6"
+          className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-sakura-100 p-6"
         >
           {error && (
             <motion.div
@@ -204,6 +269,13 @@ export default function LoginPage() {
           </a>
         </motion.div>
       </motion.div>
+      
+      {/* Copyright */}
+      <div className="fixed bottom-4 left-0 right-0 text-center">
+        <p className="text-xs text-gray-400">
+          ©RACFONG CO., LTD.
+        </p>
+      </div>
     </main>
   )
 }

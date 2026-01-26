@@ -1420,6 +1420,13 @@ export default function MainPage() {
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* Copyright */}
+      <div className="fixed bottom-2 left-0 right-0 text-center pointer-events-none z-10">
+        <p className="text-[10px] text-gray-400/60">
+          ©RACFONG CO., LTD.
+        </p>
+      </div>
     </main>
   )
 }
