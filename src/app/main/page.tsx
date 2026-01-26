@@ -96,7 +96,7 @@ const createEmptyScheduleItem = (): ScheduleItem => ({
   content: '',
 })
 
-// Mode Toggle Click Hint - Mobile only
+// Mode Toggle Click Hint - Mobile only, centered on button
 const ModeToggleHint = () => {
   const [show, setShow] = useState(true)
   
@@ -111,7 +111,7 @@ const ModeToggleHint = () => {
   
   return (
     <motion.div
-      initial={{ opacity: 0, x: -10 }}
+      initial={{ opacity: 0, x: 10 }}
       animate={{ 
         opacity: 1, 
         x: 0,
@@ -124,10 +124,10 @@ const ModeToggleHint = () => {
       className="absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap"
     >
       <div className="px-2 py-1 bg-pink-500 text-white text-[10px] rounded-full shadow-lg flex items-center gap-1">
-        <span>👆</span>
+        <span>👈</span>
         <span>點擊</span>
       </div>
-      {/* Arrow pointing left */}
+      {/* Arrow pointing left to button */}
       <div className="absolute right-full top-1/2 -translate-y-1/2 mr-[-1px] w-0 h-0 
         border-t-[5px] border-t-transparent 
         border-b-[5px] border-b-transparent 
@@ -1022,18 +1022,18 @@ export default function MainPage() {
                       
                         {/* Actions - Admin only */}
                         {isAdmin && (
-                          <div className="flex items-center gap-2 pt-1">
+                          <div className="flex items-center gap-1.5 pt-1 flex-wrap">
                             <button
                               onClick={(e) => openEditForm(trip, e)}
-                              className="px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-1 border border-blue-100"
+                              className="px-2 py-1 text-[10px] sm:text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-0.5 border border-blue-100"
                             >
-                              ✏️ 編輯
+                              ✏️ <span className="hidden xs:inline">編輯</span>
                             </button>
                             <button
                               onClick={(e) => handleDeleteTrip(trip.id, e)}
-                              className="px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1 border border-red-100"
+                              className="px-2 py-1 text-[10px] sm:text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-0.5 border border-red-100"
                             >
-                              🗑️ 刪除
+                              🗑️ <span className="hidden xs:inline">刪除</span>
                             </button>
                           </div>
                         )}

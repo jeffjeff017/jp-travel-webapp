@@ -58,16 +58,19 @@ export default function SakuraCanvas({ enabled = true }: SakuraCanvasProps) {
       'rgba(255, 192, 203, 0.9)',
     ]
 
-    // Create initial petals
-    const maxPetals = 50
+    // Create initial petals - fewer and slower on mobile
+    const isMobile = window.innerWidth < 768
+    const maxPetals = isMobile ? 20 : 50
+    const speedMultiplier = isMobile ? 0.4 : 1
+    
     const createPetal = (): Petal => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height - canvas.height,
       size: Math.random() * 10 + 8,
-      speedX: Math.random() * 1.5 - 0.75,
-      speedY: Math.random() * 1 + 0.5,
+      speedX: (Math.random() * 1.5 - 0.75) * speedMultiplier,
+      speedY: (Math.random() * 1 + 0.5) * speedMultiplier,
       rotation: Math.random() * Math.PI * 2,
-      rotationSpeed: (Math.random() - 0.5) * 0.02,
+      rotationSpeed: (Math.random() - 0.5) * 0.02 * speedMultiplier,
       opacity: Math.random() * 0.4 + 0.6,
       color: colors[Math.floor(Math.random() * colors.length)],
     })
