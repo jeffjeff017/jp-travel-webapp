@@ -1027,13 +1027,13 @@ export default function MainPage() {
                               onClick={(e) => openEditForm(trip, e)}
                               className="px-2 py-1 text-[10px] sm:text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-0.5 border border-blue-100"
                             >
-                              ✏️ <span className="hidden xs:inline">編輯</span>
+                              ✏️ 編輯
                             </button>
                             <button
                               onClick={(e) => handleDeleteTrip(trip.id, e)}
                               className="px-2 py-1 text-[10px] sm:text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-0.5 border border-red-100"
                             >
-                              🗑️ <span className="hidden xs:inline">刪除</span>
+                              🗑️ 刪除
                             </button>
                           </div>
                         )}
