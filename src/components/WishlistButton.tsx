@@ -2,15 +2,21 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import Image from 'next/image'
 
-// Wishlist categories with icons
+// Main categories (tabs)
 const CATEGORIES = [
   { id: 'cafe', name: 'Cafe', icon: '☕', color: 'from-amber-400 to-orange-500' },
-  { id: 'restaurant', name: '餐廳', icon: '🍽️', color: 'from-red-400 to-pink-500' },
-  { id: 'bakery', name: '麵包店', icon: '🥐', color: 'from-yellow-400 to-amber-500' },
+  { id: 'food', name: '餐廳', icon: '🍽️', color: 'from-red-400 to-pink-500', hasSubTabs: true },
   { id: 'shopping', name: 'Shopping', icon: '🛍️', color: 'from-purple-400 to-indigo-500' },
   { id: 'park', name: 'Park', icon: '🌳', color: 'from-green-400 to-emerald-500' },
-  { id: 'threads', name: 'Threads', icon: '🧵', color: 'from-gray-600 to-gray-800', linkOnly: true },
+  { id: 'threads', name: 'Threads', icon: '/images/threads-logo.png', isImage: true, color: 'from-gray-600 to-gray-800', linkOnly: true },
+]
+
+// Sub-tabs for food category
+const FOOD_SUBTABS = [
+  { id: 'restaurant', name: '餐廳', icon: '🍽️' },
+  { id: 'bakery', name: '麵包店', icon: '🥐' },
 ]
 
 type WishlistItem = {
@@ -44,6 +50,7 @@ export default function WishlistButton({
 }: WishlistButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('cafe')
+  const [activeFoodSubTab, setActiveFoodSubTab] = useState('restaurant') // Sub-tab for food category
   const [wishlist, setWishlist] = useState<Wishlist>({
     cafe: [],
     restaurant: [],
@@ -52,6 +59,19 @@ export default function WishlistButton({
     park: [],
     threads: [],
   })
+  
+  // Get the actual category ID for data storage
+  const getActiveCategoryId = () => {
+    if (activeTab === 'food') {
+      return activeFoodSubTab // 'restaurant' or 'bakery'
+    }
+    return activeTab
+  }
+  
+  // Get count for food tab (sum of restaurant + bakery)
+  const getFoodCount = () => {
+    return (wishlist.restaurant?.length || 0) + (wishlist.bakery?.length || 0)
+  }
   const [newItemName, setNewItemName] = useState('')
   const [newItemNote, setNewItemNote] = useState('')
   const [newItemImage, setNewItemImage] = useState('')
@@ -118,9 +138,10 @@ export default function WishlistButton({
     }
     
     if (editingItem) {
+      const catId = getActiveCategoryId()
       const newWishlist = {
         ...wishlist,
-        [activeTab]: wishlist[activeTab].map(item => 
+        [catId]: wishlist[catId].map(item => 
           item.id === editingItem.id 
             ? { 
                 ...item, 
@@ -144,9 +165,10 @@ export default function WishlistButton({
         isFavorite: false,
       }
       
+      const catId = getActiveCategoryId()
       const newWishlist = {
         ...wishlist,
-        [activeTab]: [...wishlist[activeTab], newItem],
+        [catId]: [...wishlist[catId], newItem],
       }
       saveWishlist(newWishlist)
     }
@@ -176,18 +198,20 @@ export default function WishlistButton({
 
   // Remove item
   const removeItem = (itemId: string) => {
+    const catId = getActiveCategoryId()
     const newWishlist = {
       ...wishlist,
-      [activeTab]: wishlist[activeTab].filter(item => item.id !== itemId),
+      [catId]: wishlist[catId].filter(item => item.id !== itemId),
     }
     saveWishlist(newWishlist)
   }
 
   // Toggle favorite (moves to top)
   const toggleFavorite = (itemId: string) => {
+    const catId = getActiveCategoryId()
     const newWishlist = {
       ...wishlist,
-      [activeTab]: wishlist[activeTab].map(item => 
+      [catId]: wishlist[catId].map(item => 
         item.id === itemId 
           ? { ...item, isFavorite: !item.isFavorite }
           : item
@@ -213,9 +237,10 @@ export default function WishlistButton({
 
   // Add item to trip
   const handleAddToTrip = (item: WishlistItem) => {
+    const catId = getActiveCategoryId()
     const newWishlist = {
       ...wishlist,
-      [activeTab]: wishlist[activeTab].map(i => 
+      [catId]: wishlist[catId].map(i => 
         i.id === item.id 
           ? { ...i, addedToDay: selectedDay, addedTime: selectedTime }
           : i
@@ -224,7 +249,7 @@ export default function WishlistButton({
     saveWishlist(newWishlist)
     
     if (onAddToTrip) {
-      onAddToTrip({ ...item, addedToDay: selectedDay, addedTime: selectedTime }, selectedDay, selectedTime, activeTab)
+      onAddToTrip({ ...item, addedToDay: selectedDay, addedTime: selectedTime }, selectedDay, selectedTime, catId)
     }
     
     setShowAddToTrip(null)
@@ -300,32 +325,80 @@ export default function WishlistButton({
                   
                   {/* Category Tabs */}
                   <div className="flex gap-1 mt-4">
-                    {CATEGORIES.map(cat => (
-                      <button
-                        key={cat.id}
-                        onClick={() => {
-                          setActiveTab(cat.id)
-                          resetForm()
-                          setShowAddToTrip(null)
-                        }}
-                        className={`flex-1 py-2 px-1 rounded-lg text-xs font-medium transition-all ${
-                          activeTab === cat.id
-                            ? 'bg-white text-pink-600'
-                            : 'bg-white/20 hover:bg-white/30'
-                        }`}
-                      >
-                        <span className="text-base block">{cat.icon}</span>
-                        <span className="block mt-0.5">
-                          {cat.name}
-                          {wishlist[cat.id].length > 0 && (
-                            <span className={`ml-0.5 ${activeTab === cat.id ? 'text-pink-400' : 'text-white/70'}`}>
-                              ({wishlist[cat.id].length})
+                    {CATEGORIES.map(cat => {
+                      // Get count - special handling for food (restaurant + bakery)
+                      const count = cat.id === 'food' 
+                        ? getFoodCount()
+                        : (wishlist[cat.id]?.length || 0)
+                      
+                      return (
+                        <button
+                          key={cat.id}
+                          onClick={() => {
+                            setActiveTab(cat.id)
+                            resetForm()
+                            setShowAddToTrip(null)
+                          }}
+                          className={`flex-1 py-2 px-1 rounded-lg text-xs font-medium transition-all ${
+                            activeTab === cat.id
+                              ? 'bg-white text-pink-600'
+                              : 'bg-white/20 hover:bg-white/30'
+                          }`}
+                        >
+                          {cat.isImage ? (
+                            <span className="flex justify-center">
+                              <Image
+                                src={cat.icon}
+                                alt={cat.name}
+                                width={24}
+                                height={24}
+                                className="object-contain"
+                              />
+                            </span>
+                          ) : (
+                            <span className="text-base block">{cat.icon}</span>
+                          )}
+                          <span className="block mt-0.5">
+                            {cat.name}
+                            {count > 0 && (
+                              <span className={`ml-0.5 ${activeTab === cat.id ? 'text-pink-400' : 'text-white/70'}`}>
+                                ({count})
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  
+                  {/* Food Sub-tabs (餐廳 / 麵包店) */}
+                  {activeTab === 'food' && (
+                    <div className="flex gap-1 mt-2">
+                      {FOOD_SUBTABS.map(sub => (
+                        <button
+                          key={sub.id}
+                          onClick={() => {
+                            setActiveFoodSubTab(sub.id)
+                            resetForm()
+                            setShowAddToTrip(null)
+                          }}
+                          className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
+                            activeFoodSubTab === sub.id
+                              ? 'bg-white/90 text-pink-600 shadow-sm'
+                              : 'bg-white/30 hover:bg-white/50 text-white'
+                          }`}
+                        >
+                          <span className="mr-1">{sub.icon}</span>
+                          {sub.name}
+                          {(wishlist[sub.id]?.length || 0) > 0 && (
+                            <span className={`ml-1 ${activeFoodSubTab === sub.id ? 'text-pink-400' : 'text-white/80'}`}>
+                              ({wishlist[sub.id]?.length || 0})
                             </span>
                           )}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 
                 {/* Content */}
@@ -438,16 +511,30 @@ export default function WishlistButton({
                   )}
                   
                   {/* Items List */}
-                  {wishlist[activeTab].length === 0 && !isAdding ? (
+                  {wishlist[getActiveCategoryId()]?.length === 0 && !isAdding ? (
                     <div className="text-center py-8">
-                      <span className="text-4xl block mb-2">
-                        {CATEGORIES.find(c => c.id === activeTab)?.icon}
-                      </span>
+                      {activeTab === 'threads' ? (
+                        <span className="flex justify-center mb-2">
+                          <Image
+                            src="/images/threads-logo.png"
+                            alt="Threads"
+                            width={48}
+                            height={48}
+                            className="object-contain"
+                          />
+                        </span>
+                      ) : (
+                        <span className="text-4xl block mb-2">
+                          {activeTab === 'food' 
+                            ? FOOD_SUBTABS.find(s => s.id === activeFoodSubTab)?.icon
+                            : CATEGORIES.find(c => c.id === activeTab)?.icon}
+                        </span>
+                      )}
                       <p className="text-gray-400 text-sm">還沒有收藏任何項目</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {getSortedItems(wishlist[activeTab]).map((item, index) => {
+                      {getSortedItems(wishlist[getActiveCategoryId()] || []).map((item, index) => {
                         const isThreadsItem = activeTab === 'threads'
                         
                         return (
@@ -461,8 +548,14 @@ export default function WishlistButton({
                             <div className="flex items-start gap-3 p-3">
                               {/* Image or Icon */}
                               {isThreadsItem ? (
-                                <span className="text-2xl w-14 h-14 flex items-center justify-center bg-gradient-to-br from-gray-700 to-black rounded-lg flex-shrink-0 text-white">
-                                  🧵
+                                <span className="w-14 h-14 flex items-center justify-center bg-white rounded-lg flex-shrink-0 p-2">
+                                  <Image
+                                    src="/images/threads-logo.png"
+                                    alt="Threads"
+                                    width={40}
+                                    height={40}
+                                    className="object-contain"
+                                  />
                                 </span>
                               ) : item.imageUrl ? (
                                 <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0">
@@ -474,7 +567,9 @@ export default function WishlistButton({
                                 </div>
                               ) : (
                                 <span className="text-2xl w-14 h-14 flex items-center justify-center bg-white rounded-lg flex-shrink-0">
-                                  {CATEGORIES.find(c => c.id === activeTab)?.icon}
+                                  {activeTab === 'food'
+                                    ? FOOD_SUBTABS.find(s => s.id === activeFoodSubTab)?.icon
+                                    : CATEGORIES.find(c => c.id === activeTab)?.icon}
                                 </span>
                               )}
                               
@@ -562,9 +657,10 @@ export default function WishlistButton({
                                 ) : (
                                   <button
                                     onClick={() => {
+                                      const catId = getActiveCategoryId()
                                       const newWishlist = {
                                         ...wishlist,
-                                        [activeTab]: wishlist[activeTab].map(i => 
+                                        [catId]: wishlist[catId].map(i => 
                                           i.id === item.id 
                                             ? { ...i, addedToDay: undefined, addedTime: undefined }
                                             : i
