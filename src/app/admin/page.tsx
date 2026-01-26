@@ -11,8 +11,25 @@ import {
   updateTrip,
   deleteTrip,
   type Trip,
+  type DestinationDB,
+  DEFAULT_DESTINATIONS,
+  saveSupabaseDestination,
+  deleteSupabaseDestination,
 } from '@/lib/supabase'
-import { getSettings, getSettingsAsync, saveSettings, saveSettingsAsync, type SiteSettings, type TravelNoticeItem, defaultTravelEssentials, defaultTravelPreparations } from '@/lib/settings'
+import { 
+  getSettings, 
+  getSettingsAsync, 
+  saveSettings, 
+  saveSettingsAsync, 
+  type SiteSettings, 
+  type TravelNoticeItem, 
+  defaultTravelEssentials, 
+  defaultTravelPreparations,
+  getCurrentDestination,
+  setCurrentDestination,
+  getDestinations,
+  getDestinationsAsync,
+} from '@/lib/settings'
 import { useLanguage } from '@/lib/i18n'
 import LanguageSwitch from '@/components/LanguageSwitch'
 import MediaUpload from '@/components/MediaUpload'
@@ -129,8 +146,25 @@ export default function AdminPage() {
   const [newItemText, setNewItemText] = useState('')
   const [newItemIcon, setNewItemIcon] = useState('📌')
   const [editingNoticeType, setEditingNoticeType] = useState<'essentials' | 'preparations'>('essentials')
+  // Destination state
+  const [currentDestinationId, setCurrentDestinationId] = useState<string>('japan')
+  const [destinations, setDestinations] = useState<DestinationDB[]>([])
+  const [showDestinationModal, setShowDestinationModal] = useState(false)
+  const [editingDestination, setEditingDestination] = useState<DestinationDB | null>(null)
+  const [destinationForm, setDestinationForm] = useState({
+    id: '',
+    name: '',
+    name_en: '',
+    flag: '',
+    primaryHex: '#F472B6',
+    emoji: '',
+  })
   const router = useRouter()
   const { t } = useLanguage()
+
+  // Get current destination theme color
+  const currentDestination = destinations.find(d => d.id === currentDestinationId) || destinations[0]
+  const themeColor = currentDestination?.theme?.primaryHex || '#F472B6'
 
   useEffect(() => {
     const initAdmin = async () => {
@@ -143,6 +177,22 @@ export default function AdminPage() {
       }
       
       fetchTrips()
+      
+      // Load destinations
+      const currentDest = getCurrentDestination()
+      setCurrentDestinationId(currentDest)
+      
+      try {
+        const freshDestinations = await getDestinationsAsync()
+        setDestinations(freshDestinations)
+      } catch (err) {
+        console.warn('Failed to fetch destinations, using defaults:', err)
+        setDestinations(DEFAULT_DESTINATIONS.map(d => ({
+          ...d,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })))
+      }
       
       // Load site settings (try Supabase, fallback to local)
       let settings = getSettings() // Use local cache first
@@ -315,6 +365,68 @@ export default function AdminPage() {
     }
   }
 
+  // Handle destination switch
+  const handleDestinationSwitch = (destId: string) => {
+    setCurrentDestinationId(destId)
+    setCurrentDestination(destId)
+    setMessage({ type: 'success', text: `已切換至 ${destinations.find(d => d.id === destId)?.name || destId}` })
+  }
+
+  // Handle save destination
+  const handleSaveDestination = async () => {
+    if (!destinationForm.id || !destinationForm.name) {
+      setMessage({ type: 'error', text: '請填寫所有必填欄位' })
+      return
+    }
+
+    const gradient = getGradientFromHex(destinationForm.primaryHex)
+    const newDestination: Omit<DestinationDB, 'created_at' | 'updated_at'> = {
+      id: destinationForm.id.toLowerCase().replace(/\s+/g, '-'),
+      name: destinationForm.name,
+      name_en: destinationForm.name_en || destinationForm.name,
+      flag: destinationForm.flag || '🌍',
+      theme: {
+        primary: destinationForm.id.toLowerCase(),
+        primaryHex: destinationForm.primaryHex,
+        secondary: 'gray',
+        secondaryHex: adjustColor(destinationForm.primaryHex, -20),
+        accent: 'gray',
+        accentHex: adjustColor(destinationForm.primaryHex, -40),
+        gradient,
+        emoji: destinationForm.emoji || '✈️',
+      },
+      is_active: true,
+      sort_order: destinations.length + 1,
+    }
+
+    const { data, error } = await saveSupabaseDestination(newDestination)
+    if (error) {
+      setMessage({ type: 'error', text: error })
+    } else {
+      const freshDestinations = await getDestinationsAsync()
+      setDestinations(freshDestinations)
+      setMessage({ type: 'success', text: editingDestination ? '目的地已更新！' : '目的地已新增！' })
+      setShowDestinationModal(false)
+      setEditingDestination(null)
+      setDestinationForm({ id: '', name: '', name_en: '', flag: '', primaryHex: '#F472B6', emoji: '' })
+    }
+  }
+
+  // Helper to generate gradient from hex color
+  const getGradientFromHex = (hex: string): string => {
+    return `from-[${hex}] to-[${adjustColor(hex, -30)}]`
+  }
+
+  // Helper to adjust color brightness
+  const adjustColor = (hex: string, percent: number): string => {
+    const num = parseInt(hex.replace('#', ''), 16)
+    const amt = Math.round(2.55 * percent)
+    const R = Math.max(0, Math.min(255, (num >> 16) + amt))
+    const G = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF) + amt))
+    const B = Math.max(0, Math.min(255, (num & 0x0000FF) + amt))
+    return `#${(0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1)}`
+  }
+
   const handleSaveSettings = async () => {
     // Ensure daySchedules has entries for all days
     const daySchedules = Array.from({ length: settingsForm.totalDays }, (_, i) => {
@@ -419,46 +531,94 @@ export default function AdminPage() {
           )}
         </AnimatePresence>
 
-        {/* Site Settings Card */}
-        <div className="mb-6 bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <h3 className="font-medium text-gray-800 flex items-center gap-2">
-                <span>🎨</span> 網站設定
+        {/* Bento Grid Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+          
+          {/* Destination Switcher - Large Card */}
+          <div 
+            className="md:col-span-2 lg:col-span-2 bg-gradient-to-br rounded-2xl p-6 text-white relative overflow-hidden"
+            style={{ background: `linear-gradient(135deg, ${themeColor} 0%, ${adjustColor(themeColor, -30)} 100%)` }}
+          >
+            <div className="absolute top-0 right-0 text-[120px] opacity-20 -mr-4 -mt-4">
+              {currentDestination?.theme?.emoji || '✈️'}
+            </div>
+            <div className="relative z-10">
+              <h3 className="text-lg font-medium mb-2 flex items-center gap-2">
+                <span>🌏</span> 旅行目的地
               </h3>
-              <div className="mt-2 space-y-1">
-                <p className="text-sm text-gray-500">
-                  標題：<span className="font-medium text-gray-700">{siteSettings?.title || '日本旅遊'}</span>
+              <p className="text-white/80 text-sm mb-4">
+                選擇目的地以切換主題顏色和行程資料
+              </p>
+              
+              {/* Destination Switch Buttons */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {destinations.filter(d => d.is_active).map((dest) => (
+                  <button
+                    key={dest.id}
+                    onClick={() => handleDestinationSwitch(dest.id)}
+                    className={`px-4 py-2 rounded-xl font-medium transition-all flex items-center gap-2 ${
+                      currentDestinationId === dest.id
+                        ? 'bg-white text-gray-800 shadow-lg scale-105'
+                        : 'bg-white/20 hover:bg-white/30 text-white'
+                    }`}
+                  >
+                    <span>{dest.flag}</span>
+                    <span>{dest.name}</span>
+                  </button>
+                ))}
+              </div>
+              
+              <button
+                onClick={() => setShowDestinationModal(true)}
+                className="text-sm text-white/70 hover:text-white underline"
+              >
+                管理目的地 →
+              </button>
+            </div>
+          </div>
+
+          {/* Site Settings Card */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center mb-3">
+                  <span className="text-xl">🎨</span>
+                </div>
+                <h3 className="font-semibold text-gray-800 mb-1">網站設定</h3>
+                <p className="text-xs text-gray-500">
+                  {siteSettings?.title || '日本旅遊'}
                 </p>
-                <p className="text-sm text-gray-500">
-                  行程：<span className="font-medium text-gray-700">
-                    {siteSettings?.tripStartDate 
-                      ? `${new Date(siteSettings.tripStartDate).toLocaleDateString('zh-TW')} 起，共 ${siteSettings.totalDays || 3} 天`
-                      : '未設定'
-                    }
-                  </span>
+                <p className="text-xs text-gray-400 mt-1">
+                  {siteSettings?.tripStartDate 
+                    ? `${new Date(siteSettings.tripStartDate).toLocaleDateString('zh-TW')} 起`
+                    : '未設定'
+                  }
                 </p>
               </div>
             </div>
             <button
               onClick={() => setShowSettings(true)}
-              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+              className="mt-4 w-full py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
             >
               編輯設定
             </button>
           </div>
-        </div>
 
-        {/* User Management Card */}
-        <div className="mb-6 bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <h3 className="font-medium text-gray-800 flex items-center gap-2">
-                <span>👥</span> 用戶管理
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">
-                管理可登入的用戶帳號
-              </p>
+          {/* User Management Card */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center mb-3">
+                  <span className="text-xl">👥</span>
+                </div>
+                <h3 className="font-semibold text-gray-800 mb-1">用戶管理</h3>
+                <p className="text-xs text-gray-500">
+                  管理可登入的用戶帳號
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {users.length > 0 ? `${users.length} 位用戶` : '載入中...'}
+                </p>
+              </div>
             </div>
             <button
               onClick={async () => {
@@ -466,27 +626,31 @@ export default function AdminPage() {
                 setUsers(freshUsers)
                 setShowUserManagement(true)
               }}
-              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+              className="mt-4 w-full py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
             >
               管理用戶
             </button>
           </div>
-        </div>
 
-        {/* Travel Notice Card */}
-        <div className="mb-6 bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <h3 className="font-medium text-gray-800 flex items-center gap-2">
-                <span>📋</span> 旅遊須知
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">
-                管理旅遊須知清單項目
-              </p>
+          {/* Travel Notice Card */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center mb-3">
+                  <span className="text-xl">📋</span>
+                </div>
+                <h3 className="font-semibold text-gray-800 mb-1">旅遊須知</h3>
+                <p className="text-xs text-gray-500">
+                  管理旅遊須知清單項目
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  必備物品、出發前準備
+                </p>
+              </div>
             </div>
             <button
               onClick={async () => {
-                let settings = getSettings() // Use local cache first
+                let settings = getSettings()
                 try {
                   const freshSettings = await getSettingsAsync()
                   if (freshSettings) settings = freshSettings
@@ -497,10 +661,32 @@ export default function AdminPage() {
                 setTravelPreparations(settings.travelPreparations || defaultTravelPreparations)
                 setShowTravelNotice(true)
               }}
-              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+              className="mt-4 w-full py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
             >
               編輯項目
             </button>
+          </div>
+
+          {/* Quick Stats Card */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center mb-3">
+                  <span className="text-xl">📊</span>
+                </div>
+                <h3 className="font-semibold text-gray-800 mb-1">行程統計</h3>
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  <div className="text-center p-2 bg-gray-50 rounded-lg">
+                    <p className="text-2xl font-bold text-gray-800">{trips.length}</p>
+                    <p className="text-xs text-gray-500">總行程</p>
+                  </div>
+                  <div className="text-center p-2 bg-gray-50 rounded-lg">
+                    <p className="text-2xl font-bold text-gray-800">{siteSettings?.totalDays || 0}</p>
+                    <p className="text-xs text-gray-500">天數</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -514,7 +700,8 @@ export default function AdminPage() {
               resetForm()
               setShowForm(true)
             }}
-            className="px-4 py-2 bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+            className="px-4 py-2 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+            style={{ backgroundColor: themeColor }}
           >
             <span>+</span> {t.admin.addTrip}
           </button>
@@ -1080,6 +1267,222 @@ export default function AdminPage() {
                       className="flex-1 py-2 bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg font-medium transition-colors"
                     >
                       儲存
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Destination Management Modal */}
+        <AnimatePresence>
+          {showDestinationModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setShowDestinationModal(false)
+                  setEditingDestination(null)
+                  setDestinationForm({ id: '', name: '', name_en: '', flag: '', primaryHex: '#F472B6', emoji: '' })
+                }
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              >
+                <div className="p-6 border-b border-gray-100">
+                  <h3 className="text-lg font-medium text-gray-800">🌏 目的地管理</h3>
+                </div>
+                <div className="p-6">
+                  {/* Destinations List */}
+                  <div className="space-y-3 mb-6">
+                    {destinations.map((dest) => (
+                      <div 
+                        key={dest.id} 
+                        className="flex items-center justify-between p-3 rounded-xl border border-gray-200"
+                        style={{ 
+                          background: currentDestinationId === dest.id 
+                            ? `linear-gradient(135deg, ${dest.theme.primaryHex}15 0%, ${dest.theme.primaryHex}05 100%)`
+                            : 'white'
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-lg"
+                            style={{ backgroundColor: dest.theme.primaryHex }}
+                          >
+                            {dest.flag}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-gray-800">{dest.name}</span>
+                              <span className="text-xs text-gray-400">{dest.name_en}</span>
+                              {currentDestinationId === dest.id && (
+                                <span className="text-xs px-2 py-0.5 bg-green-100 text-green-600 rounded-full">
+                                  目前使用
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <div 
+                                className="w-4 h-4 rounded"
+                                style={{ backgroundColor: dest.theme.primaryHex }}
+                              />
+                              <span className="text-xs text-gray-500">{dest.theme.primaryHex}</span>
+                              <span className="text-sm">{dest.theme.emoji}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingDestination(dest)
+                              setDestinationForm({
+                                id: dest.id,
+                                name: dest.name,
+                                name_en: dest.name_en,
+                                flag: dest.flag,
+                                primaryHex: dest.theme.primaryHex,
+                                emoji: dest.theme.emoji,
+                              })
+                            }}
+                            className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg transition-colors"
+                          >
+                            編輯
+                          </button>
+                          {dest.id !== 'japan' && (
+                            <button
+                              onClick={async () => {
+                                if (confirm(`確定要刪除 ${dest.name} 嗎？`)) {
+                                  const { success, error } = await deleteSupabaseDestination(dest.id)
+                                  if (error) {
+                                    setMessage({ type: 'error', text: error })
+                                  } else {
+                                    const freshDestinations = await getDestinationsAsync()
+                                    setDestinations(freshDestinations)
+                                    if (currentDestinationId === dest.id) {
+                                      handleDestinationSwitch('japan')
+                                    }
+                                    setMessage({ type: 'success', text: '目的地已刪除！' })
+                                  }
+                                }
+                              }}
+                              className="px-3 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-colors"
+                            >
+                              刪除
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add/Edit Destination Form */}
+                  <div className="border-t border-gray-100 pt-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">
+                      {editingDestination ? '編輯目的地' : '新增目的地'}
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <input
+                          type="text"
+                          value={destinationForm.name}
+                          onChange={(e) => setDestinationForm({ ...destinationForm, name: e.target.value })}
+                          placeholder="名稱（中文）"
+                          className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 outline-none"
+                        />
+                        <input
+                          type="text"
+                          value={destinationForm.name_en}
+                          onChange={(e) => setDestinationForm({ ...destinationForm, name_en: e.target.value })}
+                          placeholder="名稱（英文）"
+                          className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 outline-none"
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <input
+                          type="text"
+                          value={destinationForm.id}
+                          onChange={(e) => setDestinationForm({ ...destinationForm, id: e.target.value })}
+                          placeholder="ID"
+                          disabled={!!editingDestination}
+                          className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 outline-none disabled:bg-gray-100"
+                        />
+                        <input
+                          type="text"
+                          value={destinationForm.flag}
+                          onChange={(e) => setDestinationForm({ ...destinationForm, flag: e.target.value })}
+                          placeholder="國旗"
+                          className="px-3 py-2 border border-gray-200 rounded-lg focus:border-sakura-400 outline-none text-center text-xl"
+                        />
+                        <input
+                          type="text"
+                          value={destinationForm.emoji}
+                          onChange={(e) => setDestinationForm({ ...destinationForm, emoji: e.target.value })}
+                          placeholder="主題圖示"
+                          className="px-3 py-2 border border-gray-200 rounded-lg focus:border-sakura-400 outline-none text-center text-xl"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm text-gray-600">主題色：</label>
+                        <input
+                          type="color"
+                          value={destinationForm.primaryHex}
+                          onChange={(e) => setDestinationForm({ ...destinationForm, primaryHex: e.target.value })}
+                          className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={destinationForm.primaryHex}
+                          onChange={(e) => setDestinationForm({ ...destinationForm, primaryHex: e.target.value })}
+                          className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 outline-none"
+                        />
+                        <div 
+                          className="w-20 h-10 rounded-lg"
+                          style={{ background: `linear-gradient(135deg, ${destinationForm.primaryHex} 0%, ${adjustColor(destinationForm.primaryHex, -30)} 100%)` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      {editingDestination && (
+                        <button
+                          onClick={() => {
+                            setEditingDestination(null)
+                            setDestinationForm({ id: '', name: '', name_en: '', flag: '', primaryHex: '#F472B6', emoji: '' })
+                          }}
+                          className="flex-1 py-2 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          取消
+                        </button>
+                      )}
+                      <button
+                        onClick={handleSaveDestination}
+                        className="flex-1 py-2 text-sm text-white rounded-lg transition-colors"
+                        style={{ backgroundColor: destinationForm.primaryHex || themeColor }}
+                      >
+                        {editingDestination ? '更新' : '新增'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Close Button */}
+                  <div className="mt-6 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => {
+                        setShowDestinationModal(false)
+                        setEditingDestination(null)
+                        setDestinationForm({ id: '', name: '', name_en: '', flag: '', primaryHex: '#F472B6', emoji: '' })
+                      }}
+                      className="w-full py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      關閉
                     </button>
                   </div>
                 </div>
