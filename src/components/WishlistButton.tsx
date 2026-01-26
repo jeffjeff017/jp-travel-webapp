@@ -225,11 +225,6 @@ export default function WishlistButton({
       >
         <span className="text-xl">💝</span>
         <span className="font-medium text-sm">心願清單</span>
-        {totalCount > 0 && (
-          <span className="bg-white/30 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">
-            {totalCount}
-          </span>
-        )}
       </motion.button>
 
       {/* Wishlist Modal - Centered */}
