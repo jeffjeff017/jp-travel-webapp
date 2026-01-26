@@ -407,19 +407,6 @@ export default function WishlistButton({
                           className="bg-gray-50 rounded-xl overflow-hidden"
                         >
                           <div className="flex items-start gap-3 p-3">
-                            {/* Heart Button */}
-                            <button
-                              onClick={() => toggleFavorite(item.id)}
-                              className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                                item.isFavorite 
-                                  ? 'bg-red-100 text-red-500' 
-                                  : 'bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-400'
-                              }`}
-                              title={item.isFavorite ? '取消置頂' : '置頂'}
-                            >
-                              {item.isFavorite ? '❤️' : '🤍'}
-                            </button>
-                            
                             {/* Image or Icon */}
                             {item.imageUrl ? (
                               <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0">
@@ -464,6 +451,19 @@ export default function WishlistButton({
                                 </button>
                               )}
                             </div>
+                            
+                            {/* Heart Button - Right side */}
+                            <button
+                              onClick={() => toggleFavorite(item.id)}
+                              className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                                item.isFavorite 
+                                  ? 'bg-red-100 text-red-500' 
+                                  : 'bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-400'
+                              }`}
+                              title={item.isFavorite ? '取消置頂' : '置頂'}
+                            >
+                              {item.isFavorite ? '❤️' : '🤍'}
+                            </button>
                           </div>
                           
                           {/* Actions */}
