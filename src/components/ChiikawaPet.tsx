@@ -137,17 +137,17 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
     },
   }
 
-  // Speech bubble animation - appears from the left (since bubble is on the right)
+  // Speech bubble animation - pop from top
   const speechBubbleVariants = {
     initial: { 
       opacity: 0, 
       scale: 0.5, 
-      x: -10,
+      y: 10,
     },
     animate: { 
       opacity: 1, 
       scale: 1, 
-      x: 0,
+      y: 0,
       transition: {
         type: 'spring',
         stiffness: 400,
@@ -157,7 +157,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
     exit: { 
       opacity: 0, 
       scale: 0.5, 
-      x: 10,
+      y: 10,
       transition: {
         duration: 0.2,
       },
@@ -169,7 +169,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
       className="fixed bottom-6 left-1/2 -translate-x-1/2 md:translate-x-0 md:bottom-6 md:left-6 z-50 cursor-pointer select-none w-16 h-16 md:w-20 md:h-20 flex flex-col items-center justify-center"
       onClick={handleClick}
     >
-      {/* Speech Bubble - Centered above character head */}
+      {/* Speech Bubble - Fixed position above character */}
       <AnimatePresence>
         {isClicked && speechMessage && (
           <motion.div
@@ -177,18 +177,45 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="absolute z-10 -top-12 left-1/2 -translate-x-1/2"
+            style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              marginBottom: '8px',
+              zIndex: 100,
+            }}
           >
-            <div className="relative bg-white px-3 py-2 rounded-xl shadow-lg border-2 border-pink-200 max-w-[150px] text-center">
-              <span className="text-xs font-bold text-pink-500 break-words">
+            <div style={{
+              background: 'white',
+              padding: '8px 12px',
+              borderRadius: '12px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              border: '2px solid #FBCFE8',
+              maxWidth: '140px',
+              textAlign: 'center',
+              position: 'relative',
+            }}>
+              <span style={{
+                fontSize: '12px',
+                fontWeight: 'bold',
+                color: '#EC4899',
+                wordBreak: 'break-word',
+              }}>
                 {speechMessage}
               </span>
               {/* Arrow pointing down */}
-              <div className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 h-0 
-                border-l-[6px] border-l-transparent 
-                border-r-[6px] border-r-transparent 
-                border-t-[8px] border-t-white" 
-              />
+              <div style={{
+                position: 'absolute',
+                bottom: '-8px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 0,
+                height: 0,
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderTop: '8px solid white',
+              }} />
             </div>
           </motion.div>
         )}
