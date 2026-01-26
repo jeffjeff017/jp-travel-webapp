@@ -71,7 +71,13 @@ const defaultSettings: SiteSettings = {
 }
 
 // Convert from Supabase format to local format
-function fromSupabaseFormat(db: SiteSettingsDB): SiteSettings {
+// Returns null if Supabase data is empty/default (so we can fallback to localStorage)
+function fromSupabaseFormat(db: SiteSettingsDB): SiteSettings | null {
+  // If Supabase has no real data (just default insert), return null to use localStorage instead
+  if (!db.home_location && !db.day_schedules && !db.trip_start_date) {
+    return null
+  }
+  
   return {
     title: db.title || defaultSettings.title,
     homeLocation: db.home_location || defaultSettings.homeLocation,
@@ -153,8 +159,11 @@ export async function getSettingsAsync(): Promise<SiteSettings> {
     
     if (dbSettings) {
       const settings = fromSupabaseFormat(dbSettings)
-      saveLocalSettings(settings)
-      return settings
+      // If Supabase has real data, use it; otherwise use localStorage
+      if (settings) {
+        saveLocalSettings(settings)
+        return settings
+      }
     }
   } catch (err) {
     console.error('Error fetching settings from Supabase:', err)
@@ -203,8 +212,10 @@ export async function refreshSettings(): Promise<SiteSettings> {
     
     if (dbSettings) {
       const settings = fromSupabaseFormat(dbSettings)
-      saveLocalSettings(settings)
-      return settings
+      if (settings) {
+        saveLocalSettings(settings)
+        return settings
+      }
     }
   } catch (err) {
     console.error('Error refreshing settings from Supabase:', err)
