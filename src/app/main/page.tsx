@@ -853,8 +853,8 @@ export default function MainPage() {
                         {daySchedule?.theme && daySchedule.theme !== `Day ${day}` && (
                           <div className="text-xs mt-0.5 truncate text-center max-w-[60px]">{daySchedule.theme}</div>
                         )}
-                        {/* Remove button - Admin only, show on last day when hovering */}
-                        {isAdmin && day === settings.totalDays && settings.totalDays > 1 && (
+                        {/* Remove button - Actual Admin only, show on last day when hovering */}
+                        {isActualAdmin && day === settings.totalDays && settings.totalDays > 1 && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
