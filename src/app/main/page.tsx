@@ -770,15 +770,13 @@ export default function MainPage() {
               )}
             </div>
 
-            {/* Day Tabs - Full Width, Max 7 days, Draggable */}
+            {/* Day Tabs - Scrollable on mobile, Max 7 days, Draggable */}
             {settings && (
               <div className="relative mb-4">
-                <div className="flex gap-1">
+                <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
                   {/* Day Tabs */}
                   {Array.from({ length: Math.min(settings.totalDays, 7) }, (_, i) => i + 1).map((day) => {
                     const daySchedule = settings.daySchedules?.find(d => d.dayNumber === day)
-                    const tabCount = Math.min(settings.totalDays, 7)
-                    const tabWidth = `calc((100% - ${(tabCount - 1) * 4}px) / ${tabCount})`
                     return (
                       <div
                         key={day}
@@ -810,12 +808,7 @@ export default function MainPage() {
                           }
                         }}
                         onClick={() => setSelectedDay(day)}
-                        style={{ 
-                          width: tabWidth,
-                          minWidth: '60px',
-                          flexShrink: 0
-                        }}
-                        className={`py-2 px-2 text-sm font-medium transition-all border-b-2 rounded-lg relative group cursor-pointer text-center ${
+                        className={`flex-shrink-0 py-2 px-3 text-sm font-medium transition-all border-b-2 rounded-lg relative group cursor-pointer text-center min-w-[70px] ${
                           selectedDay === day
                             ? 'bg-sakura-500 text-white border-sakura-600'
                             : 'bg-sakura-50 text-sakura-600 hover:bg-sakura-100 border-transparent'
@@ -841,7 +834,7 @@ export default function MainPage() {
                             />
                           ) : (
                             <span 
-                              className={`text-xs opacity-80 ${isAdmin ? 'hover:opacity-100 hover:underline cursor-pointer' : ''}`}
+                              className={`text-xs opacity-80 whitespace-nowrap ${isAdmin ? 'hover:opacity-100 hover:underline cursor-pointer' : ''}`}
                               onClick={(e) => {
                                 if (!isAdmin) return
                                 e.stopPropagation()
@@ -852,13 +845,13 @@ export default function MainPage() {
                               {getDayDate(day)}
                             </span>
                           )}
-                          <span>{getWeatherIcon(day)}</span>
+                          <span className="text-sm">{getWeatherIcon(day)}</span>
                         </div>
                         {/* Day Number - Centered */}
-                        <div className="font-bold text-center">Day {day}</div>
+                        <div className="font-bold text-center whitespace-nowrap">Day {day}</div>
                         {/* Theme */}
                         {daySchedule?.theme && daySchedule.theme !== `Day ${day}` && (
-                          <div className="text-xs mt-0.5 truncate text-center">{daySchedule.theme}</div>
+                          <div className="text-xs mt-0.5 truncate text-center max-w-[60px]">{daySchedule.theme}</div>
                         )}
                         {/* Remove button - Admin only, show on last day when hovering */}
                         {isAdmin && day === settings.totalDays && settings.totalDays > 1 && (

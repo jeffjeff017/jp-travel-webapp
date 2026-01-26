@@ -489,22 +489,29 @@ export default function AdminPage() {
     <main className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">⚙️</span>
-            <h1 className="text-xl font-medium text-gray-800">{t.admin.dashboard}</h1>
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <span className="text-xl sm:text-2xl flex-shrink-0">⚙️</span>
+            <h1 className="text-base sm:text-xl font-medium text-gray-800 truncate">{t.admin.dashboard}</h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
             <LanguageSwitch />
             <a
               href="/main"
-              className="text-sm text-gray-500 hover:text-gray-700"
+              className="text-xs sm:text-sm text-gray-500 hover:text-gray-700 whitespace-nowrap hidden xs:inline"
             >
               {t.admin.viewSite} →
             </a>
+            <a
+              href="/main"
+              className="text-xs text-gray-500 hover:text-gray-700 xs:hidden"
+              title={t.admin.viewSite}
+            >
+              🔗
+            </a>
             <button
               onClick={handleLogout}
-              className="px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+              className="px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors whitespace-nowrap"
             >
               {t.admin.logout}
             </button>
