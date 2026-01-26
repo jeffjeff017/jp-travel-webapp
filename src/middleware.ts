@@ -14,9 +14,16 @@ export function middleware(request: NextRequest) {
   // Check if user is admin
   const isAdmin = authToken === ADMIN_TOKEN
 
-  // Allow access to login page always
+  // Landing page (/) - always accessible, but redirect to main if already logged in
+  if (pathname === '/') {
+    if (isAuthenticated) {
+      return NextResponse.redirect(new URL('/main', request.url))
+    }
+    return NextResponse.next()
+  }
+
+  // Login page - always accessible, but redirect to main if already logged in
   if (pathname === '/login') {
-    // If already logged in, redirect to main
     if (isAuthenticated) {
       return NextResponse.redirect(new URL('/main', request.url))
     }
@@ -30,15 +37,6 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl)
     }
     return NextResponse.next()
-  }
-
-  // Root page always redirects to login (if not authenticated) or main (if authenticated)
-  if (pathname === '/') {
-    if (isAuthenticated) {
-      return NextResponse.redirect(new URL('/main', request.url))
-    } else {
-      return NextResponse.redirect(new URL('/login', request.url))
-    }
   }
 
   // Protect /main - require any authentication

@@ -14,7 +14,7 @@ export default function LandingPage() {
   const handleEnter = () => {
     setIsTransitioning(true)
     setTimeout(() => {
-      router.push('/main')
+      router.push('/login')
     }, 3000)
   }
 
