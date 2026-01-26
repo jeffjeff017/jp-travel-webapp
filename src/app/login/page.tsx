@@ -30,11 +30,21 @@ export default function LoginPage() {
     setCharacterImage(LOGIN_CHARACTER_IMAGES[randomIndex])
     
     // Check if already authenticated and redirect to admin
-    if (isAuthenticated()) {
-      router.replace('/admin')
-    } else {
-      setIsChecking(false)
+    const checkAuth = async () => {
+      // Small delay to ensure cookies are loaded
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      if (isAuthenticated()) {
+        // Already logged in, redirect to admin
+        router.replace('/admin')
+        // Keep isChecking true to prevent flash of login form
+      } else {
+        // Not logged in, show login form
+        setIsChecking(false)
+      }
     }
+    
+    checkAuth()
   }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,13 +56,16 @@ export default function LoginPage() {
       const success = login(username, password)
       
       if (success) {
-        router.replace('/admin')
+        // Small delay to ensure cookie is set before redirect
+        await new Promise(resolve => setTimeout(resolve, 100))
+        // Use window.location for more reliable redirect
+        window.location.href = '/admin'
       } else {
         setError(t.login.invalidCredentials)
+        setIsLoading(false)
       }
     } catch (err) {
       setError('發生錯誤，請重試')
-    } finally {
       setIsLoading(false)
     }
   }

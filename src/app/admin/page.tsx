@@ -121,23 +121,31 @@ export default function AdminPage() {
   const { t } = useLanguage()
 
   useEffect(() => {
-    if (!isAuthenticated()) {
-      router.push('/login')
-      return
+    const initAdmin = async () => {
+      // Small delay to ensure cookies are loaded
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      if (!isAuthenticated()) {
+        window.location.href = '/login'
+        return
+      }
+      
+      fetchTrips()
+      
+      // Load site settings
+      const settings = getSettings()
+      setSiteSettings(settings)
+      setSettingsForm({ 
+        title: settings.title,
+        tripStartDate: settings.tripStartDate || new Date().toISOString().split('T')[0],
+        totalDays: settings.totalDays || 3,
+        daySchedules: settings.daySchedules || [],
+        homeLocationImageUrl: settings.homeLocation?.imageUrl || ''
+      })
     }
-    fetchTrips()
     
-    // Load site settings
-    const settings = getSettings()
-    setSiteSettings(settings)
-    setSettingsForm({ 
-      title: settings.title,
-      tripStartDate: settings.tripStartDate || new Date().toISOString().split('T')[0],
-      totalDays: settings.totalDays || 3,
-      daySchedules: settings.daySchedules || [],
-      homeLocationImageUrl: settings.homeLocation?.imageUrl || ''
-    })
-  }, [router])
+    initAdmin()
+  }, [])
 
   const fetchTrips = async () => {
     setIsLoading(true)
