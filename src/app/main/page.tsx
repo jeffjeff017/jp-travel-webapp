@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { getTrips, createTrip, updateTrip, deleteTrip, type Trip } from '@/lib/supabase'
 import { getSettings, saveSettings, type SiteSettings } from '@/lib/settings'
-import { canEdit, getCurrentUser } from '@/lib/auth'
+import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, logout } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 import DailyPopup from '@/components/DailyPopup'
@@ -165,6 +165,7 @@ export default function MainPage() {
   
   // Check if user can edit (admin or regular user like "girl")
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isActualAdmin, setIsActualAdmin] = useState(false) // True only for admin role
   const [currentUser, setCurrentUser] = useState<{ username: string; role: string; displayName: string } | null>(null)
   
   // Mobile map popup state
@@ -172,6 +173,7 @@ export default function MainPage() {
   
   useEffect(() => {
     setIsAdmin(canEdit())
+    setIsActualAdmin(checkIsAdmin())
     setCurrentUser(getCurrentUser())
   }, [])
 
@@ -655,14 +657,35 @@ export default function MainPage() {
             <span className="text-sm text-gray-500">
               {trips.length} 個{t.main.destinations.toLowerCase()}
             </span>
-            {/* Admin Button */}
-            <Link
-              href="/admin"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-sakura-600 hover:bg-sakura-50 rounded-lg transition-colors"
-            >
-              <span>⚙️</span>
-              <span className="hidden sm:inline">管理</span>
-            </Link>
+            {/* Admin Button or Logout */}
+            {isActualAdmin ? (
+              <Link
+                href="/admin"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-sakura-600 hover:bg-sakura-50 rounded-lg transition-colors"
+              >
+                <span>⚙️</span>
+                <span className="hidden sm:inline">管理</span>
+              </Link>
+            ) : currentUser ? (
+              <button
+                onClick={() => {
+                  logout()
+                  window.location.href = '/login'
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <span>🚪</span>
+                <span className="hidden sm:inline">登出</span>
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-sakura-600 hover:bg-sakura-50 rounded-lg transition-colors"
+              >
+                <span>🔑</span>
+                <span className="hidden sm:inline">登入</span>
+              </Link>
+            )}
           </nav>
         </div>
       </motion.header>

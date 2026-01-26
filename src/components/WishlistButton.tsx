@@ -63,12 +63,24 @@ export default function WishlistButton({
   const [selectedTime, setSelectedTime] = useState('12:00')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Load wishlist from localStorage
+  // Load wishlist from localStorage - merge with defaults to ensure all categories exist
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
       try {
-        setWishlist(JSON.parse(saved))
+        const parsed = JSON.parse(saved)
+        // Merge with default categories to ensure new categories exist
+        const merged = {
+          cafe: parsed.cafe || [],
+          restaurant: parsed.restaurant || [],
+          bakery: parsed.bakery || [],
+          shopping: parsed.shopping || [],
+          park: parsed.park || [],
+          threads: parsed.threads || [],
+        }
+        setWishlist(merged)
+        // Save merged back to ensure consistency
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
       } catch (e) {
         console.error('Failed to parse wishlist:', e)
       }
