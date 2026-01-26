@@ -281,20 +281,6 @@ export default function LoginPage() {
           </button>
         </motion.form>
 
-        {/* Back Link */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="text-center mt-6"
-        >
-          <a
-            href="/main"
-            className="text-sakura-500 hover:text-sakura-600 text-sm"
-          >
-            {t.login.backToMain}
-          </a>
-        </motion.div>
       </motion.div>
       
       {/* Copyright */}
