@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
-import { logout, isAuthenticated } from '@/lib/auth'
+import { logout, canAccessAdmin, getUsers, updateUser, deleteUser, type User, type UserRole } from '@/lib/auth'
 import {
   getTrips,
   createTrip,
@@ -117,6 +117,11 @@ export default function AdminPage() {
     daySchedules: [] as { dayNumber: number; theme: string; imageUrl?: string }[],
     homeLocationImageUrl: ''
   })
+  // User management state
+  const [showUserManagement, setShowUserManagement] = useState(false)
+  const [users, setUsers] = useState<User[]>([])
+  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [userForm, setUserForm] = useState({ username: '', password: '', displayName: '', role: 'user' as UserRole })
   const router = useRouter()
   const { t } = useLanguage()
 
@@ -125,7 +130,7 @@ export default function AdminPage() {
       // Small delay to ensure cookies are loaded
       await new Promise(resolve => setTimeout(resolve, 100))
       
-      if (!isAuthenticated()) {
+      if (!canAccessAdmin()) {
         window.location.href = '/login'
         return
       }
@@ -428,6 +433,29 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* User Management Card */}
+        <div className="mb-6 bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <h3 className="font-medium text-gray-800 flex items-center gap-2">
+                <span>👥</span> 用戶管理
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                管理可登入的用戶帳號
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setUsers(getUsers())
+                setShowUserManagement(true)
+              }}
+              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+            >
+              管理用戶
+            </button>
+          </div>
+        </div>
+
         {/* Action Bar */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-medium text-gray-800">
@@ -582,6 +610,177 @@ export default function AdminPage() {
                       className="flex-1 py-2 bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg font-medium transition-colors"
                     >
                       儲存設定
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* User Management Modal */}
+        <AnimatePresence>
+          {showUserManagement && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setShowUserManagement(false)
+                  setEditingUser(null)
+                  setUserForm({ username: '', password: '', displayName: '', role: 'user' })
+                }
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              >
+                <div className="p-6 border-b border-gray-100">
+                  <h3 className="text-lg font-medium text-gray-800">👥 用戶管理</h3>
+                </div>
+                <div className="p-6">
+                  {/* User List */}
+                  <div className="space-y-3 mb-6">
+                    {users.map(user => (
+                      <div key={user.username} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-800">{user.displayName}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              user.role === 'admin' 
+                                ? 'bg-purple-100 text-purple-600' 
+                                : 'bg-blue-100 text-blue-600'
+                            }`}>
+                              {user.role === 'admin' ? '管理員' : '用戶'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            帳號：{user.username} / 密碼：{user.password}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingUser(user)
+                              setUserForm({
+                                username: user.username,
+                                password: user.password,
+                                displayName: user.displayName,
+                                role: user.role
+                              })
+                            }}
+                            className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg transition-colors"
+                          >
+                            編輯
+                          </button>
+                          {user.username !== 'admin' && (
+                            <button
+                              onClick={() => {
+                                if (confirm(`確定要刪除用戶 ${user.displayName} 嗎？`)) {
+                                  deleteUser(user.username)
+                                  setUsers(getUsers())
+                                }
+                              }}
+                              className="px-3 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-colors"
+                            >
+                              刪除
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Add/Edit User Form */}
+                  <div className="border-t border-gray-100 pt-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">
+                      {editingUser ? '編輯用戶' : '新增用戶'}
+                    </h4>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={userForm.displayName}
+                        onChange={(e) => setUserForm({ ...userForm, displayName: e.target.value })}
+                        placeholder="顯示名稱"
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={userForm.username}
+                        onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+                        placeholder="帳號"
+                        disabled={editingUser?.username === 'admin'}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none disabled:bg-gray-100"
+                      />
+                      <input
+                        type="text"
+                        value={userForm.password}
+                        onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                        placeholder="密碼"
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                      />
+                      <select
+                        value={userForm.role}
+                        onChange={(e) => setUserForm({ ...userForm, role: e.target.value as UserRole })}
+                        disabled={editingUser?.username === 'admin'}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none disabled:bg-gray-100"
+                      >
+                        <option value="user">用戶（可編輯行程、心願清單）</option>
+                        <option value="admin">管理員（可存取後台）</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      {editingUser && (
+                        <button
+                          onClick={() => {
+                            setEditingUser(null)
+                            setUserForm({ username: '', password: '', displayName: '', role: 'user' })
+                          }}
+                          className="flex-1 py-2 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          取消
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          if (!userForm.username || !userForm.password || !userForm.displayName) {
+                            alert('請填寫所有欄位')
+                            return
+                          }
+                          updateUser({
+                            username: userForm.username,
+                            password: userForm.password,
+                            displayName: userForm.displayName,
+                            role: userForm.role
+                          })
+                          setUsers(getUsers())
+                          setEditingUser(null)
+                          setUserForm({ username: '', password: '', displayName: '', role: 'user' })
+                          setMessage({ type: 'success', text: editingUser ? '用戶已更新！' : '用戶已新增！' })
+                        }}
+                        className="flex-1 py-2 text-sm bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg transition-colors"
+                      >
+                        {editingUser ? '更新' : '新增'}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Close Button */}
+                  <div className="mt-6 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => {
+                        setShowUserManagement(false)
+                        setEditingUser(null)
+                        setUserForm({ username: '', password: '', displayName: '', role: 'user' })
+                      }}
+                      className="w-full py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      關閉
                     </button>
                   </div>
                 </div>

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { getTrips, createTrip, updateTrip, deleteTrip, type Trip } from '@/lib/supabase'
 import { getSettings, saveSettings, type SiteSettings } from '@/lib/settings'
-import { isAuthenticated } from '@/lib/auth'
+import { canEdit, getCurrentUser } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 import DailyPopup from '@/components/DailyPopup'
@@ -163,14 +163,16 @@ export default function MainPage() {
   // Track expanded trip descriptions
   const [expandedTrips, setExpandedTrips] = useState<number[]>([])
   
-  // Check if user is admin
+  // Check if user can edit (admin or regular user like "girl")
   const [isAdmin, setIsAdmin] = useState(false)
+  const [currentUser, setCurrentUser] = useState<{ username: string; role: string; displayName: string } | null>(null)
   
   // Mobile map popup state
   const [showMapPopup, setShowMapPopup] = useState(false)
   
   useEffect(() => {
-    setIsAdmin(isAuthenticated())
+    setIsAdmin(canEdit())
+    setCurrentUser(getCurrentUser())
   }, [])
 
   useEffect(() => {

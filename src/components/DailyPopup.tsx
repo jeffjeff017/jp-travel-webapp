@@ -4,11 +4,57 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const POPUP_STORAGE_KEY = 'travel_notice_last_shown'
+const CHECKLIST_STORAGE_KEY = 'travel_checklist_items'
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
+
+type ChecklistItem = {
+  id: string
+  icon: string
+  text: string
+  checked: boolean
+}
 
 export default function DailyPopup() {
   const [isVisible, setIsVisible] = useState(false)
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([])
 
+  // Initialize checklist
+  const defaultItems: Omit<ChecklistItem, 'checked'>[] = [
+    // 必備物品
+    { id: 'passport', icon: '🛂', text: '護照及簽證文件' },
+    { id: 'money', icon: '💴', text: '日圓現金及信用卡' },
+    { id: 'sim', icon: '📱', text: 'SIM卡或WiFi蛋' },
+    { id: 'adapter', icon: '🔌', text: '日本規格轉換插頭' },
+    { id: 'medicine', icon: '💊', text: '常備藥物' },
+    { id: 'luggage', icon: '🧳', text: '輕便行李箱' },
+    // 出發前準備
+    { id: 'jrpass', icon: '🚃', text: '購買JR Pass或交通卡' },
+    { id: 'hotel', icon: '🏨', text: '確認酒店預訂' },
+    { id: 'map', icon: '📋', text: '下載離線地圖' },
+    { id: 'weather', icon: '🌡️', text: '查看天氣預報' },
+  ]
+
+  // Load checklist from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem(CHECKLIST_STORAGE_KEY)
+    if (saved) {
+      try {
+        const savedItems = JSON.parse(saved) as ChecklistItem[]
+        // Merge with default items to handle new items
+        const merged = defaultItems.map(item => {
+          const savedItem = savedItems.find(s => s.id === item.id)
+          return { ...item, checked: savedItem?.checked || false }
+        })
+        setChecklist(merged)
+      } catch {
+        setChecklist(defaultItems.map(item => ({ ...item, checked: false })))
+      }
+    } else {
+      setChecklist(defaultItems.map(item => ({ ...item, checked: false })))
+    }
+  }, [])
+
+  // Auto-show popup
   useEffect(() => {
     const lastShown = localStorage.getItem(POPUP_STORAGE_KEY)
     const now = Date.now()
@@ -23,6 +69,15 @@ export default function DailyPopup() {
     }
   }, [])
 
+  // Toggle item checked status
+  const toggleItem = (id: string) => {
+    const newChecklist = checklist.map(item =>
+      item.id === id ? { ...item, checked: !item.checked } : item
+    )
+    setChecklist(newChecklist)
+    localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(newChecklist))
+  }
+
   const handleClose = () => {
     setIsVisible(false)
   }
@@ -31,25 +86,17 @@ export default function DailyPopup() {
     setIsVisible(true)
   }
 
-  const travelItems = [
-    { icon: '🛂', text: '護照及簽證文件' },
-    { icon: '💴', text: '日圓現金及信用卡' },
-    { icon: '📱', text: 'SIM卡或WiFi蛋' },
-    { icon: '🔌', text: '日本規格轉換插頭' },
-    { icon: '💊', text: '常備藥物' },
-    { icon: '🧳', text: '輕便行李箱' },
-  ]
-
-  const preparations = [
-    { icon: '🚃', text: '購買JR Pass或交通卡' },
-    { icon: '🏨', text: '確認酒店預訂' },
-    { icon: '📋', text: '下載離線地圖' },
-    { icon: '🌡️', text: '查看天氣預報' },
-  ]
+  // Calculate counts
+  const essentialsItems = checklist.slice(0, 6)
+  const preparationItems = checklist.slice(6)
+  const essentialsChecked = essentialsItems.filter(i => i.checked).length
+  const preparationChecked = preparationItems.filter(i => i.checked).length
+  const totalChecked = checklist.filter(i => i.checked).length
+  const totalItems = checklist.length
 
   return (
     <>
-      {/* Floating button - Bottom Right, Bigger Size */}
+      {/* Floating button - Bottom Right */}
       <AnimatePresence>
         {!isVisible && (
           <motion.button
@@ -94,6 +141,9 @@ export default function DailyPopup() {
                 <div className="flex items-center gap-2">
                   <span className="text-lg">🌸</span>
                   <h3 className="text-white font-medium">旅遊須知</h3>
+                  <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full text-white">
+                    {totalChecked}/{totalItems}
+                  </span>
                 </div>
                 <button
                   onClick={handleClose}
@@ -118,14 +168,36 @@ export default function DailyPopup() {
               <div className="p-4 max-h-80 overflow-y-auto">
                 {/* 必備物品 */}
                 <div className="mb-4">
-                  <h4 className="font-medium text-gray-800 mb-2 flex items-center gap-2">
-                    <span>🎒</span> 必備物品
+                  <h4 className="font-medium text-gray-800 mb-2 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <span>🎒</span> 必備物品
+                    </span>
+                    <span className="text-xs text-sakura-500 bg-sakura-50 px-2 py-0.5 rounded-full">
+                      {essentialsChecked}/{essentialsItems.length}
+                    </span>
                   </h4>
-                  <ul className="space-y-1.5">
-                    {travelItems.map((item, index) => (
-                      <li key={index} className="flex items-center gap-2 text-sm text-gray-600">
-                        <span>{item.icon}</span>
-                        <span>{item.text}</span>
+                  <ul className="space-y-1">
+                    {essentialsItems.map((item) => (
+                      <li 
+                        key={item.id} 
+                        onClick={() => toggleItem(item.id)}
+                        className={`flex items-center justify-between gap-2 text-sm p-2 rounded-lg cursor-pointer transition-all ${
+                          item.checked 
+                            ? 'bg-green-50 text-green-700' 
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span>{item.icon}</span>
+                          <span className={item.checked ? 'line-through' : ''}>{item.text}</span>
+                        </span>
+                        <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                          item.checked 
+                            ? 'bg-green-500 border-green-500 text-white' 
+                            : 'border-gray-300'
+                        }`}>
+                          {item.checked && '✓'}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -133,35 +205,60 @@ export default function DailyPopup() {
 
                 {/* 出發前準備 */}
                 <div className="mb-4">
-                  <h4 className="font-medium text-gray-800 mb-2 flex items-center gap-2">
-                    <span>📝</span> 出發前準備
+                  <h4 className="font-medium text-gray-800 mb-2 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <span>📝</span> 出發前準備
+                    </span>
+                    <span className="text-xs text-sakura-500 bg-sakura-50 px-2 py-0.5 rounded-full">
+                      {preparationChecked}/{preparationItems.length}
+                    </span>
                   </h4>
-                  <ul className="space-y-1.5">
-                    {preparations.map((item, index) => (
-                      <li key={index} className="flex items-center gap-2 text-sm text-gray-600">
-                        <span>{item.icon}</span>
-                        <span>{item.text}</span>
+                  <ul className="space-y-1">
+                    {preparationItems.map((item) => (
+                      <li 
+                        key={item.id} 
+                        onClick={() => toggleItem(item.id)}
+                        className={`flex items-center justify-between gap-2 text-sm p-2 rounded-lg cursor-pointer transition-all ${
+                          item.checked 
+                            ? 'bg-green-50 text-green-700' 
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span>{item.icon}</span>
+                          <span className={item.checked ? 'line-through' : ''}>{item.text}</span>
+                        </span>
+                        <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                          item.checked 
+                            ? 'bg-green-500 border-green-500 text-white' 
+                            : 'border-gray-300'
+                        }`}>
+                          {item.checked && '✓'}
+                        </span>
                       </li>
                     ))}
                   </ul>
                 </div>
 
+                {/* Progress */}
                 <div className="pt-3 border-t border-gray-100">
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    <span>此提示每24小時顯示一次</span>
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                    <span>準備進度</span>
+                    <span className={totalChecked === totalItems ? 'text-green-500 font-medium' : ''}>
+                      {Math.round((totalChecked / totalItems) * 100)}%
+                    </span>
                   </div>
+                  <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <motion.div 
+                      className="h-full bg-gradient-to-r from-sakura-400 to-green-400 rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(totalChecked / totalItems) * 100}%` }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </div>
+                  {totalChecked === totalItems && (
+                    <p className="text-xs text-green-500 mt-2 text-center">🎉 準備完成！旅途愉快！</p>
+                  )}
                 </div>
               </div>
 

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
-import { login, isAuthenticated } from '@/lib/auth'
+import { login, isAuthenticated, isAdmin, getCurrentUser } from '@/lib/auth'
 import { useLanguage } from '@/lib/i18n'
 
 // Array of character images for login page (randomly selected)
@@ -29,14 +29,18 @@ export default function LoginPage() {
     const randomIndex = Math.floor(Math.random() * LOGIN_CHARACTER_IMAGES.length)
     setCharacterImage(LOGIN_CHARACTER_IMAGES[randomIndex])
     
-    // Check if already authenticated and redirect to admin
+    // Check if already authenticated and redirect
     const checkAuth = async () => {
       // Small delay to ensure cookies are loaded
       await new Promise(resolve => setTimeout(resolve, 100))
       
       if (isAuthenticated()) {
-        // Already logged in, redirect to admin
-        router.replace('/admin')
+        // Already logged in, redirect based on role
+        if (isAdmin()) {
+          router.replace('/admin')
+        } else {
+          router.replace('/main')
+        }
         // Keep isChecking true to prevent flash of login form
       } else {
         // Not logged in, show login form
@@ -53,13 +57,17 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      const success = login(username, password)
+      const user = login(username, password)
       
-      if (success) {
+      if (user) {
         // Small delay to ensure cookie is set before redirect
         await new Promise(resolve => setTimeout(resolve, 100))
-        // Use window.location for more reliable redirect
-        window.location.href = '/admin'
+        // Redirect based on role - admin goes to admin page, user goes to main
+        if (user.role === 'admin') {
+          window.location.href = '/admin'
+        } else {
+          window.location.href = '/main'
+        }
       } else {
         setError(t.login.invalidCredentials)
         setIsLoading(false)
