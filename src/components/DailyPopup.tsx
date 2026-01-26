@@ -153,26 +153,26 @@ export default function DailyPopup() {
       <li 
         key={item.id} 
         onClick={() => toggleItem(item.id)}
-        className={`flex items-center justify-between gap-2 text-sm p-2 rounded-lg cursor-pointer transition-all ${
+        className={`flex items-center justify-between gap-1.5 sm:gap-2 text-xs sm:text-sm p-1.5 sm:p-2 rounded-lg cursor-pointer transition-all ${
           isChecked 
             ? 'bg-green-50 text-green-600' 
             : 'text-gray-600 hover:bg-gray-50'
         }`}
       >
-        <span className="flex items-center gap-2">
-          <span>{item.icon}</span>
-          <span>{item.text}</span>
+        <span className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          <span className="flex-shrink-0">{item.icon}</span>
+          <span className="truncate">{item.text}</span>
         </span>
-        <div className="flex items-center gap-1">
-          {/* Show avatars of users who checked */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Show avatars of users who checked - limit to 2 on mobile */}
           {item.checkedBy.length > 0 && (
-            <div className="flex -space-x-1 mr-1">
-              {item.checkedBy.map((user, idx) => {
+            <div className="flex -space-x-1 mr-0.5 sm:mr-1">
+              {item.checkedBy.slice(0, 3).map((user, idx) => {
                 const avatarUrl = getAvatarForUser(user)
                 return avatarUrl ? (
                   <div 
                     key={user.username} 
-                    className="w-5 h-5 rounded-full overflow-hidden border border-white shadow-sm"
+                    className="w-4 h-4 sm:w-5 sm:h-5 rounded-full overflow-hidden border border-white shadow-sm"
                     style={{ zIndex: item.checkedBy.length - idx }}
                   >
                     <Image
@@ -187,17 +187,22 @@ export default function DailyPopup() {
                 ) : (
                   <div 
                     key={user.username}
-                    className="w-5 h-5 rounded-full bg-green-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-green-700 font-medium"
+                    className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-green-200 border border-white shadow-sm flex items-center justify-center text-[6px] sm:text-[8px] text-green-700 font-medium"
                     style={{ zIndex: item.checkedBy.length - idx }}
                   >
                     {user.username.charAt(0).toUpperCase()}
                   </div>
                 )
               })}
+              {item.checkedBy.length > 3 && (
+                <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-gray-200 border border-white shadow-sm flex items-center justify-center text-[6px] sm:text-[8px] text-gray-600 font-medium">
+                  +{item.checkedBy.length - 3}
+                </div>
+              )}
             </div>
           )}
           {/* Checkbox */}
-          <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+          <span className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 flex items-center justify-center transition-all text-[10px] sm:text-xs ${
             checkedByMe 
               ? 'bg-green-500 border-green-500 text-white' 
               : isChecked

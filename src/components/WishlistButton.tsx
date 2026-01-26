@@ -323,8 +323,8 @@ export default function WishlistButton({
                     </button>
                   </div>
                   
-                  {/* Category Tabs */}
-                  <div className="flex gap-1 mt-4">
+                  {/* Category Tabs - Scrollable on mobile */}
+                  <div className="flex gap-1 mt-4 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
                     {CATEGORIES.map(cat => {
                       // Get count - special handling for food (restaurant + bakery)
                       const count = cat.id === 'food' 
@@ -339,7 +339,7 @@ export default function WishlistButton({
                             resetForm()
                             setShowAddToTrip(null)
                           }}
-                          className={`flex-1 py-2 px-1 rounded-lg text-xs font-medium transition-all ${
+                          className={`flex-1 min-w-[60px] py-2 px-1 rounded-lg text-xs font-medium transition-all flex-shrink-0 ${
                             activeTab === cat.id
                               ? 'bg-white text-pink-600'
                               : 'bg-white/20 hover:bg-white/30'
@@ -350,15 +350,15 @@ export default function WishlistButton({
                               <Image
                                 src={cat.icon}
                                 alt={cat.name}
-                                width={24}
-                                height={24}
-                                className="object-contain"
+                                width={20}
+                                height={20}
+                                className="object-contain md:w-6 md:h-6"
                               />
                             </span>
                           ) : (
-                            <span className="text-base block">{cat.icon}</span>
+                            <span className="text-sm md:text-base block">{cat.icon}</span>
                           )}
-                          <span className="block mt-0.5">
+                          <span className="block mt-0.5 text-[10px] md:text-xs truncate">
                             {cat.name}
                             {count > 0 && (
                               <span className={`ml-0.5 ${activeTab === cat.id ? 'text-pink-400' : 'text-white/70'}`}>
@@ -389,7 +389,8 @@ export default function WishlistButton({
                           }`}
                         >
                           <span className="mr-1">{sub.icon}</span>
-                          {sub.name}
+                          <span className="hidden sm:inline">{sub.name}</span>
+                          <span className="sm:hidden">{sub.name.slice(0, 2)}</span>
                           {(wishlist[sub.id]?.length || 0) > 0 && (
                             <span className={`ml-1 ${activeFoodSubTab === sub.id ? 'text-pink-400' : 'text-white/80'}`}>
                               ({wishlist[sub.id]?.length || 0})

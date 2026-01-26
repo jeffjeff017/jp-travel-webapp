@@ -116,10 +116,10 @@ export default function LoginPage() {
       {/* Sakura Effect */}
       <SakuraCanvas />
       
-      {/* Mouse Following Chiikawa Pet */}
+      {/* Mouse Following Chiikawa Pet - Hidden on mobile/touch devices */}
       {petImage && (
         <motion.div
-          className="fixed pointer-events-none z-50"
+          className="fixed pointer-events-none z-50 hidden md:block"
           style={{
             left: mousePosition.x + 15,
             top: mousePosition.y + 15,
@@ -153,6 +153,31 @@ export default function LoginPage() {
               unoptimized
             />
           </motion.div>
+        </motion.div>
+      )}
+      
+      {/* Mobile: Static pet in corner */}
+      {petImage && (
+        <motion.div
+          className="fixed bottom-20 right-4 pointer-events-none z-40 md:hidden"
+          animate={{
+            y: [0, -5, 0],
+            rotate: [-3, 3, -3],
+          }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            ease: 'easeInOut',
+          }}
+        >
+          <Image
+            src={petImage}
+            alt="Pet"
+            width={50}
+            height={50}
+            className="object-contain drop-shadow-lg"
+            unoptimized
+          />
         </motion.div>
       )}
       

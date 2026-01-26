@@ -903,31 +903,31 @@ export default function AdminPage() {
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
                 className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
               >
-                <div className="p-6 border-b border-gray-100">
-                  <h3 className="text-lg font-medium text-gray-800">📋 旅遊須知設定</h3>
+                <div className="p-4 sm:p-6 border-b border-gray-100">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-800">📋 旅遊須知設定</h3>
                 </div>
-                <div className="p-6">
+                <div className="p-4 sm:p-6">
                   {/* Category Tabs */}
                   <div className="flex gap-2 mb-4">
                     <button
                       onClick={() => setEditingNoticeType('essentials')}
-                      className={`flex-1 py-2 px-3 text-sm rounded-lg transition-colors ${
+                      className={`flex-1 py-2 px-2 sm:px-3 text-xs sm:text-sm rounded-lg transition-colors ${
                         editingNoticeType === 'essentials'
                           ? 'bg-sakura-500 text-white'
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
-                      🎒 必備物品 ({travelEssentials.length})
+                      🎒 <span className="hidden sm:inline">必備物品</span><span className="sm:hidden">必備</span> ({travelEssentials.length})
                     </button>
                     <button
                       onClick={() => setEditingNoticeType('preparations')}
-                      className={`flex-1 py-2 px-3 text-sm rounded-lg transition-colors ${
+                      className={`flex-1 py-2 px-2 sm:px-3 text-xs sm:text-sm rounded-lg transition-colors ${
                         editingNoticeType === 'preparations'
                           ? 'bg-sakura-500 text-white'
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
-                      📝 出發前準備 ({travelPreparations.length})
+                      📝 <span className="hidden sm:inline">出發前準備</span><span className="sm:hidden">準備</span> ({travelPreparations.length})
                     </button>
                   </div>
 
@@ -958,13 +958,14 @@ export default function AdminPage() {
 
                   {/* Add New Item */}
                   <div className="border-t border-gray-100 pt-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">新增項目</h4>
-                    <div className="flex gap-2">
-                      <select
-                        value={newItemIcon}
-                        onChange={(e) => setNewItemIcon(e.target.value)}
-                        className="w-16 px-2 py-2 text-lg border border-gray-200 rounded-lg focus:border-sakura-400 outline-none"
-                      >
+                    <h4 className="text-xs sm:text-sm font-medium text-gray-700 mb-2">新增項目</h4>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="flex gap-2">
+                        <select
+                          value={newItemIcon}
+                          onChange={(e) => setNewItemIcon(e.target.value)}
+                          className="w-14 sm:w-16 px-1 sm:px-2 py-2 text-base sm:text-lg border border-gray-200 rounded-lg focus:border-sakura-400 outline-none"
+                        >
                         <option value="📌">📌</option>
                         <option value="🛂">🛂</option>
                         <option value="💴">💴</option>
@@ -991,7 +992,7 @@ export default function AdminPage() {
                         value={newItemText}
                         onChange={(e) => setNewItemText(e.target.value)}
                         placeholder="輸入項目內容"
-                        className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                        className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && newItemText.trim()) {
                             const newItem: TravelNoticeItem = {
@@ -1009,6 +1010,7 @@ export default function AdminPage() {
                           }
                         }}
                       />
+                      </div>
                       <button
                         onClick={() => {
                           if (!newItemText.trim()) return
@@ -1026,7 +1028,7 @@ export default function AdminPage() {
                           setNewItemIcon('📌')
                         }}
                         disabled={!newItemText.trim()}
-                        className="px-4 py-2 text-sm bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg transition-colors"
+                        className="w-full sm:w-auto px-4 py-2 text-sm bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg transition-colors"
                       >
                         新增
                       </button>
