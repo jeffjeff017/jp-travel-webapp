@@ -770,10 +770,10 @@ export default function MainPage() {
               )}
             </div>
 
-            {/* Day Tabs - Scrollable on mobile, Max 7 days, Draggable */}
+            {/* Day Tabs - Fill width on PC, Scrollable on mobile */}
             {settings && (
               <div className="relative mb-4">
-                <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
+                <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide">
                   {/* Day Tabs */}
                   {Array.from({ length: Math.min(settings.totalDays, 7) }, (_, i) => i + 1).map((day) => {
                     const daySchedule = settings.daySchedules?.find(d => d.dayNumber === day)
@@ -808,7 +808,7 @@ export default function MainPage() {
                           }
                         }}
                         onClick={() => setSelectedDay(day)}
-                        className={`flex-shrink-0 py-2 px-3 text-sm font-medium transition-all border-b-2 rounded-lg relative group cursor-pointer text-center min-w-[70px] ${
+                        className={`flex-1 flex-shrink-0 min-w-[70px] py-2 px-3 text-sm font-medium transition-all border-b-2 rounded-lg relative group cursor-pointer text-center ${
                           selectedDay === day
                             ? 'bg-sakura-500 text-white border-sakura-600'
                             : 'bg-sakura-50 text-sakura-600 hover:bg-sakura-100 border-transparent'
