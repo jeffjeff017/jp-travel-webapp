@@ -169,7 +169,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
       className="fixed bottom-6 left-1/2 -translate-x-1/2 md:translate-x-0 md:bottom-6 md:left-6 z-50 cursor-pointer select-none w-16 h-16 md:w-20 md:h-20 flex flex-col items-center justify-center"
       onClick={handleClick}
     >
-      {/* Speech Bubble - Always on top */}
+      {/* Speech Bubble - Centered above character head */}
       <AnimatePresence>
         {isClicked && speechMessage && (
           <motion.div
@@ -177,10 +177,10 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-2"
+            className="absolute z-10 -top-12 left-1/2 -translate-x-1/2"
           >
-            <div className="relative bg-white px-3 py-2 rounded-xl shadow-lg border-2 border-pink-200">
-              <span className="text-xs font-bold text-pink-500 whitespace-nowrap">
+            <div className="relative bg-white px-3 py-2 rounded-xl shadow-lg border-2 border-pink-200 max-w-[150px] text-center">
+              <span className="text-xs font-bold text-pink-500 break-words">
                 {speechMessage}
               </span>
               {/* Arrow pointing down */}
