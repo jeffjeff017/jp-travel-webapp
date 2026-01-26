@@ -85,16 +85,6 @@ export default function LandingPage() {
             >
               {t.landing.enter}
             </motion.button>
-
-            {/* Footer text */}
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1 }}
-              className="mt-8 text-xs text-gray-400"
-            >
-              {t.landing.explore}
-            </motion.p>
           </motion.div>
         ) : (
           <motion.div
@@ -104,7 +94,7 @@ export default function LandingPage() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 flex flex-col items-center justify-center bg-sakura-50 z-50"
           >
-            {/* Centered circular container with image */}
+            {/* Centered circular container with image - 25% smaller */}
             <motion.div
               initial={{ scale: 0 }}
               animate={{
@@ -115,7 +105,7 @@ export default function LandingPage() {
                 times: [0, 0.6, 1],
                 ease: 'easeInOut',
               }}
-              className="w-64 h-64 md:w-80 md:h-80 rounded-full overflow-hidden bg-white shadow-2xl"
+              className="w-48 h-48 md:w-60 md:h-60 rounded-full overflow-hidden bg-white shadow-2xl"
             >
               <Image
                 src="/images/chiikawa-transition.png"
@@ -136,6 +126,13 @@ export default function LandingPage() {
             >
               {t.landing.loading}
             </motion.p>
+
+            {/* Copyright in loading page */}
+            <div className="fixed bottom-4 left-0 right-0 text-center pointer-events-none">
+              <p className="text-xs text-gray-400/60">
+                ©RACFONG CO., LTD.
+              </p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -161,6 +158,13 @@ export default function LandingPage() {
             }}
           />
         ))}
+      </div>
+
+      {/* Copyright */}
+      <div className="fixed bottom-4 left-0 right-0 text-center pointer-events-none z-10">
+        <p className="text-xs text-gray-400/60">
+          ©RACFONG CO., LTD.
+        </p>
       </div>
     </main>
   )
