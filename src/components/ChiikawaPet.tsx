@@ -192,15 +192,13 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
               borderRadius: '12px',
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
               border: '2px solid #FBCFE8',
-              maxWidth: '140px',
-              textAlign: 'center',
+              whiteSpace: 'nowrap',
               position: 'relative',
             }}>
               <span style={{
                 fontSize: '12px',
                 fontWeight: 'bold',
                 color: '#EC4899',
-                wordBreak: 'break-word',
               }}>
                 {speechMessage}
               </span>
