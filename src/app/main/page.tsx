@@ -183,9 +183,16 @@ export default function MainPage() {
       let loadedSettings = getSettings() // Use cached value first for instant display
       setSettings(loadedSettings)
       
-      // Then fetch fresh from Supabase
-      loadedSettings = await getSettingsAsync()
-      setSettings(loadedSettings)
+      // Then try to fetch fresh from Supabase (but don't block on failure)
+      try {
+        const freshSettings = await getSettingsAsync()
+        if (freshSettings) {
+          loadedSettings = freshSettings
+          setSettings(loadedSettings)
+        }
+      } catch (err) {
+        console.warn('Failed to fetch settings from Supabase, using local:', err)
+      }
       
       try {
         // Fetch trips

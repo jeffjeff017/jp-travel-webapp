@@ -152,10 +152,13 @@ export async function getSupabaseSiteSettings(): Promise<SiteSettingsDB | null> 
       .from('site_settings')
       .select('*')
       .eq('id', 1)
-      .single()
+      .maybeSingle() // Use maybeSingle instead of single to avoid error when no rows
 
     if (error) {
-      console.error('Error fetching site settings:', error.message)
+      // Don't log error for missing table (expected when not set up)
+      if (!error.message.includes('does not exist')) {
+        console.error('Error fetching site settings:', error.message)
+      }
       return null
     }
 
@@ -210,7 +213,10 @@ export async function getSupabaseUsers(): Promise<UserDB[]> {
       .order('id', { ascending: true })
 
     if (error) {
-      console.error('Error fetching users:', error.message)
+      // Don't log error for missing table (expected when not set up)
+      if (!error.message.includes('does not exist')) {
+        console.error('Error fetching users:', error.message)
+      }
       return []
     }
 
@@ -320,7 +326,10 @@ export async function getSupabaseWishlistItems(): Promise<WishlistItemDB[]> {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching wishlist items:', error.message)
+      // Don't log error for missing table (expected when not set up)
+      if (!error.message.includes('does not exist')) {
+        console.error('Error fetching wishlist items:', error.message)
+      }
       return []
     }
 
@@ -408,7 +417,10 @@ export async function getSupabaseChecklistStates(): Promise<ChecklistStateDB[]> 
       .select('*')
 
     if (error) {
-      console.error('Error fetching checklist states:', error.message)
+      // Don't log error for missing table (expected when not set up)
+      if (!error.message.includes('does not exist')) {
+        console.error('Error fetching checklist states:', error.message)
+      }
       return []
     }
 

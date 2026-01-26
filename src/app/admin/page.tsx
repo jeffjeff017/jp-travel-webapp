@@ -144,8 +144,17 @@ export default function AdminPage() {
       
       fetchTrips()
       
-      // Load site settings from Supabase
-      const settings = await getSettingsAsync()
+      // Load site settings (try Supabase, fallback to local)
+      let settings = getSettings() // Use local cache first
+      try {
+        const freshSettings = await getSettingsAsync()
+        if (freshSettings) {
+          settings = freshSettings
+        }
+      } catch (err) {
+        console.warn('Failed to fetch settings from Supabase, using local:', err)
+      }
+      
       setSiteSettings(settings)
       setSettingsForm({ 
         title: settings.title,
@@ -477,7 +486,13 @@ export default function AdminPage() {
             </div>
             <button
               onClick={async () => {
-                const settings = await getSettingsAsync()
+                let settings = getSettings() // Use local cache first
+                try {
+                  const freshSettings = await getSettingsAsync()
+                  if (freshSettings) settings = freshSettings
+                } catch (err) {
+                  console.warn('Failed to fetch settings:', err)
+                }
                 setTravelEssentials(settings.travelEssentials || defaultTravelEssentials)
                 setTravelPreparations(settings.travelPreparations || defaultTravelPreparations)
                 setShowTravelNotice(true)
