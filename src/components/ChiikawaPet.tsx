@@ -180,7 +180,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
             style={{
               position: 'absolute',
               bottom: '100%',
-              left: '50%',
+              left: '40%',
               transform: 'translateX(-50%)',
               marginBottom: '8px',
               zIndex: 100,
