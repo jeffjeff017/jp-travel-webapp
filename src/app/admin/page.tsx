@@ -804,6 +804,19 @@ export default function AdminPage() {
               // Parse schedule items
               const scheduleItems = parseScheduleItems(trip.description)
               
+              // Calculate day number
+              const getDayNumber = () => {
+                if (!siteSettings?.tripStartDate || !trip.date) return null
+                const startDate = new Date(siteSettings.tripStartDate)
+                const tripDate = new Date(trip.date)
+                startDate.setHours(0, 0, 0, 0)
+                tripDate.setHours(0, 0, 0, 0)
+                const diffTime = tripDate.getTime() - startDate.getTime()
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+                return diffDays + 1
+              }
+              const dayNumber = getDayNumber()
+              
               return (
                 <div 
                   key={trip.id} 
@@ -830,11 +843,16 @@ export default function AdminPage() {
                     <div className="flex-1 p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
-                          {/* Title & Date */}
-                          <div className="flex items-center gap-3 mb-2">
+                          {/* Title & Date & Day */}
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
                             <h3 className="text-lg font-semibold text-gray-800">
                               {trip.title}
                             </h3>
+                            {dayNumber !== null && dayNumber > 0 && (
+                              <span className="px-2 py-1 text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded-full whitespace-nowrap">
+                                Day {dayNumber}
+                              </span>
+                            )}
                             <span className="px-2 py-1 text-xs font-medium text-sakura-600 bg-sakura-50 rounded-full whitespace-nowrap">
                               📅 {new Date(trip.date).toLocaleDateString('zh-TW')}
                             </span>
