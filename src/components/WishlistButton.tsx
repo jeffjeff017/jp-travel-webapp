@@ -7,8 +7,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 const CATEGORIES = [
   { id: 'cafe', name: 'Cafe', icon: '☕', color: 'from-amber-400 to-orange-500' },
   { id: 'restaurant', name: '餐廳', icon: '🍽️', color: 'from-red-400 to-pink-500' },
+  { id: 'bakery', name: '麵包店', icon: '🥐', color: 'from-yellow-400 to-amber-500' },
   { id: 'shopping', name: 'Shopping', icon: '🛍️', color: 'from-purple-400 to-indigo-500' },
   { id: 'park', name: 'Park', icon: '🌳', color: 'from-green-400 to-emerald-500' },
+  { id: 'threads', name: 'Threads', icon: '🧵', color: 'from-gray-600 to-gray-800', linkOnly: true },
 ]
 
 type WishlistItem = {
@@ -16,6 +18,7 @@ type WishlistItem = {
   name: string
   note?: string
   imageUrl?: string
+  link?: string // For Threads links
   addedAt: string
   addedToDay?: number
   addedTime?: string
@@ -44,12 +47,15 @@ export default function WishlistButton({
   const [wishlist, setWishlist] = useState<Wishlist>({
     cafe: [],
     restaurant: [],
+    bakery: [],
     shopping: [],
     park: [],
+    threads: [],
   })
   const [newItemName, setNewItemName] = useState('')
   const [newItemNote, setNewItemNote] = useState('')
   const [newItemImage, setNewItemImage] = useState('')
+  const [newItemLink, setNewItemLink] = useState('')
   const [isAdding, setIsAdding] = useState(false)
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null)
   const [showAddToTrip, setShowAddToTrip] = useState<string | null>(null)
@@ -87,9 +93,17 @@ export default function WishlistButton({
     reader.readAsDataURL(file)
   }
 
+  // Check if current category is link-only (threads)
+  const isLinkOnlyCategory = CATEGORIES.find(c => c.id === activeTab)?.linkOnly
+
   // Add or update item
   const saveItem = () => {
-    if (!newItemName.trim()) return
+    // For threads, require link; for others, require name
+    if (isLinkOnlyCategory) {
+      if (!newItemLink.trim()) return
+    } else {
+      if (!newItemName.trim()) return
+    }
     
     if (editingItem) {
       const newWishlist = {
@@ -98,9 +112,10 @@ export default function WishlistButton({
           item.id === editingItem.id 
             ? { 
                 ...item, 
-                name: newItemName.trim(), 
+                name: isLinkOnlyCategory ? newItemLink.trim() : newItemName.trim(), 
                 note: newItemNote.trim() || undefined,
-                imageUrl: newItemImage || item.imageUrl
+                imageUrl: newItemImage || item.imageUrl,
+                link: newItemLink.trim() || undefined
               }
             : item
         ),
@@ -109,9 +124,10 @@ export default function WishlistButton({
     } else {
       const newItem: WishlistItem = {
         id: Date.now().toString(),
-        name: newItemName.trim(),
+        name: isLinkOnlyCategory ? newItemLink.trim() : newItemName.trim(),
         note: newItemNote.trim() || undefined,
         imageUrl: newItemImage || undefined,
+        link: newItemLink.trim() || undefined,
         addedAt: new Date().toISOString(),
         isFavorite: false,
       }
@@ -131,6 +147,7 @@ export default function WishlistButton({
     setNewItemName('')
     setNewItemNote('')
     setNewItemImage('')
+    setNewItemLink('')
     setIsAdding(false)
     setEditingItem(null)
   }
@@ -141,6 +158,7 @@ export default function WishlistButton({
     setNewItemName(item.name)
     setNewItemNote(item.note || '')
     setNewItemImage(item.imageUrl || '')
+    setNewItemLink(item.link || item.name || '') // For threads, the name IS the link
     setIsAdding(true)
   }
 
@@ -311,54 +329,76 @@ export default function WishlistButton({
                         {editingItem ? '編輯項目' : '新增項目'}
                       </h4>
                       
-                      {/* Image Upload */}
-                      <div className="mb-3">
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          onChange={handleImageUpload}
-                          accept="image/*"
-                          className="hidden"
-                        />
-                        {newItemImage ? (
-                          <div className="relative w-full h-24 rounded-lg overflow-hidden">
-                            <img 
-                              src={newItemImage} 
-                              alt="Preview" 
-                              className="w-full h-full object-cover"
+                      {/* Different form for Threads (link-only) vs other categories */}
+                      {isLinkOnlyCategory ? (
+                        <>
+                          {/* Threads - Link only form */}
+                          <input
+                            type="url"
+                            value={newItemLink}
+                            onChange={(e) => setNewItemLink(e.target.value)}
+                            placeholder="貼上 Threads 鏈結 (必填)"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm"
+                            autoFocus
+                          />
+                          <p className="text-xs text-gray-400 mt-1">
+                            例如：https://www.threads.net/@user/post/xxx
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          {/* Regular form with image, name, note */}
+                          {/* Image Upload */}
+                          <div className="mb-3">
+                            <input
+                              type="file"
+                              ref={fileInputRef}
+                              onChange={handleImageUpload}
+                              accept="image/*"
+                              className="hidden"
                             />
-                            <button
-                              onClick={() => setNewItemImage('')}
-                              className="absolute top-1 right-1 w-6 h-6 bg-black/50 text-white rounded-full text-xs flex items-center justify-center"
-                            >
-                              ✕
-                            </button>
+                            {newItemImage ? (
+                              <div className="relative w-full h-24 rounded-lg overflow-hidden">
+                                <img 
+                                  src={newItemImage} 
+                                  alt="Preview" 
+                                  className="w-full h-full object-cover"
+                                />
+                                <button
+                                  onClick={() => setNewItemImage('')}
+                                  className="absolute top-1 right-1 w-6 h-6 bg-black/50 text-white rounded-full text-xs flex items-center justify-center"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="w-full py-3 border border-dashed border-pink-300 rounded-lg text-pink-400 text-sm hover:bg-pink-100 transition-colors"
+                              >
+                                📷 上載圖片 (選填)
+                              </button>
+                            )}
                           </div>
-                        ) : (
-                          <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-full py-3 border border-dashed border-pink-300 rounded-lg text-pink-400 text-sm hover:bg-pink-100 transition-colors"
-                          >
-                            📷 上載圖片 (選填)
-                          </button>
-                        )}
-                      </div>
+                          
+                          <input
+                            type="text"
+                            value={newItemName}
+                            onChange={(e) => setNewItemName(e.target.value)}
+                            placeholder="名稱 (必填)"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm"
+                            autoFocus
+                          />
+                          <input
+                            type="text"
+                            value={newItemNote}
+                            onChange={(e) => setNewItemNote(e.target.value)}
+                            placeholder="備註 (選填)"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm mt-2"
+                          />
+                        </>
+                      )}
                       
-                      <input
-                        type="text"
-                        value={newItemName}
-                        onChange={(e) => setNewItemName(e.target.value)}
-                        placeholder="名稱 (必填)"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm"
-                        autoFocus
-                      />
-                      <input
-                        type="text"
-                        value={newItemNote}
-                        onChange={(e) => setNewItemNote(e.target.value)}
-                        placeholder="備註 (選填)"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm mt-2"
-                      />
                       <div className="flex gap-2 mt-3">
                         <button
                           onClick={resetForm}
@@ -368,7 +408,7 @@ export default function WishlistButton({
                         </button>
                         <button
                           onClick={saveItem}
-                          disabled={!newItemName.trim()}
+                          disabled={isLinkOnlyCategory ? !newItemLink.trim() : !newItemName.trim()}
                           className="flex-1 py-2 bg-pink-500 hover:bg-pink-600 disabled:bg-pink-300 text-white rounded-lg text-sm transition-colors"
                         >
                           {editingItem ? '更新' : '新增'}
@@ -395,155 +435,188 @@ export default function WishlistButton({
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {getSortedItems(wishlist[activeTab]).map((item, index) => (
-                        <motion.div
-                          key={item.id}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.05 }}
-                          className="bg-gray-50 rounded-xl overflow-hidden"
-                        >
-                          <div className="flex items-start gap-3 p-3">
-                            {/* Image or Icon */}
-                            {item.imageUrl ? (
-                              <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0">
-                                <img 
-                                  src={item.imageUrl} 
-                                  alt={item.name}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                            ) : (
-                              <span className="text-2xl w-14 h-14 flex items-center justify-center bg-white rounded-lg flex-shrink-0">
-                                {CATEGORIES.find(c => c.id === activeTab)?.icon}
-                              </span>
-                            )}
-                            
-                            {/* Content */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1">
-                                <p className="font-medium text-gray-800">{item.name}</p>
-                                {item.addedToDay && (
-                                  <span className="text-yellow-500">⭐</span>
+                      {getSortedItems(wishlist[activeTab]).map((item, index) => {
+                        const isThreadsItem = activeTab === 'threads'
+                        
+                        return (
+                          <motion.div
+                            key={item.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className="bg-gray-50 rounded-xl overflow-hidden"
+                          >
+                            <div className="flex items-start gap-3 p-3">
+                              {/* Image or Icon */}
+                              {isThreadsItem ? (
+                                <span className="text-2xl w-14 h-14 flex items-center justify-center bg-gradient-to-br from-gray-700 to-black rounded-lg flex-shrink-0 text-white">
+                                  🧵
+                                </span>
+                              ) : item.imageUrl ? (
+                                <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0">
+                                  <img 
+                                    src={item.imageUrl} 
+                                    alt={item.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              ) : (
+                                <span className="text-2xl w-14 h-14 flex items-center justify-center bg-white rounded-lg flex-shrink-0">
+                                  {CATEGORIES.find(c => c.id === activeTab)?.icon}
+                                </span>
+                              )}
+                              
+                              {/* Content */}
+                              <div className="flex-1 min-w-0">
+                                {isThreadsItem ? (
+                                  <>
+                                    {/* Threads - show link */}
+                                    <a
+                                      href={item.link || item.name}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-sm text-blue-600 hover:text-blue-700 hover:underline break-all"
+                                    >
+                                      {item.link || item.name}
+                                    </a>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      {new Date(item.addedAt).toLocaleDateString('zh-TW')} 新增
+                                    </p>
+                                  </>
+                                ) : (
+                                  <>
+                                    {/* Regular item */}
+                                    <div className="flex items-center gap-1">
+                                      <p className="font-medium text-gray-800">{item.name}</p>
+                                      {item.addedToDay && (
+                                        <span className="text-yellow-500">⭐</span>
+                                      )}
+                                    </div>
+                                    {item.note && (
+                                      <p className="text-xs text-gray-500 mt-0.5">{item.note}</p>
+                                    )}
+                                    {/* Google Maps Link - Below note */}
+                                    <a
+                                      href={getGoogleMapsUrl(item.name)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 mt-1"
+                                    >
+                                      🗺️ 在 Google Maps 查看
+                                    </a>
+                                    {item.addedToDay && (
+                                      <button
+                                        onClick={() => handleNavigateToDay(item.addedToDay!)}
+                                        className="block text-xs text-pink-500 mt-1 hover:underline"
+                                      >
+                                        📅 Day {item.addedToDay} {item.addedTime && `@ ${item.addedTime}`}
+                                      </button>
+                                    )}
+                                  </>
                                 )}
                               </div>
-                              {item.note && (
-                                <p className="text-xs text-gray-500 mt-0.5">{item.note}</p>
-                              )}
-                              {/* Google Maps Link - Below note */}
-                              <a
-                                href={getGoogleMapsUrl(item.name)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 mt-1"
+                              
+                              {/* Heart Button - Right side */}
+                              <button
+                                onClick={() => toggleFavorite(item.id)}
+                                className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                                  item.isFavorite 
+                                    ? 'bg-red-100 text-red-500' 
+                                    : 'bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-400'
+                                }`}
+                                title={item.isFavorite ? '取消置頂' : '置頂'}
                               >
-                                🗺️ 在 Google Maps 查看
-                              </a>
-                              {item.addedToDay && (
-                                <button
-                                  onClick={() => handleNavigateToDay(item.addedToDay!)}
-                                  className="block text-xs text-pink-500 mt-1 hover:underline"
-                                >
-                                  📅 Day {item.addedToDay} {item.addedTime && `@ ${item.addedTime}`}
-                                </button>
-                              )}
+                                {item.isFavorite ? '❤️' : '🤍'}
+                              </button>
                             </div>
                             
-                            {/* Heart Button - Right side */}
-                            <button
-                              onClick={() => toggleFavorite(item.id)}
-                              className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                                item.isFavorite 
-                                  ? 'bg-red-100 text-red-500' 
-                                  : 'bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-400'
-                              }`}
-                              title={item.isFavorite ? '取消置頂' : '置頂'}
-                            >
-                              {item.isFavorite ? '❤️' : '🤍'}
-                            </button>
-                          </div>
-                          
-                          {/* Actions */}
-                          <div className="flex border-t border-gray-100">
-                            <button
-                              onClick={() => startEdit(item)}
-                              className="flex-1 py-2 text-xs text-gray-500 hover:bg-gray-100 transition-colors flex items-center justify-center gap-1"
-                            >
-                              ✏️ 編輯
-                            </button>
-                            {!item.addedToDay ? (
+                            {/* Actions - Different for threads (no add to trip) */}
+                            <div className="flex border-t border-gray-100">
                               <button
-                                onClick={() => setShowAddToTrip(showAddToTrip === item.id ? null : item.id)}
-                                className="flex-1 py-2 text-xs text-pink-500 hover:bg-pink-50 transition-colors flex items-center justify-center gap-1 border-l border-gray-100"
+                                onClick={() => startEdit(item)}
+                                className="flex-1 py-2 text-xs text-gray-500 hover:bg-gray-100 transition-colors flex items-center justify-center gap-1"
                               >
-                                ⭐ 加入行程
+                                ✏️ 編輯
                               </button>
-                            ) : (
-                              <button
-                                onClick={() => {
-                                  const newWishlist = {
-                                    ...wishlist,
-                                    [activeTab]: wishlist[activeTab].map(i => 
-                                      i.id === item.id 
-                                        ? { ...i, addedToDay: undefined, addedTime: undefined }
-                                        : i
-                                    ),
-                                  }
-                                  saveWishlist(newWishlist)
-                                }}
-                                className="flex-1 py-2 text-xs text-orange-500 hover:bg-orange-50 transition-colors flex items-center justify-center gap-1 border-l border-gray-100"
-                              >
-                                ↩️ 取消行程
-                              </button>
-                            )}
-                            <button
-                              onClick={() => removeItem(item.id)}
-                              className="flex-1 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors flex items-center justify-center gap-1 border-l border-gray-100"
-                            >
-                              🗑️ 刪除
-                            </button>
-                          </div>
-                          
-                          {/* Add to Trip Panel */}
-                          <AnimatePresence>
-                            {showAddToTrip === item.id && (
-                              <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                className="overflow-hidden"
-                              >
-                                <div className="p-3 bg-pink-50 border-t border-pink-100">
-                                  <p className="text-xs text-pink-600 mb-2 font-medium">選擇日期和時間：</p>
-                                  <div className="flex gap-2">
-                                    <select
-                                      value={selectedDay}
-                                      onChange={(e) => setSelectedDay(parseInt(e.target.value))}
-                                      className="flex-1 px-2 py-1.5 text-sm border border-pink-200 rounded-lg focus:outline-none focus:border-pink-400"
-                                    >
-                                      {Array.from({ length: totalDays }, (_, i) => i + 1).map(day => (
-                                        <option key={day} value={day}>Day {day}</option>
-                                      ))}
-                                    </select>
-                                    <input
-                                      type="time"
-                                      value={selectedTime}
-                                      onChange={(e) => setSelectedTime(e.target.value)}
-                                      className="px-2 py-1.5 text-sm border border-pink-200 rounded-lg focus:outline-none focus:border-pink-400"
-                                    />
-                                  </div>
+                              {/* Only show add to trip for non-threads items */}
+                              {!isThreadsItem && (
+                                !item.addedToDay ? (
                                   <button
-                                    onClick={() => handleAddToTrip(item)}
-                                    className="w-full mt-2 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-sm transition-colors"
+                                    onClick={() => setShowAddToTrip(showAddToTrip === item.id ? null : item.id)}
+                                    className="flex-1 py-2 text-xs text-pink-500 hover:bg-pink-50 transition-colors flex items-center justify-center gap-1 border-l border-gray-100"
                                   >
-                                    ⭐ 確認加入 Day {selectedDay}
+                                    ⭐ 加入行程
                                   </button>
-                                </div>
-                              </motion.div>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      const newWishlist = {
+                                        ...wishlist,
+                                        [activeTab]: wishlist[activeTab].map(i => 
+                                          i.id === item.id 
+                                            ? { ...i, addedToDay: undefined, addedTime: undefined }
+                                            : i
+                                        ),
+                                      }
+                                      saveWishlist(newWishlist)
+                                    }}
+                                    className="flex-1 py-2 text-xs text-orange-500 hover:bg-orange-50 transition-colors flex items-center justify-center gap-1 border-l border-gray-100"
+                                  >
+                                    ↩️ 取消行程
+                                  </button>
+                                )
+                              )}
+                              <button
+                                onClick={() => removeItem(item.id)}
+                                className="flex-1 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors flex items-center justify-center gap-1 border-l border-gray-100"
+                              >
+                                🗑️ 刪除
+                              </button>
+                            </div>
+                            
+                            {/* Add to Trip Panel - Only for non-threads items */}
+                            {!isThreadsItem && (
+                              <AnimatePresence>
+                                {showAddToTrip === item.id && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="p-3 bg-pink-50 border-t border-pink-100">
+                                      <p className="text-xs text-pink-600 mb-2 font-medium">選擇日期和時間：</p>
+                                      <div className="flex gap-2">
+                                        <select
+                                          value={selectedDay}
+                                          onChange={(e) => setSelectedDay(parseInt(e.target.value))}
+                                          className="flex-1 px-2 py-1.5 text-sm border border-pink-200 rounded-lg focus:outline-none focus:border-pink-400"
+                                        >
+                                          {Array.from({ length: totalDays }, (_, i) => i + 1).map(day => (
+                                            <option key={day} value={day}>Day {day}</option>
+                                          ))}
+                                        </select>
+                                        <input
+                                          type="time"
+                                          value={selectedTime}
+                                          onChange={(e) => setSelectedTime(e.target.value)}
+                                          className="px-2 py-1.5 text-sm border border-pink-200 rounded-lg focus:outline-none focus:border-pink-400"
+                                        />
+                                      </div>
+                                      <button
+                                        onClick={() => handleAddToTrip(item)}
+                                        className="w-full mt-2 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-sm transition-colors"
+                                      >
+                                        ⭐ 確認加入 Day {selectedDay}
+                                      </button>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
                             )}
-                          </AnimatePresence>
-                        </motion.div>
-                      ))}
+                          </motion.div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
