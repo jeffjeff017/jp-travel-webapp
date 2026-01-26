@@ -2,24 +2,32 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import Image from 'next/image'
+import { getCurrentUser, getUserByUsername, getUsers } from '@/lib/auth'
 
 const POPUP_STORAGE_KEY = 'travel_notice_last_shown'
-const CHECKLIST_STORAGE_KEY = 'travel_checklist_items'
+const CHECKLIST_STORAGE_KEY = 'travel_checklist_items_v2'
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
+
+type CheckedBy = {
+  username: string
+  avatarUrl?: string
+}
 
 type ChecklistItem = {
   id: string
   icon: string
   text: string
-  checked: boolean
+  checkedBy: CheckedBy[] // Array of users who checked this item
 }
 
 export default function DailyPopup() {
   const [isVisible, setIsVisible] = useState(false)
   const [checklist, setChecklist] = useState<ChecklistItem[]>([])
+  const [currentUser, setCurrentUser] = useState<{ username: string; avatarUrl?: string } | null>(null)
 
   // Initialize checklist
-  const defaultItems: Omit<ChecklistItem, 'checked'>[] = [
+  const defaultItems: Omit<ChecklistItem, 'checkedBy'>[] = [
     // 必備物品
     { id: 'passport', icon: '🛂', text: '護照及簽證文件' },
     { id: 'money', icon: '💴', text: '日圓現金及信用卡' },
@@ -34,6 +42,19 @@ export default function DailyPopup() {
     { id: 'weather', icon: '🌡️', text: '查看天氣預報' },
   ]
 
+  // Load current user
+  useEffect(() => {
+    const user = getCurrentUser()
+    if (user) {
+      // Get latest avatar from users list
+      const fullUser = getUserByUsername(user.username)
+      setCurrentUser({
+        username: user.username,
+        avatarUrl: fullUser?.avatarUrl || user.avatarUrl
+      })
+    }
+  }, [])
+
   // Load checklist from localStorage
   useEffect(() => {
     const saved = localStorage.getItem(CHECKLIST_STORAGE_KEY)
@@ -43,14 +64,14 @@ export default function DailyPopup() {
         // Merge with default items to handle new items
         const merged = defaultItems.map(item => {
           const savedItem = savedItems.find(s => s.id === item.id)
-          return { ...item, checked: savedItem?.checked || false }
+          return { ...item, checkedBy: savedItem?.checkedBy || [] }
         })
         setChecklist(merged)
       } catch {
-        setChecklist(defaultItems.map(item => ({ ...item, checked: false })))
+        setChecklist(defaultItems.map(item => ({ ...item, checkedBy: [] })))
       }
     } else {
-      setChecklist(defaultItems.map(item => ({ ...item, checked: false })))
+      setChecklist(defaultItems.map(item => ({ ...item, checkedBy: [] })))
     }
   }, [])
 
@@ -69,13 +90,43 @@ export default function DailyPopup() {
     }
   }, [])
 
-  // Toggle item checked status
+  // Toggle item checked status for current user
   const toggleItem = (id: string) => {
-    const newChecklist = checklist.map(item =>
-      item.id === id ? { ...item, checked: !item.checked } : item
-    )
+    if (!currentUser) return // Must be logged in to check
+
+    const newChecklist = checklist.map(item => {
+      if (item.id === id) {
+        const userIndex = item.checkedBy.findIndex(u => u.username === currentUser.username)
+        if (userIndex >= 0) {
+          // User already checked - remove
+          return {
+            ...item,
+            checkedBy: item.checkedBy.filter(u => u.username !== currentUser.username)
+          }
+        } else {
+          // User hasn't checked - add
+          return {
+            ...item,
+            checkedBy: [...item.checkedBy, { username: currentUser.username, avatarUrl: currentUser.avatarUrl }]
+          }
+        }
+      }
+      return item
+    })
     setChecklist(newChecklist)
     localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(newChecklist))
+  }
+
+  // Check if current user has checked an item
+  const isCheckedByCurrentUser = (item: ChecklistItem): boolean => {
+    if (!currentUser) return false
+    return item.checkedBy.some(u => u.username === currentUser.username)
+  }
+
+  // Get avatar for a user (refresh from users list)
+  const getAvatarForUser = (checkedBy: CheckedBy): string | undefined => {
+    const user = getUserByUsername(checkedBy.username)
+    return user?.avatarUrl || checkedBy.avatarUrl
   }
 
   const handleClose = () => {
@@ -89,10 +140,77 @@ export default function DailyPopup() {
   // Calculate counts
   const essentialsItems = checklist.slice(0, 6)
   const preparationItems = checklist.slice(6)
-  const essentialsChecked = essentialsItems.filter(i => i.checked).length
-  const preparationChecked = preparationItems.filter(i => i.checked).length
-  const totalChecked = checklist.filter(i => i.checked).length
+  const essentialsChecked = essentialsItems.filter(i => i.checkedBy.length > 0).length
+  const preparationChecked = preparationItems.filter(i => i.checkedBy.length > 0).length
+  const totalChecked = checklist.filter(i => i.checkedBy.length > 0).length
   const totalItems = checklist.length
+
+  // Render checklist item
+  const renderItem = (item: ChecklistItem) => {
+    const isChecked = item.checkedBy.length > 0
+    const checkedByMe = isCheckedByCurrentUser(item)
+
+    return (
+      <li 
+        key={item.id} 
+        onClick={() => toggleItem(item.id)}
+        className={`flex items-center justify-between gap-2 text-sm p-2 rounded-lg cursor-pointer transition-all ${
+          isChecked 
+            ? 'bg-green-50 text-green-600' 
+            : 'text-gray-600 hover:bg-gray-50'
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          <span>{item.icon}</span>
+          <span>{item.text}</span>
+        </span>
+        <div className="flex items-center gap-1">
+          {/* Show avatars of users who checked */}
+          {item.checkedBy.length > 0 && (
+            <div className="flex -space-x-1 mr-1">
+              {item.checkedBy.map((user, idx) => {
+                const avatarUrl = getAvatarForUser(user)
+                return avatarUrl ? (
+                  <div 
+                    key={user.username} 
+                    className="w-5 h-5 rounded-full overflow-hidden border border-white shadow-sm"
+                    style={{ zIndex: item.checkedBy.length - idx }}
+                  >
+                    <Image
+                      src={avatarUrl}
+                      alt={user.username}
+                      width={20}
+                      height={20}
+                      className="w-full h-full object-cover"
+                      unoptimized
+                    />
+                  </div>
+                ) : (
+                  <div 
+                    key={user.username}
+                    className="w-5 h-5 rounded-full bg-green-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-green-700 font-medium"
+                    style={{ zIndex: item.checkedBy.length - idx }}
+                  >
+                    {user.username.charAt(0).toUpperCase()}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {/* Checkbox */}
+          <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+            checkedByMe 
+              ? 'bg-green-500 border-green-500 text-white' 
+              : isChecked
+                ? 'bg-green-200 border-green-300 text-green-600'
+                : 'border-gray-300'
+          }`}>
+            {isChecked && '✓'}
+          </span>
+        </div>
+      </li>
+    )
+  }
 
   return (
     <>
@@ -166,6 +284,13 @@ export default function DailyPopup() {
 
               {/* Content */}
               <div className="p-4 max-h-80 overflow-y-auto">
+                {/* Login hint if not logged in */}
+                {!currentUser && (
+                  <div className="mb-3 p-2 bg-amber-50 text-amber-700 text-xs rounded-lg">
+                    💡 登入後可標記已完成項目
+                  </div>
+                )}
+
                 {/* 必備物品 */}
                 <div className="mb-4">
                   <h4 className="font-medium text-gray-800 mb-2 flex items-center justify-between">
@@ -177,29 +302,7 @@ export default function DailyPopup() {
                     </span>
                   </h4>
                   <ul className="space-y-1">
-                    {essentialsItems.map((item) => (
-                      <li 
-                        key={item.id} 
-                        onClick={() => toggleItem(item.id)}
-                        className={`flex items-center justify-between gap-2 text-sm p-2 rounded-lg cursor-pointer transition-all ${
-                          item.checked 
-                            ? 'bg-green-50 text-green-700' 
-                            : 'text-gray-600 hover:bg-gray-50'
-                        }`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <span>{item.icon}</span>
-                          <span className={item.checked ? 'line-through' : ''}>{item.text}</span>
-                        </span>
-                        <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                          item.checked 
-                            ? 'bg-green-500 border-green-500 text-white' 
-                            : 'border-gray-300'
-                        }`}>
-                          {item.checked && '✓'}
-                        </span>
-                      </li>
-                    ))}
+                    {essentialsItems.map(renderItem)}
                   </ul>
                 </div>
 
@@ -214,29 +317,7 @@ export default function DailyPopup() {
                     </span>
                   </h4>
                   <ul className="space-y-1">
-                    {preparationItems.map((item) => (
-                      <li 
-                        key={item.id} 
-                        onClick={() => toggleItem(item.id)}
-                        className={`flex items-center justify-between gap-2 text-sm p-2 rounded-lg cursor-pointer transition-all ${
-                          item.checked 
-                            ? 'bg-green-50 text-green-700' 
-                            : 'text-gray-600 hover:bg-gray-50'
-                        }`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <span>{item.icon}</span>
-                          <span className={item.checked ? 'line-through' : ''}>{item.text}</span>
-                        </span>
-                        <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                          item.checked 
-                            ? 'bg-green-500 border-green-500 text-white' 
-                            : 'border-gray-300'
-                        }`}>
-                          {item.checked && '✓'}
-                        </span>
-                      </li>
-                    ))}
+                    {preparationItems.map(renderItem)}
                   </ul>
                 </div>
 

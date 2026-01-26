@@ -12,12 +12,13 @@ export type User = {
   password: string
   role: UserRole
   displayName: string
+  avatarUrl?: string
 }
 
 // Default users
 const DEFAULT_USERS: User[] = [
-  { username: 'admin', password: 'admin', role: 'admin', displayName: 'Admin' },
-  { username: 'girl', password: 'girl', role: 'user', displayName: 'Girl' },
+  { username: 'admin', password: 'admin', role: 'admin', displayName: 'Admin', avatarUrl: '' },
+  { username: 'girl', password: 'girl', role: 'user', displayName: 'Girl', avatarUrl: '' },
 ]
 
 // Get users from localStorage or use defaults
@@ -89,7 +90,8 @@ export function login(username: string, password: string): User | null {
     Cookies.set(USER_COOKIE_NAME, JSON.stringify({ 
       username: user.username, 
       role: user.role,
-      displayName: user.displayName
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl || ''
     }), { 
       expires: 1,
       secure: process.env.NODE_ENV === 'production',
@@ -122,7 +124,7 @@ export function isAdmin(): boolean {
 }
 
 // Get current user info
-export function getCurrentUser(): { username: string; role: UserRole; displayName: string } | null {
+export function getCurrentUser(): { username: string; role: UserRole; displayName: string; avatarUrl?: string } | null {
   if (typeof window === 'undefined') return null
   
   const userInfo = Cookies.get(USER_COOKIE_NAME)
@@ -134,6 +136,12 @@ export function getCurrentUser(): { username: string; role: UserRole; displayNam
     }
   }
   return null
+}
+
+// Get user by username
+export function getUserByUsername(username: string): User | undefined {
+  const users = getUsers()
+  return users.find(u => u.username === username)
 }
 
 // Check if user can edit (both admin and regular users can edit)

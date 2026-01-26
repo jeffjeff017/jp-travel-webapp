@@ -121,7 +121,7 @@ export default function AdminPage() {
   const [showUserManagement, setShowUserManagement] = useState(false)
   const [users, setUsers] = useState<User[]>([])
   const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [userForm, setUserForm] = useState({ username: '', password: '', displayName: '', role: 'user' as UserRole })
+  const [userForm, setUserForm] = useState({ username: '', password: '', displayName: '', role: 'user' as UserRole, avatarUrl: '' })
   const router = useRouter()
   const { t } = useLanguage()
 
@@ -630,7 +630,7 @@ export default function AdminPage() {
                 if (e.target === e.currentTarget) {
                   setShowUserManagement(false)
                   setEditingUser(null)
-                  setUserForm({ username: '', password: '', displayName: '', role: 'user' })
+                  setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
                 }
               }}
             >
@@ -648,20 +648,34 @@ export default function AdminPage() {
                   <div className="space-y-3 mb-6">
                     {users.map(user => (
                       <div key={user.username} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-800">{user.displayName}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${
-                              user.role === 'admin' 
-                                ? 'bg-purple-100 text-purple-600' 
-                                : 'bg-blue-100 text-blue-600'
-                            }`}>
-                              {user.role === 'admin' ? '管理員' : '用戶'}
-                            </span>
+                        <div className="flex items-center gap-3">
+                          {/* Avatar */}
+                          {user.avatarUrl ? (
+                            <img 
+                              src={user.avatarUrl} 
+                              alt={user.displayName}
+                              className="w-10 h-10 rounded-full object-cover border-2 border-white shadow"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sakura-300 to-sakura-500 flex items-center justify-center text-white font-medium shadow">
+                              {user.displayName.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-gray-800">{user.displayName}</span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                user.role === 'admin' 
+                                  ? 'bg-purple-100 text-purple-600' 
+                                  : 'bg-blue-100 text-blue-600'
+                              }`}>
+                                {user.role === 'admin' ? '管理員' : '用戶'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              帳號：{user.username} / 密碼：{user.password}
+                            </p>
                           </div>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            帳號：{user.username} / 密碼：{user.password}
-                          </p>
                         </div>
                         <div className="flex gap-2">
                           <button
@@ -671,7 +685,8 @@ export default function AdminPage() {
                                 username: user.username,
                                 password: user.password,
                                 displayName: user.displayName,
-                                role: user.role
+                                role: user.role,
+                                avatarUrl: user.avatarUrl || ''
                               })
                             }}
                             className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg transition-colors"
@@ -733,13 +748,57 @@ export default function AdminPage() {
                         <option value="user">用戶（可編輯行程、心願清單）</option>
                         <option value="admin">管理員（可存取後台）</option>
                       </select>
+                      
+                      {/* Avatar Upload */}
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">頭像圖片</label>
+                        <div className="flex items-center gap-3">
+                          {userForm.avatarUrl ? (
+                            <img 
+                              src={userForm.avatarUrl} 
+                              alt="Avatar preview"
+                              className="w-12 h-12 rounded-full object-cover border-2 border-sakura-200"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
+                              無頭像
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                  const reader = new FileReader()
+                                  reader.onloadend = () => {
+                                    setUserForm({ ...userForm, avatarUrl: reader.result as string })
+                                  }
+                                  reader.readAsDataURL(file)
+                                }
+                              }}
+                              className="w-full text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-sakura-50 file:text-sakura-600 hover:file:bg-sakura-100"
+                            />
+                            {userForm.avatarUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setUserForm({ ...userForm, avatarUrl: '' })}
+                                className="text-xs text-red-500 hover:text-red-600 mt-1"
+                              >
+                                移除頭像
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex gap-2 mt-4">
                       {editingUser && (
                         <button
                           onClick={() => {
                             setEditingUser(null)
-                            setUserForm({ username: '', password: '', displayName: '', role: 'user' })
+                            setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
                           }}
                           className="flex-1 py-2 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
                         >
@@ -756,11 +815,12 @@ export default function AdminPage() {
                             username: userForm.username,
                             password: userForm.password,
                             displayName: userForm.displayName,
-                            role: userForm.role
+                            role: userForm.role,
+                            avatarUrl: userForm.avatarUrl || undefined
                           })
                           setUsers(getUsers())
                           setEditingUser(null)
-                          setUserForm({ username: '', password: '', displayName: '', role: 'user' })
+                          setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
                           setMessage({ type: 'success', text: editingUser ? '用戶已更新！' : '用戶已新增！' })
                         }}
                         className="flex-1 py-2 text-sm bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg transition-colors"
@@ -776,7 +836,7 @@ export default function AdminPage() {
                       onClick={() => {
                         setShowUserManagement(false)
                         setEditingUser(null)
-                        setUserForm({ username: '', password: '', displayName: '', role: 'user' })
+                        setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
                       }}
                       className="w-full py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
                     >
