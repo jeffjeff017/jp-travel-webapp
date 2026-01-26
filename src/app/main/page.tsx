@@ -1126,8 +1126,47 @@ export default function MainPage() {
       {/* Daily Popup - Bottom Right */}
       <DailyPopup />
 
-      {/* Wishlist Button - Bottom Right */}
-      <WishlistButton />
+      {/* Wishlist Button - Above DailyPopup */}
+      <WishlistButton 
+        totalDays={settings?.totalDays || 7}
+        onNavigateToDay={(day) => setSelectedDay(day)}
+        onAddToTrip={async (item, day, time, category) => {
+          // Get the date for this day
+          if (!settings?.tripStartDate) return
+          const startDate = new Date(settings.tripStartDate)
+          const targetDate = new Date(startDate)
+          targetDate.setDate(startDate.getDate() + day - 1)
+          const dateStr = targetDate.toISOString().split('T')[0]
+          
+          // Create a new trip from wishlist item
+          const categoryIcon = category === 'cafe' ? '☕' : category === 'restaurant' ? '🍽️' : category === 'shopping' ? '🛍️' : '🌳'
+          const tripData = {
+            title: `⭐ ${item.name}`,
+            date: dateStr,
+            location: item.name,
+            lat: 35.6762, // Default Tokyo coordinates - will be updated when user searches
+            lng: 139.6503,
+            image_url: item.imageUrl ? JSON.stringify([item.imageUrl]) : undefined,
+            description: JSON.stringify([{ 
+              id: Date.now().toString(), 
+              time_start: time, 
+              time_end: '', 
+              content: `${categoryIcon} ${item.note || '心願清單項目'}` 
+            }]),
+            time_start: time,
+            time_end: undefined,
+          }
+          
+          try {
+            await createTrip(tripData)
+            const updatedTrips = await getTrips()
+            setTrips(updatedTrips)
+            setSelectedDay(day)
+          } catch (error) {
+            console.error('Failed to create trip from wishlist:', error)
+          }
+        }}
+      />
 
       {/* Trip Form Modal */}
       <AnimatePresence>
