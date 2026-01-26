@@ -124,17 +124,17 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
     },
   }
 
-  // Speech bubble animation
+  // Speech bubble animation - appears from the left (since bubble is on the right)
   const speechBubbleVariants = {
     initial: { 
       opacity: 0, 
       scale: 0.5, 
-      y: 10,
+      x: -10,
     },
     animate: { 
       opacity: 1, 
       scale: 1, 
-      y: 0,
+      x: 0,
       transition: {
         type: 'spring',
         stiffness: 400,
@@ -144,7 +144,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
     exit: { 
       opacity: 0, 
       scale: 0.5, 
-      y: -10,
+      x: 10,
       transition: {
         duration: 0.2,
       },
@@ -156,7 +156,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
       className="fixed bottom-20 right-4 md:bottom-6 md:left-6 md:right-auto z-50 cursor-pointer select-none w-16 h-16 md:w-20 md:h-20 flex flex-col items-center justify-center"
       onClick={handleClick}
     >
-      {/* Speech Bubble - positioned precisely above character container, NOT affected by floating/rotation */}
+      {/* Speech Bubble - positioned on the right side with vertical text */}
       <AnimatePresence>
         {isClicked && speechMessage && (
           <motion.div
@@ -164,17 +164,20 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="absolute bottom-[105%] left-1/2 -translate-x-1/2 whitespace-nowrap z-10 w-max"
+            className="absolute left-[105%] top-1/2 -translate-y-1/2 z-10"
           >
-            <div className="relative bg-white px-3 py-1.5 rounded-xl shadow-lg border-2 border-pink-200 flex flex-col items-center">
-              <span className="text-xs font-bold text-pink-500 text-center block whitespace-nowrap">
+            <div className="relative bg-white px-2 py-3 rounded-xl shadow-lg border-2 border-pink-200 flex items-center justify-center">
+              <span 
+                className="text-xs font-bold text-pink-500 text-center"
+                style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+              >
                 {speechMessage}
               </span>
-              {/* Speech bubble tail - pointing down */}
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 
-                border-l-[6px] border-l-transparent 
-                border-r-[6px] border-r-transparent 
-                border-t-[8px] border-t-white
+              {/* Speech bubble tail - pointing left */}
+              <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-0 h-0 
+                border-t-[6px] border-t-transparent 
+                border-b-[6px] border-b-transparent 
+                border-r-[8px] border-r-white
                 drop-shadow-sm" 
               />
             </div>
