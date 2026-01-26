@@ -516,6 +516,51 @@ export default function MainPage() {
     }
   }
 
+  // Handle day reorder via drag and drop
+  const handleDayReorder = async (fromDay: number, toDay: number) => {
+    if (!settings || fromDay === toDay) return
+    
+    // Get the dates for both days
+    const getDateForDay = (day: number): string => {
+      if (!settings.tripStartDate) return ''
+      const startDate = new Date(settings.tripStartDate)
+      const targetDate = new Date(startDate)
+      targetDate.setDate(startDate.getDate() + day - 1)
+      return targetDate.toISOString().split('T')[0]
+    }
+    
+    const fromDate = getDateForDay(fromDay)
+    const toDate = getDateForDay(toDay)
+    
+    // Get trips on both days
+    const tripsOnFromDay = trips.filter(trip => {
+      const tripDate = new Date(trip.date).toISOString().split('T')[0]
+      return tripDate === fromDate
+    })
+    
+    const tripsOnToDay = trips.filter(trip => {
+      const tripDate = new Date(trip.date).toISOString().split('T')[0]
+      return tripDate === toDate
+    })
+    
+    // Update trips from fromDay to toDay's date
+    for (const trip of tripsOnFromDay) {
+      await updateTrip(trip.id, { date: toDate })
+    }
+    
+    // Update trips from toDay to fromDay's date
+    for (const trip of tripsOnToDay) {
+      await updateTrip(trip.id, { date: fromDate })
+    }
+    
+    // Refresh trips
+    const updatedTrips = await getTrips()
+    setTrips(updatedTrips)
+    
+    // Switch to the destination day
+    setSelectedDay(toDay)
+  }
+
   // Handle inline date change
   const handleDateChange = (dayNum: number, newDate: string) => {
     if (!settings || !newDate) return
@@ -670,45 +715,74 @@ export default function MainPage() {
               </motion.div>
             )}
 
-            {/* Title: 今日行程 with Pixel Heart */}
-            <h2 className="text-lg font-medium text-gray-800 mb-3 flex items-center gap-2">
-              <PixelHeart /> 今日行程
-            </h2>
+            {/* Title: 今日行程 with Pixel Heart + Add Day Button */}
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-medium text-gray-800 flex items-center gap-2">
+                <PixelHeart /> 今日行程
+              </h2>
+              {/* Add Day Button - Admin only */}
+              {isAdmin && settings && settings.totalDays < 7 && (
+                <button
+                  onClick={handleAddDay}
+                  className="px-3 py-1.5 text-sm font-medium transition-all border-2 border-dashed border-sakura-300 rounded-lg text-sakura-400 hover:border-sakura-500 hover:text-sakura-600 hover:bg-sakura-50 flex items-center gap-1"
+                  title="新增一天"
+                >
+                  <span>+</span>
+                  <span>新增</span>
+                </button>
+              )}
+            </div>
 
-            {/* Day Tabs - Scrollable if more than 7 days */}
+            {/* Day Tabs - Full Width, Max 7 days, Draggable */}
             {settings && (
               <div className="relative mb-4">
-                {/* Scroll hint arrows */}
-                {settings.totalDays > 7 && (
-                  <>
-                    <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none" />
-                    <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
-                  </>
-                )}
-                <div 
-                  className={`flex gap-1 ${settings.totalDays > 6 ? 'overflow-x-auto pb-2 day-tabs-scroll snap-x snap-mandatory' : ''}`}
-                >
+                <div className="flex gap-1">
                   {/* Day Tabs */}
-                  {Array.from({ length: settings.totalDays }, (_, i) => i + 1).map((day) => {
+                  {Array.from({ length: Math.min(settings.totalDays, 7) }, (_, i) => i + 1).map((day) => {
                     const daySchedule = settings.daySchedules?.find(d => d.dayNumber === day)
-                    const tabCount = settings.totalDays + 1 // +1 for add button
-                    const tabWidth = tabCount <= 7 
-                      ? `calc((100% - ${tabCount * 4}px) / ${tabCount})` 
-                      : '100px'
+                    const tabCount = Math.min(settings.totalDays, 7)
+                    const tabWidth = `calc((100% - ${(tabCount - 1) * 4}px) / ${tabCount})`
                     return (
                       <div
                         key={day}
+                        draggable={isAdmin}
+                        onDragStart={(e) => {
+                          if (!isAdmin) return
+                          e.dataTransfer.setData('text/plain', day.toString())
+                          e.currentTarget.classList.add('opacity-50')
+                        }}
+                        onDragEnd={(e) => {
+                          e.currentTarget.classList.remove('opacity-50')
+                        }}
+                        onDragOver={(e) => {
+                          if (!isAdmin) return
+                          e.preventDefault()
+                          e.currentTarget.classList.add('ring-2', 'ring-sakura-400')
+                        }}
+                        onDragLeave={(e) => {
+                          e.currentTarget.classList.remove('ring-2', 'ring-sakura-400')
+                        }}
+                        onDrop={(e) => {
+                          if (!isAdmin) return
+                          e.preventDefault()
+                          e.currentTarget.classList.remove('ring-2', 'ring-sakura-400')
+                          const fromDay = parseInt(e.dataTransfer.getData('text/plain'))
+                          const toDay = day
+                          if (fromDay !== toDay) {
+                            handleDayReorder(fromDay, toDay)
+                          }
+                        }}
                         onClick={() => setSelectedDay(day)}
                         style={{ 
                           width: tabWidth,
-                          minWidth: tabCount > 7 ? '100px' : '60px',
-                          flexShrink: tabCount <= 7 ? 0 : undefined
+                          minWidth: '60px',
+                          flexShrink: 0
                         }}
-                        className={`py-2 px-2 text-sm font-medium transition-all border-b-2 rounded-lg snap-start relative group cursor-pointer text-center ${
+                        className={`py-2 px-2 text-sm font-medium transition-all border-b-2 rounded-lg relative group cursor-pointer text-center ${
                           selectedDay === day
                             ? 'bg-sakura-500 text-white border-sakura-600'
                             : 'bg-sakura-50 text-sakura-600 hover:bg-sakura-100 border-transparent'
-                        }`}
+                        } ${isAdmin ? 'cursor-grab active:cursor-grabbing' : ''}`}
                       >
                         {/* Date + Weather Row */}
                         <div className="flex items-center justify-center gap-1 mb-0.5">
@@ -765,25 +839,6 @@ export default function MainPage() {
                       </div>
                     )
                   })}
-                  
-                  {/* Add Day Button - Admin only */}
-                  {isAdmin && settings.totalDays < 7 && (
-                    <button
-                      onClick={handleAddDay}
-                      style={{ 
-                        width: settings.totalDays + 1 <= 7 
-                          ? `calc((100% - ${(settings.totalDays + 1) * 4}px) / ${settings.totalDays + 1})` 
-                          : '60px',
-                        minWidth: '50px',
-                        flexShrink: settings.totalDays + 1 <= 7 ? 0 : undefined
-                      }}
-                      className="py-2 px-2 text-sm font-medium transition-all border-2 border-dashed border-sakura-300 rounded-lg text-sakura-400 hover:border-sakura-500 hover:text-sakura-600 hover:bg-sakura-50 flex flex-col items-center justify-center snap-start"
-                      title="新增一天"
-                    >
-                      <span className="text-xl">+</span>
-                      <span className="text-xs">新增</span>
-                    </button>
-                  )}
                 </div>
               </div>
             )}
