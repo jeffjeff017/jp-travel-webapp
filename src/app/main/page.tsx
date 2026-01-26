@@ -886,7 +886,7 @@ export default function MainPage() {
                               e.stopPropagation()
                               handleRemoveDay()
                             }}
-                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-600"
+                            className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-600"
                             title="移除此天"
                           >
                             ×

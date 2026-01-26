@@ -771,12 +771,13 @@ export default function WishlistButton({
                               <div className="flex-1 min-w-0">
                                 {isThreadsItem ? (
                                   <>
-                                    {/* Threads - show link */}
+                                    {/* Threads - show link (truncated to 1 line) */}
                                     <a
                                       href={item.link || item.name}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-sm text-blue-600 hover:text-blue-700 hover:underline break-all"
+                                      className="text-sm text-blue-600 hover:text-blue-700 hover:underline block truncate"
+                                      title={item.link || item.name}
                                     >
                                       {item.link || item.name}
                                     </a>
