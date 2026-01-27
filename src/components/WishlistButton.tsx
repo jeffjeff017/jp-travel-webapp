@@ -895,12 +895,20 @@ export default function WishlistButton({
                                           className="px-2 py-1.5 text-sm border border-pink-200 rounded-lg focus:outline-none focus:border-pink-400"
                                         />
                                       </div>
-                                      <button
-                                        onClick={() => handleAddToTrip(item)}
-                                        className="w-full mt-2 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-sm transition-colors"
-                                      >
-                                        ⭐ 確認加入 Day {selectedDay}
-                                      </button>
+                                      <div className="flex gap-2 mt-2">
+                                        <button
+                                          onClick={() => setAddingToTrip(null)}
+                                          className="flex-1 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm transition-colors"
+                                        >
+                                          取消
+                                        </button>
+                                        <button
+                                          onClick={() => handleAddToTrip(item)}
+                                          className="flex-1 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-sm transition-colors"
+                                        >
+                                          ⭐ 確認加入
+                                        </button>
+                                      </div>
                                     </div>
                                   </motion.div>
                                 )}
