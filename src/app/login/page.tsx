@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
-import ReCAPTCHA from 'react-google-recaptcha'
-import { login, isAuthenticated, isAdmin, getCurrentUser } from '@/lib/auth'
+import { GoogleReCaptchaProvider, useGoogleReCaptcha } from 'react-google-recaptcha-v3'
+import { login, isAuthenticated, isAdmin } from '@/lib/auth'
 import { useLanguage } from '@/lib/i18n'
 import { getSettingsAsync } from '@/lib/settings'
 import SakuraCanvas from '@/components/SakuraCanvas'
@@ -26,20 +26,17 @@ const PET_IMAGES = [
   '/images/chii-pet.png',
 ]
 
-export default function LoginPage() {
+// Inner login form component that uses reCAPTCHA hook
+function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [isChecking, setIsChecking] = useState(true)
   const [characterImage, setCharacterImage] = useState('')
   const [petImage, setPetImage] = useState('')
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
-  const [recaptchaEnabled, setRecaptchaEnabled] = useState(false)
-  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null)
-  const recaptchaRef = useRef<ReCAPTCHA>(null)
-  const router = useRouter()
   const { t } = useLanguage()
+  const { executeRecaptcha } = useGoogleReCaptcha()
 
   useEffect(() => {
     // Select random character and pet on mount
@@ -48,36 +45,7 @@ export default function LoginPage() {
     
     const randomPetIndex = Math.floor(Math.random() * PET_IMAGES.length)
     setPetImage(PET_IMAGES[randomPetIndex])
-    
-    // Check if already authenticated and redirect
-    const checkAuth = async () => {
-      // Small delay to ensure cookies are loaded
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      // Load reCAPTCHA setting
-      try {
-        const settings = await getSettingsAsync()
-        setRecaptchaEnabled(settings.recaptchaEnabled || false)
-      } catch (err) {
-        console.warn('Failed to load settings:', err)
-      }
-      
-      if (isAuthenticated()) {
-        // Already logged in, redirect based on role
-        if (isAdmin()) {
-          router.replace('/admin')
-        } else {
-          router.replace('/main')
-        }
-        // Keep isChecking true to prevent flash of login form
-      } else {
-        // Not logged in, show login form
-        setIsChecking(false)
-      }
-    }
-    
-    checkAuth()
-  }, [router])
+  }, [])
 
   // Mouse follow effect
   useEffect(() => {
@@ -89,19 +57,24 @@ export default function LoginPage() {
     return () => window.removeEventListener('mousemove', handleMouseMove)
   }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    
-    // Check reCAPTCHA if enabled
-    if (recaptchaEnabled && !recaptchaToken) {
-      setError('請完成驗證')
-      return
-    }
-    
     setIsLoading(true)
 
     try {
+      // Execute reCAPTCHA v3 if enabled
+      if (recaptchaEnabled && executeRecaptcha) {
+        const token = await executeRecaptcha('login')
+        // In a production app, you would send this token to your backend
+        // to verify with Google. For now, we just check if we got a token.
+        if (!token) {
+          setError('驗證失敗，請重試')
+          setIsLoading(false)
+          return
+        }
+      }
+
       const user = login(username, password)
       
       if (user) {
@@ -116,36 +89,12 @@ export default function LoginPage() {
       } else {
         setError(t.login.invalidCredentials)
         setIsLoading(false)
-        // Reset reCAPTCHA on failed login
-        if (recaptchaRef.current) {
-          recaptchaRef.current.reset()
-          setRecaptchaToken(null)
-        }
       }
     } catch (err) {
       setError('發生錯誤，請重試')
       setIsLoading(false)
-      // Reset reCAPTCHA on error
-      if (recaptchaRef.current) {
-        recaptchaRef.current.reset()
-        setRecaptchaToken(null)
-      }
     }
-  }
-  
-  const handleRecaptchaChange = (token: string | null) => {
-    setRecaptchaToken(token)
-  }
-
-  // Show loading while checking auth
-  if (isChecking) {
-    return (
-      <main className="min-h-screen bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center">
-        <SakuraCanvas />
-        <div className="w-8 h-8 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
-      </main>
-    )
-  }
+  }, [username, password, recaptchaEnabled, executeRecaptcha, t.login.invalidCredentials])
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center px-4 relative overflow-hidden">
@@ -300,16 +249,11 @@ export default function LoginPage() {
               />
             </div>
             
-            {/* reCAPTCHA */}
+            {/* reCAPTCHA v3 indicator */}
             {recaptchaEnabled && (
-              <div className="flex justify-center mt-4">
-                <ReCAPTCHA
-                  ref={recaptchaRef}
-                  sitekey={RECAPTCHA_SITE_KEY}
-                  onChange={handleRecaptchaChange}
-                  hl="zh-TW"
-                />
-              </div>
+              <p className="text-xs text-gray-400 text-center">
+                此網站受 reCAPTCHA 保護
+              </p>
             )}
           </div>
 
@@ -339,4 +283,62 @@ export default function LoginPage() {
       </div>
     </main>
   )
+}
+
+export default function LoginPage() {
+  const [isChecking, setIsChecking] = useState(true)
+  const [recaptchaEnabled, setRecaptchaEnabled] = useState(false)
+  const router = useRouter()
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      // Small delay to ensure cookies are loaded
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Load reCAPTCHA setting
+      try {
+        const settings = await getSettingsAsync()
+        setRecaptchaEnabled(settings.recaptchaEnabled || false)
+      } catch (err) {
+        console.warn('Failed to load settings:', err)
+      }
+      
+      if (isAuthenticated()) {
+        // Already logged in, redirect based on role
+        if (isAdmin()) {
+          router.replace('/admin')
+        } else {
+          router.replace('/main')
+        }
+      } else {
+        setIsChecking(false)
+      }
+    }
+    
+    checkAuth()
+  }, [router])
+
+  // Show loading while checking auth
+  if (isChecking) {
+    return (
+      <main className="min-h-screen bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center">
+        <SakuraCanvas />
+        <div className="w-8 h-8 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
+      </main>
+    )
+  }
+
+  // Wrap with reCAPTCHA provider if enabled
+  if (recaptchaEnabled) {
+    return (
+      <GoogleReCaptchaProvider
+        reCaptchaKey={RECAPTCHA_SITE_KEY}
+        language="zh-TW"
+      >
+        <LoginForm recaptchaEnabled={true} />
+      </GoogleReCaptchaProvider>
+    )
+  }
+
+  return <LoginForm recaptchaEnabled={false} />
 }
