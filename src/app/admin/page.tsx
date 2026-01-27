@@ -792,38 +792,6 @@ export default function AdminPage() {
             </button>
           </div>
 
-          {/* reCAPTCHA Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center mb-3">
-                  <span className="text-xl">🔒</span>
-                </div>
-                <h3 className="font-semibold text-gray-800 mb-1">reCAPTCHA</h3>
-                <p className="text-xs text-gray-500">
-                  登入頁面驗證
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {recaptchaEnabled ? '已啟用' : '已關閉'}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={async () => {
-                const newValue = !recaptchaEnabled
-                setRecaptchaEnabled(newValue)
-                await saveSettingsAsync({ recaptchaEnabled: newValue })
-                setMessage({ type: 'success', text: `reCAPTCHA 已${newValue ? '啟用' : '關閉'}！` })
-              }}
-              className={`mt-4 w-full py-2 text-sm rounded-xl transition-colors ${
-                recaptchaEnabled 
-                  ? 'bg-blue-500 hover:bg-blue-600 text-white' 
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-              }`}
-            >
-              {recaptchaEnabled ? '🔓 關閉 reCAPTCHA' : '🔒 啟用 reCAPTCHA'}
-            </button>
-          </div>
         </div>
 
         {/* Action Bar */}
@@ -964,6 +932,37 @@ export default function AdminPage() {
                           )
                         })}
                       </div>
+                    </div>
+                  </div>
+
+                  {/* reCAPTCHA Toggle */}
+                  <div className="border-t border-gray-100 pt-6">
+                    <h4 className="text-sm font-medium text-gray-800 mb-4 flex items-center gap-2">
+                      🔒 安全設定
+                    </h4>
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">reCAPTCHA 驗證</p>
+                        <p className="text-xs text-gray-500">登入頁面顯示人機驗證</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const newValue = !recaptchaEnabled
+                          setRecaptchaEnabled(newValue)
+                          await saveSettingsAsync({ recaptchaEnabled: newValue })
+                          setMessage({ type: 'success', text: `reCAPTCHA 已${newValue ? '啟用' : '關閉'}！` })
+                        }}
+                        className={`relative w-12 h-6 rounded-full transition-colors ${
+                          recaptchaEnabled ? 'bg-blue-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span 
+                          className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                            recaptchaEnabled ? 'left-7' : 'left-1'
+                          }`}
+                        />
+                      </button>
                     </div>
                   </div>
 
