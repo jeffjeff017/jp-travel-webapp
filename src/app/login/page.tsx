@@ -1,12 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
+import ReCAPTCHA from 'react-google-recaptcha'
 import { login, isAuthenticated, isAdmin, getCurrentUser } from '@/lib/auth'
 import { useLanguage } from '@/lib/i18n'
+import { getSettingsAsync } from '@/lib/settings'
 import SakuraCanvas from '@/components/SakuraCanvas'
+
+const RECAPTCHA_SITE_KEY = '6LftaFcsAAAAAKAtFdRCCWOCPdJ1c9kvGHqkTSAV'
 
 // Array of character images for login page (randomly selected)
 const LOGIN_CHARACTER_IMAGES = [
@@ -31,6 +35,9 @@ export default function LoginPage() {
   const [characterImage, setCharacterImage] = useState('')
   const [petImage, setPetImage] = useState('')
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const [recaptchaEnabled, setRecaptchaEnabled] = useState(false)
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null)
+  const recaptchaRef = useRef<ReCAPTCHA>(null)
   const router = useRouter()
   const { t } = useLanguage()
 
@@ -46,6 +53,14 @@ export default function LoginPage() {
     const checkAuth = async () => {
       // Small delay to ensure cookies are loaded
       await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Load reCAPTCHA setting
+      try {
+        const settings = await getSettingsAsync()
+        setRecaptchaEnabled(settings.recaptchaEnabled || false)
+      } catch (err) {
+        console.warn('Failed to load settings:', err)
+      }
       
       if (isAuthenticated()) {
         // Already logged in, redirect based on role
@@ -77,6 +92,13 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    
+    // Check reCAPTCHA if enabled
+    if (recaptchaEnabled && !recaptchaToken) {
+      setError('請完成驗證')
+      return
+    }
+    
     setIsLoading(true)
 
     try {
@@ -94,11 +116,25 @@ export default function LoginPage() {
       } else {
         setError(t.login.invalidCredentials)
         setIsLoading(false)
+        // Reset reCAPTCHA on failed login
+        if (recaptchaRef.current) {
+          recaptchaRef.current.reset()
+          setRecaptchaToken(null)
+        }
       }
     } catch (err) {
       setError('發生錯誤，請重試')
       setIsLoading(false)
+      // Reset reCAPTCHA on error
+      if (recaptchaRef.current) {
+        recaptchaRef.current.reset()
+        setRecaptchaToken(null)
+      }
     }
+  }
+  
+  const handleRecaptchaChange = (token: string | null) => {
+    setRecaptchaToken(token)
   }
 
   // Show loading while checking auth
@@ -263,6 +299,18 @@ export default function LoginPage() {
                 required
               />
             </div>
+            
+            {/* reCAPTCHA */}
+            {recaptchaEnabled && (
+              <div className="flex justify-center mt-4">
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey={RECAPTCHA_SITE_KEY}
+                  onChange={handleRecaptchaChange}
+                  hl="zh-TW"
+                />
+              </div>
+            )}
           </div>
 
           <button

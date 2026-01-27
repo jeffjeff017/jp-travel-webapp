@@ -164,6 +164,7 @@ export type SiteSettingsDB = {
   day_schedules: DaySchedule[] | null
   travel_essentials: TravelNoticeItem[] | null
   travel_preparations: TravelNoticeItem[] | null
+  recaptcha_enabled: boolean | null
   updated_at: string
 }
 

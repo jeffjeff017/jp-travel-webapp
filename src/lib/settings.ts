@@ -34,6 +34,8 @@ export interface SiteSettings {
   // Travel notice items (editable by admin)
   travelEssentials?: TravelNoticeItem[]
   travelPreparations?: TravelNoticeItem[]
+  // reCAPTCHA setting
+  recaptchaEnabled?: boolean
 }
 
 // Default travel notice items
@@ -88,6 +90,7 @@ function fromSupabaseFormat(db: SiteSettingsDB): SiteSettings | null {
     daySchedules: db.day_schedules || defaultSettings.daySchedules,
     travelEssentials: db.travel_essentials || defaultTravelEssentials,
     travelPreparations: db.travel_preparations || defaultTravelPreparations,
+    recaptchaEnabled: db.recaptcha_enabled || false,
   }
 }
 
@@ -102,6 +105,7 @@ function toSupabaseFormat(settings: Partial<SiteSettings>): Partial<Omit<SiteSet
   if (settings.daySchedules !== undefined) result.day_schedules = settings.daySchedules
   if (settings.travelEssentials !== undefined) result.travel_essentials = settings.travelEssentials
   if (settings.travelPreparations !== undefined) result.travel_preparations = settings.travelPreparations
+  if (settings.recaptchaEnabled !== undefined) result.recaptcha_enabled = settings.recaptchaEnabled
   
   return result
 }
