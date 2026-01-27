@@ -746,8 +746,8 @@ export default function AdminPage() {
             </button>
           </div>
 
-          {/* Quick Stats Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+          {/* Quick Stats Card - Hidden for now */}
+          {/* <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center mb-3">
@@ -766,7 +766,7 @@ export default function AdminPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Trash Bin Card */}
           <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
