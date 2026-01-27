@@ -897,42 +897,6 @@ export default function AdminPage() {
                       </p>
                     </div>
 
-                    {/* Day Themes */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        每日主題 ({settingsForm.totalDays} 天)
-                      </label>
-                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
-                        {Array.from({ length: settingsForm.totalDays }, (_, i) => i + 1).map(day => {
-                          const schedule = settingsForm.daySchedules.find(d => d.dayNumber === day)
-                          const startDate = new Date(settingsForm.tripStartDate)
-                          const dayDate = new Date(startDate)
-                          dayDate.setDate(startDate.getDate() + day - 1)
-                          const dateStr = dayDate.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })
-                          
-                          return (
-                            <div key={day} className="p-3 bg-gray-50 rounded-lg">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm font-medium text-sakura-600">Day {day}</span>
-                                <span className="text-xs text-gray-500">({dateStr})</span>
-                              </div>
-                              <input
-                                type="text"
-                                value={schedule?.theme || ''}
-                                onChange={(e) => updateDayTheme(day, e.target.value)}
-                                placeholder={`Day ${day} 主題`}
-                                className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none mb-2"
-                              />
-                              <MediaUpload
-                                value={schedule?.imageUrl || ''}
-                                onChange={(url) => updateDayImage(day, url)}
-                                placeholder="選擇圖片"
-                              />
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
                   </div>
 
                   {/* reCAPTCHA Toggle */}
