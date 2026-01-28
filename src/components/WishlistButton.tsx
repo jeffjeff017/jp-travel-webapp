@@ -10,7 +10,7 @@ import {
   deleteSupabaseWishlistItem,
   type WishlistItemDB 
 } from '@/lib/supabase'
-import { getSettings } from '@/lib/settings'
+import { getSettings, getSettingsAsync } from '@/lib/settings'
 
 // Main categories (tabs)
 const CATEGORIES = [
@@ -128,9 +128,32 @@ export default function WishlistButton({
 
   // Get settings to retrieve trip start date
   useEffect(() => {
-    const settings = getSettings()
-    setTripStartDate(settings.tripStartDate || '')
+    const loadTripStartDate = async () => {
+      // First load from cache for immediate display
+      const cachedSettings = getSettings()
+      setTripStartDate(cachedSettings.tripStartDate || '')
+      
+      // Then fetch latest from Supabase
+      const freshSettings = await getSettingsAsync()
+      if (freshSettings.tripStartDate) {
+        setTripStartDate(freshSettings.tripStartDate)
+      }
+    }
+    loadTripStartDate()
   }, [])
+
+  // Refresh trip start date when panel is opened
+  useEffect(() => {
+    if (isOpen) {
+      const refreshTripStartDate = async () => {
+        const freshSettings = await getSettingsAsync()
+        if (freshSettings.tripStartDate) {
+          setTripStartDate(freshSettings.tripStartDate)
+        }
+      }
+      refreshTripStartDate()
+    }
+  }, [isOpen])
 
   // Helper function to format date for a specific day
   const getDayDate = (dayNumber: number): string => {
