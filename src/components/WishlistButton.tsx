@@ -10,6 +10,7 @@ import {
   deleteSupabaseWishlistItem,
   type WishlistItemDB 
 } from '@/lib/supabase'
+import { getSettings } from '@/lib/settings'
 
 // Main categories (tabs)
 const CATEGORIES = [
@@ -123,6 +124,22 @@ export default function WishlistButton({
   const [selectedTime, setSelectedTime] = useState('12:00')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [tripStartDate, setTripStartDate] = useState<string>('')
+
+  // Get settings to retrieve trip start date
+  useEffect(() => {
+    const settings = getSettings()
+    setTripStartDate(settings.tripStartDate || '')
+  }, [])
+
+  // Helper function to format date for a specific day
+  const getDayDate = (dayNumber: number): string => {
+    if (!tripStartDate) return ''
+    const startDate = new Date(tripStartDate)
+    const dayDate = new Date(startDate)
+    dayDate.setDate(startDate.getDate() + dayNumber - 1)
+    return `${dayDate.getMonth() + 1}/${dayDate.getDate()}`
+  }
 
   // Group items by category
   const groupByCategory = useCallback((items: WishlistItem[]): Wishlist => {
@@ -885,7 +902,7 @@ export default function WishlistButton({
                                           className="flex-1 px-2 py-1.5 text-sm border border-pink-200 rounded-lg focus:outline-none focus:border-pink-400"
                                         >
                                           {Array.from({ length: totalDays }, (_, i) => i + 1).map(day => (
-                                            <option key={day} value={day}>Day {day}</option>
+                                            <option key={day} value={day}>Day {day} {tripStartDate && `(${getDayDate(day)})`}</option>
                                           ))}
                                         </select>
                                         <input
