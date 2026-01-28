@@ -307,7 +307,7 @@ export default function DailyPopup() {
 
   return (
     <>
-      {/* Floating button - Bottom Right */}
+      {/* Floating button - Circle on mobile, pill on desktop */}
       <AnimatePresence>
         {!isVisible && (
           <motion.button
@@ -317,7 +317,7 @@ export default function DailyPopup() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={handleOpen}
-            className="fixed bottom-6 right-6 z-30 bg-sakura-500 text-white p-4 rounded-2xl shadow-lg hover:bg-sakura-600 transition-colors flex items-center gap-2"
+            className="fixed bottom-6 right-6 z-30 bg-sakura-500 text-white shadow-lg hover:bg-sakura-600 transition-colors flex items-center justify-center gap-2 w-14 h-14 rounded-full md:w-auto md:h-auto md:p-4 md:rounded-2xl"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -331,7 +331,7 @@ export default function DailyPopup() {
                 clipRule="evenodd"
               />
             </svg>
-            <span className="font-medium text-sm">旅遊須知</span>
+            <span className="hidden md:inline font-medium text-sm">旅遊須知</span>
           </motion.button>
         )}
       </AnimatePresence>

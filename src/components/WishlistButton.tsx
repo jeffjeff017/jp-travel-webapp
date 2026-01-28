@@ -461,18 +461,18 @@ export default function WishlistButton({
 
   return (
     <>
-      {/* Floating Button - Same style as DailyPopup, positioned above it */}
+      {/* Floating Button - Circle on mobile, pill on desktop */}
       <motion.button
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-[88px] right-6 z-30 bg-gradient-to-r from-pink-400 to-rose-500 text-white p-4 rounded-2xl shadow-lg hover:from-pink-500 hover:to-rose-600 transition-all flex items-center gap-2"
+        className="fixed bottom-[88px] right-6 z-30 bg-gradient-to-r from-pink-400 to-rose-500 text-white shadow-lg hover:from-pink-500 hover:to-rose-600 transition-all flex items-center justify-center gap-2 w-14 h-14 rounded-full md:w-auto md:h-auto md:p-4 md:rounded-2xl"
         title="心願清單"
       >
         <span className="text-xl">💝</span>
-        <span className="font-medium text-sm">心願清單</span>
+        <span className="hidden md:inline font-medium text-sm">心願清單</span>
       </motion.button>
 
       {/* Wishlist Modal - Centered */}
