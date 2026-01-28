@@ -71,6 +71,8 @@ export default function GoogleMapComponent({
   const [showTraffic, setShowTraffic] = useState(false)
   const [infoImageIndex, setInfoImageIndex] = useState(0)
   const [showAllScheduleItems, setShowAllScheduleItems] = useState(false)
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [isGettingLocation, setIsGettingLocation] = useState(false)
   const [routeInfo, setRouteInfo] = useState<{
     distance: string
     duration: string
@@ -83,6 +85,36 @@ export default function GoogleMapComponent({
   // Refs to prevent map jumping
   const initialBoundsSet = useRef(false)
   const lastTripIds = useRef<string>('')
+  
+  // Get user's current location
+  const getCurrentLocation = useCallback((): Promise<{ lat: number; lng: number }> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation is not supported'))
+        return
+      }
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          }
+          setCurrentLocation(location)
+          resolve(location)
+        },
+        (error) => {
+          console.error('Geolocation error:', error)
+          reject(error)
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000, // Cache for 1 minute
+        }
+      )
+    })
+  }, [])
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
@@ -193,28 +225,37 @@ export default function GoogleMapComponent({
 
   // Auto-refresh route every 5 minutes for real-time updates (only when route is shown)
   useEffect(() => {
-    if (!directions || !homeLocation) return
+    if (!directions || !currentLocation) return
 
     const interval = setInterval(() => {
-      if (selectedTrip) {
+      if (selectedTrip && currentLocation) {
         calculateRoute(
-          { lat: homeLocation.lat, lng: homeLocation.lng },
+          currentLocation,
           { lat: selectedTrip.lat, lng: selectedTrip.lng }
         )
       }
     }, 5 * 60 * 1000) // Refresh every 5 minutes
 
     return () => clearInterval(interval)
-  }, [directions, homeLocation, selectedTrip, calculateRoute])
+  }, [directions, currentLocation, selectedTrip, calculateRoute])
   
-  // Show navigation route from home to selected trip
-  const showNavigation = useCallback(() => {
-    if (!homeLocation || !selectedTrip) return
-    calculateRoute(
-      { lat: homeLocation.lat, lng: homeLocation.lng },
-      { lat: selectedTrip.lat, lng: selectedTrip.lng }
-    )
-  }, [homeLocation, selectedTrip, calculateRoute])
+  // Show navigation route from current location to selected trip
+  const showNavigation = useCallback(async () => {
+    if (!selectedTrip) return
+    
+    setIsGettingLocation(true)
+    try {
+      const location = await getCurrentLocation()
+      calculateRoute(
+        location,
+        { lat: selectedTrip.lat, lng: selectedTrip.lng }
+      )
+    } catch (error) {
+      alert('無法取得當前位置，請確認已開啟定位權限')
+    } finally {
+      setIsGettingLocation(false)
+    }
+  }, [selectedTrip, calculateRoute, getCurrentLocation])
   
   // Clear navigation
   const clearNavigation = useCallback(() => {
@@ -296,9 +337,13 @@ export default function GoogleMapComponent({
     onTripSelect?.(-1)
   }
 
-  // Open Google Maps for navigation
+  // Open Google Maps for navigation from current location
   const openGoogleMapsNavigation = (destination: { lat: number; lng: number; name: string }) => {
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${homeLocation?.lat},${homeLocation?.lng}&destination=${destination.lat},${destination.lng}&travelmode=transit`
+    // Use current location if available, otherwise let Google Maps use device location
+    const originParam = currentLocation 
+      ? `&origin=${currentLocation.lat},${currentLocation.lng}` 
+      : ''
+    const url = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${destination.lat},${destination.lng}&travelmode=transit`
     window.open(url, '_blank')
   }
 
@@ -587,49 +632,55 @@ export default function GoogleMapComponent({
                 </div>
                 
                 {/* Navigation Section */}
-                {homeLocation && (
-                  <div className="mt-3 space-y-2">
-                    {routeInfo && (
-                      <div className="bg-sakura-50 p-2 rounded text-xs text-sakura-700 space-y-1">
-                        <p className="font-medium">🚃 路線資訊（從住所出發）</p>
-                        <p>📏 距離：{routeInfo.distance}</p>
-                        <p>⏱️ 預計時間：{routeInfo.duration}</p>
-                        {routeInfo.durationInTraffic && (
-                          <p>🚗 含交通狀況：{routeInfo.durationInTraffic}</p>
-                        )}
-                        {routeInfo.departureTime && <p>🕐 出發時間：{routeInfo.departureTime}</p>}
-                        {routeInfo.arrivalTime && <p>🏁 抵達時間：{routeInfo.arrivalTime}</p>}
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      {routeInfo ? (
-                        <button
-                          onClick={clearNavigation}
-                          className="flex-1 py-1.5 border border-gray-200 text-gray-600 rounded text-xs font-medium transition-colors hover:bg-gray-50"
-                        >
-                          隱藏路線
-                        </button>
-                      ) : (
-                        <button
-                          onClick={showNavigation}
-                          className="flex-1 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition-colors"
-                        >
-                          🗺️ 顯示路線
-                        </button>
+                <div className="mt-3 space-y-2">
+                  {routeInfo && (
+                    <div className="bg-sakura-50 p-2 rounded text-xs text-sakura-700 space-y-1">
+                      <p className="font-medium">🚃 路線資訊（從當前位置出發）</p>
+                      <p>📏 距離：{routeInfo.distance}</p>
+                      <p>⏱️ 預計時間：{routeInfo.duration}</p>
+                      {routeInfo.durationInTraffic && (
+                        <p>🚗 含交通狀況：{routeInfo.durationInTraffic}</p>
                       )}
-                      <button
-                        onClick={() => openGoogleMapsNavigation({ 
-                          lat: selectedTrip.lat, 
-                          lng: selectedTrip.lng, 
-                          name: selectedTrip.title 
-                        })}
-                        className="flex-1 py-1.5 bg-sakura-500 hover:bg-sakura-600 text-white rounded text-xs font-medium transition-colors"
-                      >
-                        📍 Google Maps
-                      </button>
+                      {routeInfo.departureTime && <p>🕐 出發時間：{routeInfo.departureTime}</p>}
+                      {routeInfo.arrivalTime && <p>🏁 抵達時間：{routeInfo.arrivalTime}</p>}
                     </div>
+                  )}
+                  <div className="flex gap-2">
+                    {routeInfo ? (
+                      <button
+                        onClick={clearNavigation}
+                        className="flex-1 py-1.5 border border-gray-200 text-gray-600 rounded text-xs font-medium transition-colors hover:bg-gray-50"
+                      >
+                        隱藏路線
+                      </button>
+                    ) : (
+                      <button
+                        onClick={showNavigation}
+                        disabled={isGettingLocation}
+                        className="flex-1 py-1.5 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white rounded text-xs font-medium transition-colors flex items-center justify-center gap-1"
+                      >
+                        {isGettingLocation ? (
+                          <>
+                            <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            定位中...
+                          </>
+                        ) : (
+                          <>🗺️ 顯示路線</>
+                        )}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => openGoogleMapsNavigation({ 
+                        lat: selectedTrip.lat, 
+                        lng: selectedTrip.lng, 
+                        name: selectedTrip.title 
+                      })}
+                      className="flex-1 py-1.5 bg-sakura-500 hover:bg-sakura-600 text-white rounded text-xs font-medium transition-colors"
+                    >
+                      📍 Google Maps
+                    </button>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </InfoWindow>
