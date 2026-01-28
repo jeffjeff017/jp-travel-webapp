@@ -96,7 +96,7 @@ const createEmptyScheduleItem = (): ScheduleItem => ({
   content: '',
 })
 
-// Mode Toggle Click Hint - Mobile only, centered on button
+// Mode Toggle Click Hint - Mobile only, centered above button
 const ModeToggleHint = () => {
   const [show, setShow] = useState(true)
   
@@ -111,27 +111,27 @@ const ModeToggleHint = () => {
   
   return (
     <motion.div
-      initial={{ opacity: 0, x: 10 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ 
         opacity: 1, 
-        x: 0,
+        y: 0,
         scale: [1, 1.05, 1],
       }}
       transition={{
         opacity: { duration: 0.3 },
         scale: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
       }}
-      className="absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap"
+      className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap"
     >
       <div className="px-2 py-1 bg-pink-500 text-white text-[10px] rounded-full shadow-lg flex items-center gap-1">
-        <span>👈</span>
+        <span>👇</span>
         <span>點擊</span>
       </div>
-      {/* Arrow pointing left to button */}
-      <div className="absolute right-full top-1/2 -translate-y-1/2 mr-[-1px] w-0 h-0 
-        border-t-[5px] border-t-transparent 
-        border-b-[5px] border-b-transparent 
-        border-r-[6px] border-r-pink-500"
+      {/* Arrow pointing down to button */}
+      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-[-1px] w-0 h-0 
+        border-l-[5px] border-l-transparent 
+        border-r-[5px] border-r-transparent 
+        border-t-[6px] border-t-pink-500"
       />
     </motion.div>
   )
@@ -690,37 +690,23 @@ export default function MainPage() {
             </h1>
           </div>
           
-          <nav className="flex items-center gap-4">
-            <span className="text-sm text-gray-500">
-              {trips.length} 個{t.main.destinations.toLowerCase()}
-            </span>
-            {/* Admin Button or Logout */}
-            {isActualAdmin ? (
+          <nav className="flex items-center gap-2 md:gap-4">
+            {/* Map Button - Mobile only, moved from bottom */}
+            <button
+              onClick={() => setShowMapPopup(true)}
+              className="md:hidden flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-sakura-600 hover:bg-sakura-50 rounded-lg transition-colors"
+            >
+              <span>🗺️</span>
+              <span>地圖</span>
+            </button>
+            {/* Admin Control Panel Button - Admin only */}
+            {isActualAdmin && (
               <Link
                 href="/admin"
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-sakura-600 hover:bg-sakura-50 rounded-lg transition-colors"
               >
                 <span>⚙️</span>
-                <span className="hidden sm:inline">管理</span>
-              </Link>
-            ) : currentUser ? (
-              <button
-                onClick={() => {
-                  logout()
-                  window.location.href = '/login'
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                <span>🚪</span>
-                <span className="hidden sm:inline">登出</span>
-              </button>
-            ) : (
-              <Link
-                href="/login"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-sakura-600 hover:bg-sakura-50 rounded-lg transition-colors"
-              >
-                <span>🔑</span>
-                <span className="hidden sm:inline">登入</span>
+                <span>控制台</span>
               </Link>
             )}
           </nav>
@@ -737,7 +723,7 @@ export default function MainPage() {
           className="w-full h-full md:h-auto md:w-1/2 bg-white/90 backdrop-blur-sm border-r border-sakura-100 overflow-y-auto pb-20 md:pb-0"
         >
           <div className="p-4">
-            {/* Home Location Card - Now at TOP */}
+            {/* Home Location Card - Now at TOP with background image */}
             {settings?.homeLocation && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -748,32 +734,30 @@ export default function MainPage() {
                     setShowMapPopup(true)
                   }
                 }}
-                className={`mb-4 rounded-xl border-2 transition-all cursor-pointer overflow-hidden ${
+                className={`mb-4 rounded-xl border-2 transition-all cursor-pointer overflow-hidden relative ${
                   selectedTripId === -1 
-                    ? 'border-blue-400 bg-blue-50' 
-                    : 'border-blue-200 bg-gradient-to-r from-blue-50 to-white hover:border-blue-300'
+                    ? 'border-blue-400' 
+                    : 'border-blue-200 hover:border-blue-300'
                 }`}
               >
-                <div className="flex items-center">
-                  {/* Content */}
-                  <div className="flex-1 p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">🏠</span>
-                      <h3 className="font-medium text-gray-800">{settings.homeLocation.name}</h3>
-                    </div>
-                    <p className="text-sm text-gray-500 ml-7">{settings.homeLocation.address}</p>
-                    <p className="text-xs text-blue-500 ml-7 mt-1">點擊查看位置及路線</p>
+                {/* Background Image with Overlay */}
+                {settings.homeLocation.imageUrl && (
+                  <>
+                    <div 
+                      className="absolute inset-0 bg-cover bg-center"
+                      style={{ backgroundImage: `url(${settings.homeLocation.imageUrl})` }}
+                    />
+                    <div className="absolute inset-0 bg-white/90" />
+                  </>
+                )}
+                {/* Content */}
+                <div className="relative p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg">🏠</span>
+                    <h3 className="font-medium text-gray-800">{settings.homeLocation.name}</h3>
                   </div>
-                  {/* Image */}
-                  {settings.homeLocation.imageUrl && (
-                    <div className="w-20 h-20 flex-shrink-0 mr-4">
-                      <img 
-                        src={settings.homeLocation.imageUrl} 
-                        alt={settings.homeLocation.name}
-                        className="w-full h-full object-cover rounded-lg"
-                      />
-                    </div>
-                  )}
+                  <p className="text-sm text-gray-500 ml-7">{settings.homeLocation.address}</p>
+                  <p className="text-xs text-blue-500 ml-7 mt-1">點擊查看位置及路線</p>
                 </div>
               </motion.div>
             )}
@@ -796,10 +780,18 @@ export default function MainPage() {
               )}
             </div>
 
-            {/* Day Tabs - Fill width on PC, Scrollable on mobile */}
+            {/* Day Tabs - Show 4 days max with slide for remaining */}
             {settings && (
               <div className="relative mb-4">
-                <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide">
+                {/* Scroll left indicator */}
+                {settings.totalDays > 4 && (
+                  <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none md:hidden" />
+                )}
+                {/* Scroll right indicator */}
+                {settings.totalDays > 4 && (
+                  <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none md:hidden" />
+                )}
+                <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory">
                   {/* Day Tabs */}
                   {Array.from({ length: Math.min(settings.totalDays, 7) }, (_, i) => i + 1).map((day) => {
                     const daySchedule = settings.daySchedules?.find(d => d.dayNumber === day)
@@ -834,7 +826,7 @@ export default function MainPage() {
                           }
                         }}
                         onClick={() => setSelectedDay(day)}
-                        className={`flex-1 flex-shrink-0 min-w-[70px] py-2 px-3 text-sm font-medium transition-all border-b-2 rounded-lg relative group cursor-pointer text-center ${
+                        className={`flex-shrink-0 w-[calc(25%-6px)] min-w-[70px] max-w-[90px] md:flex-1 md:max-w-none py-2 px-3 text-sm font-medium transition-all border-b-2 rounded-lg relative group cursor-pointer text-center snap-start ${
                           selectedDay === day
                             ? 'bg-sakura-500 text-white border-sakura-600'
                             : 'bg-sakura-50 text-sakura-600 hover:bg-sakura-100 border-transparent'
@@ -939,86 +931,100 @@ export default function MainPage() {
                         : 'border-sakura-100 bg-gradient-to-r from-sakura-50 to-white hover:border-sakura-300 hover:shadow-md'
                     }`}
                   >
-                    <div className="flex">
-                      {/* Left: Content */}
-                      <div className="flex-1 p-4 space-y-3">
-                        {/* Section 1: Title + Time/Date - Primary emphasis */}
-                        <div className="pb-2 border-b border-gray-100">
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="font-semibold text-xl md:text-2xl text-gray-800 leading-tight">
-                              {trip.title}
-                            </h3>
-                            <div className="flex flex-col items-end gap-1">
-                              {/* Date Badge */}
-                              <span className="text-xs text-sakura-600 bg-sakura-100 px-2 py-0.5 rounded whitespace-nowrap">
-                                {new Date(trip.date).toLocaleDateString('zh-TW', {
-                                  month: 'numeric',
-                                  day: 'numeric',
-                                })}
-                              </span>
-                            </div>
+                    {/* Mobile: Vertical layout / Desktop: Horizontal layout */}
+                    <div className="flex flex-col md:flex-row">
+                      {/* Image - Top on mobile, Right on desktop */}
+                      {(() => {
+                        const images = parseImages(trip.image_url)
+                        if (images.length === 0) return null
+                        return (
+                          <div className="w-full h-32 md:w-40 md:h-32 md:order-2 flex-shrink-0 md:rounded-lg overflow-hidden md:m-3 shadow-sm">
+                            <ImageSlider 
+                              images={images} 
+                              className="w-full h-full"
+                              autoPlay={images.length > 1}
+                              interval={6000}
+                            />
                           </div>
+                        )
+                      })()}
+                      
+                      {/* Content */}
+                      <div className="flex-1 p-4 space-y-3 md:order-1">
+                        {/* Section 1: Date + Title */}
+                        <div className="pb-2 border-b border-gray-100">
+                          {/* Date Badge - Year/Month/Day */}
+                          <span className="text-xs text-sakura-600 bg-sakura-100 px-2 py-0.5 rounded whitespace-nowrap inline-block mb-2">
+                            {new Date(trip.date).toLocaleDateString('zh-TW', {
+                              year: 'numeric',
+                              month: 'numeric',
+                              day: 'numeric',
+                            })}
+                          </span>
+                          <h3 className="font-semibold text-lg md:text-xl text-gray-800 leading-tight">
+                            {trip.title}
+                          </h3>
                         </div>
                       
-                      {/* Section 2: Location - Clickable to expand description */}
-                      <div 
-                        className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleTripExpand(trip.id)
-                        }}
-                      >
-                        <span className="text-sakura-500">📍</span>
-                        <p className="text-sm text-gray-600 truncate flex-1" style={{ maxWidth: '20em' }}>
-                          {trip.location}
-                        </p>
-                        {trip.description && (
-                          <span className={`text-gray-400 transition-transform duration-200 ${expandedTrips.includes(trip.id) ? 'rotate-180' : ''}`}>
-                            ▼
-                          </span>
-                        )}
-                      </div>
+                        {/* Section 2: Location - Clickable to expand description */}
+                        <div 
+                          className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleTripExpand(trip.id)
+                          }}
+                        >
+                          <span className="text-sakura-500">📍</span>
+                          <p className="text-sm text-gray-600 truncate flex-1" style={{ maxWidth: '20em' }}>
+                            {trip.location}
+                          </p>
+                          {trip.description && (
+                            <span className={`text-gray-400 transition-transform duration-200 ${expandedTrips.includes(trip.id) ? 'rotate-180' : ''}`}>
+                              ▼
+                            </span>
+                          )}
+                        </div>
                       
-                      {/* Section 3: Schedule Items - Expandable */}
-                      <AnimatePresence>
-                        {trip.description && expandedTrips.includes(trip.id) && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="bg-white border border-gray-100 rounded-lg p-3 space-y-2">
-                              {(() => {
-                                try {
-                                  const items = JSON.parse(trip.description)
-                                  if (Array.isArray(items)) {
-                                    return items.map((item: any, idx: number) => (
-                                      <div key={idx} className="flex items-start gap-2 text-sm">
-                                        {(item.time_start || item.time_end) && (
-                                          <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded whitespace-nowrap">
-                                            {item.time_start}{item.time_end ? ` - ${item.time_end}` : ''}
-                                          </span>
-                                        )}
-                                        <span className="text-gray-600">{item.content}</span>
-                                      </div>
-                                    ))
+                        {/* Section 3: Schedule Items - Expandable */}
+                        <AnimatePresence>
+                          {trip.description && expandedTrips.includes(trip.id) && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="bg-white border border-gray-100 rounded-lg p-3 space-y-2">
+                                {(() => {
+                                  try {
+                                    const items = JSON.parse(trip.description)
+                                    if (Array.isArray(items)) {
+                                      return items.map((item: any, idx: number) => (
+                                        <div key={idx} className="flex items-start gap-2 text-sm">
+                                          {(item.time_start || item.time_end) && (
+                                            <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded whitespace-nowrap">
+                                              {item.time_start}{item.time_end ? ` - ${item.time_end}` : ''}
+                                            </span>
+                                          )}
+                                          <span className="text-gray-600">{item.content}</span>
+                                        </div>
+                                      ))
+                                    }
+                                  } catch {
+                                    // Legacy: render as HTML if not JSON
+                                    return (
+                                      <div 
+                                        className="text-sm text-gray-500"
+                                        dangerouslySetInnerHTML={{ __html: trip.description }}
+                                      />
+                                    )
                                   }
-                                } catch {
-                                  // Legacy: render as HTML if not JSON
-                                  return (
-                                    <div 
-                                      className="text-sm text-gray-500"
-                                      dangerouslySetInnerHTML={{ __html: trip.description }}
-                                    />
-                                  )
-                                }
-                              })()}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                                })()}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       
                         {/* Actions - Admin only */}
                         {isAdmin && (
@@ -1038,22 +1044,6 @@ export default function MainPage() {
                           </div>
                         )}
                       </div>
-                      
-                      {/* Right: Image Slider - Square Box */}
-                      {(() => {
-                        const images = parseImages(trip.image_url)
-                        if (images.length === 0) return null
-                        return (
-                          <div className="w-32 h-28 md:w-40 md:h-32 flex-shrink-0 rounded-lg overflow-hidden m-3 shadow-sm">
-                            <ImageSlider 
-                              images={images} 
-                              className="w-full h-full"
-                              autoPlay={images.length > 1}
-                              interval={6000}
-                            />
-                          </div>
-                        )
-                      })()}
                     </div>
                   </motion.div>
                 ))}
@@ -1091,16 +1081,8 @@ export default function MainPage() {
         </motion.div>
       </div>
       
-      {/* Mobile: Floating Map Button */}
-      <div className="md:hidden fixed bottom-6 left-6 z-50 flex flex-col gap-2">
-        {/* Map Toggle Button */}
-        <button
-          onClick={() => setShowMapPopup(true)}
-          className="w-14 h-14 bg-sakura-500 hover:bg-sakura-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105"
-        >
-          <span className="text-2xl">🗺️</span>
-        </button>
-        
+      {/* Mobile: Floating Mode Toggle Button */}
+      <div className="md:hidden fixed bottom-6 left-6 z-50">
         {/* Mode Toggle Button with Click Hint */}
         <div className="relative">
           <button
@@ -1146,25 +1128,12 @@ export default function MainPage() {
               {/* Popup Header */}
               <div className="flex items-center justify-between p-4 border-b border-gray-100">
                 <h3 className="font-medium text-gray-800">地圖</h3>
-                <div className="flex items-center gap-3">
-                  {/* Mode Toggle in Popup */}
-                  <button
-                    onClick={toggleSakuraMode}
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                      isSakuraMode 
-                        ? 'bg-pink-100 text-pink-600' 
-                        : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {isSakuraMode ? '🌸 櫻花' : '一般'}
-                  </button>
-                  <button
-                    onClick={() => setShowMapPopup(false)}
-                    className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-                  >
-                    ✕
-                  </button>
-                </div>
+                <button
+                  onClick={() => setShowMapPopup(false)}
+                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  ✕
+                </button>
               </div>
               
               {/* Map */}

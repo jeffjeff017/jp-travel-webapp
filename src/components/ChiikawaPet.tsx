@@ -156,7 +156,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
       className="fixed bottom-6 left-1/2 -translate-x-1/2 md:translate-x-0 md:bottom-6 md:left-6 z-50 cursor-pointer select-none w-16 h-16 md:w-20 md:h-20 flex flex-col items-center justify-center"
       onClick={handleClick}
     >
-      {/* Speech Bubble - Centered on mobile, left-aligned on PC */}
+      {/* Speech Bubble - Always centered above character */}
       <AnimatePresence>
         {isClicked && speechMessage && (
           <motion.div
@@ -164,14 +164,14 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="absolute bottom-full mb-2 z-[100] left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0"
+            className="absolute bottom-full mb-2 z-[100] left-1/2 -translate-x-1/2"
           >
             <div className="bg-white px-3 py-2 rounded-xl shadow-lg border-2 border-pink-200 whitespace-nowrap relative">
               <span className="text-xs font-bold text-pink-500">
                 {speechMessage}
               </span>
-              {/* Arrow - centered on mobile, left on PC */}
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 md:left-5 md:translate-x-0 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white" />
+              {/* Arrow - always centered */}
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white" />
             </div>
           </motion.div>
         )}
