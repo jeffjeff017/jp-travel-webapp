@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
-import { logout, canAccessAdmin, getUsers, getUsersAsync, updateUser, updateUserAsync, deleteUser, deleteUserAsync, type User, type UserRole } from '@/lib/auth'
+import { logout, canAccessAdmin, isAdmin, getUsers, getUsersAsync, updateUser, updateUserAsync, deleteUser, deleteUserAsync, type User, type UserRole } from '@/lib/auth'
 import {
   getTrips,
   createTrip,
@@ -141,6 +141,7 @@ export default function AdminPage() {
   const [userForm, setUserForm] = useState({ username: '', password: '', displayName: '', role: 'user' as UserRole, avatarUrl: '' })
   // Travel notice state
   const [showTravelNotice, setShowTravelNotice] = useState(false)
+  const [showTravelNoticePopup, setShowTravelNoticePopup] = useState(false) // Mobile read-only popup
   const [travelEssentials, setTravelEssentials] = useState<TravelNoticeItem[]>([])
   const [travelPreparations, setTravelPreparations] = useState<TravelNoticeItem[]>([])
   const [newItemText, setNewItemText] = useState('')
@@ -555,7 +556,10 @@ export default function AdminPage() {
         <div className="container mx-auto px-4 py-3 md:py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 md:gap-3">
             <span className="text-xl md:text-2xl">⚙️</span>
-            <h1 className="text-lg md:text-xl font-medium text-gray-800">{t.admin.dashboard}</h1>
+            <h1 className="text-lg md:text-xl font-medium text-gray-800">
+              <span className="md:hidden">個人資料</span>
+              <span className="hidden md:inline">{t.admin.dashboard}</span>
+            </h1>
           </div>
           {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-4">
@@ -573,10 +577,12 @@ export default function AdminPage() {
               {t.admin.logout}
             </button>
           </div>
-          {/* Mobile: Language switch only */}
-          <div className="md:hidden">
-            <LanguageSwitch />
-          </div>
+          {/* Mobile: Language switch only for admin */}
+          {isAdmin() && (
+            <div className="md:hidden">
+              <LanguageSwitch />
+            </div>
+          )}
         </div>
       </header>
 
@@ -600,7 +606,7 @@ export default function AdminPage() {
         </AnimatePresence>
 
         {/* Bento Grid Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-8">
           
           {/* Destination Switcher - Large Card */}
           <div 
@@ -2116,7 +2122,19 @@ export default function AdminPage() {
           
           {/* 旅遊須知 Tab */}
           <button
-            onClick={() => setShowTravelNotice(true)}
+            onClick={async () => {
+              // Load fresh travel notice data
+              let settings = getSettings()
+              try {
+                const freshSettings = await getSettingsAsync()
+                if (freshSettings) settings = freshSettings
+              } catch (err) {
+                console.warn('Failed to fetch settings:', err)
+              }
+              setTravelEssentials(settings.travelEssentials || defaultTravelEssentials)
+              setTravelPreparations(settings.travelPreparations || defaultTravelPreparations)
+              setShowTravelNoticePopup(true)
+            }}
             className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-sakura-500 transition-colors"
           >
             <span className="text-xl mb-0.5">📖</span>
@@ -2132,6 +2150,89 @@ export default function AdminPage() {
           </button>
         </div>
       </nav>
+      
+      {/* Mobile: Travel Notice Popup (Read-only) */}
+      <AnimatePresence>
+        {showTravelNoticePopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="md:hidden fixed inset-0 bg-black/50 z-[60]"
+            onClick={() => setShowTravelNoticePopup(false)}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="absolute bottom-0 left-0 right-0 max-h-[70vh] bg-white rounded-t-3xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Popup Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <h3 className="font-medium text-gray-800 flex items-center gap-2">
+                  <span>📖</span>
+                  <span>旅遊須知</span>
+                </h3>
+                <button
+                  onClick={() => setShowTravelNoticePopup(false)}
+                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              {/* Travel Notice Content */}
+              <div className="p-4 overflow-y-auto max-h-[calc(70vh-60px)]">
+                {/* Travel Essentials */}
+                {travelEssentials && travelEssentials.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                      <span>🎒</span>
+                      <span>旅遊必備</span>
+                    </h4>
+                    <div className="space-y-2">
+                      {travelEssentials.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                          <span>{item.icon}</span>
+                          <span className="text-sm text-gray-700">{item.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Travel Preparations */}
+                {travelPreparations && travelPreparations.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                      <span>📝</span>
+                      <span>出發前準備</span>
+                    </h4>
+                    <div className="space-y-2">
+                      {travelPreparations.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                          <span>{item.icon}</span>
+                          <span className="text-sm text-gray-700">{item.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Empty State */}
+                {(!travelEssentials?.length && !travelPreparations?.length) && (
+                  <div className="text-center py-12">
+                    <span className="text-5xl mb-4 block">📖</span>
+                    <p className="text-gray-500">暫無旅遊須知</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   )
 }
