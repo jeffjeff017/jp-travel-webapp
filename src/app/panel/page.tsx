@@ -164,6 +164,15 @@ export default function AdminPage() {
   })
   // Trash bin state
   const [showTrashBin, setShowTrashBin] = useState(false)
+  // Expanded days state for trip grouping
+  const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set())
+  // Sakura mode state (synced with localStorage)
+  const [isSakuraMode, setIsSakuraMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sakura_mode') === 'true'
+    }
+    return false
+  })
   const [trashItems, setTrashItems] = useState<{
     trips: Trip[]
     users: User[]
@@ -555,7 +564,7 @@ export default function AdminPage() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3 md:py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 md:gap-3">
-            <span className="text-xl md:text-2xl">⚙️</span>
+            <span className="hidden md:inline text-xl md:text-2xl">⚙️</span>
             <h1 className="text-lg md:text-xl font-medium text-gray-800">
               <span className="md:hidden">個人資料</span>
               <span className="hidden md:inline">{t.admin.dashboard}</span>
@@ -800,6 +809,27 @@ export default function AdminPage() {
               className="mt-4 w-full py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
             >
               查看垃圾桶
+            </button>
+          </div>
+
+          {/* Mobile Logout Card */}
+          <div className="md:hidden bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center mb-3">
+                  <span className="text-xl">🚪</span>
+                </div>
+                <h3 className="font-semibold text-gray-800 mb-1">登出帳號</h3>
+                <p className="text-xs text-gray-500">
+                  退出目前登入的帳號
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="mt-4 w-full py-2 text-sm bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-colors font-medium"
+            >
+              登出
             </button>
           </div>
 
@@ -1977,7 +2007,7 @@ export default function AdminPage() {
           )}
         </AnimatePresence>
 
-        {/* Trips List - Airbnb Style */}
+        {/* Trips List - Grouped by Day */}
         {isLoading ? (
           <div className="bg-white rounded-xl border border-gray-200 p-8">
             <div className="flex items-center justify-center">
@@ -1992,116 +2022,219 @@ export default function AdminPage() {
               {t.admin.clickToCreate}
             </p>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {[...trips].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((trip) => {
-              // Parse images
-              const tripImages = parseImages(trip.image_url)
-              const firstImage = tripImages[0]
-              
-              // Calculate day number
-              const getDayNumber = () => {
-                if (!siteSettings?.tripStartDate || !trip.date) return null
-                const startDate = new Date(siteSettings.tripStartDate)
-                const tripDate = new Date(trip.date)
-                startDate.setHours(0, 0, 0, 0)
-                tripDate.setHours(0, 0, 0, 0)
-                const diffTime = tripDate.getTime() - startDate.getTime()
-                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-                return diffDays + 1
-              }
-              const dayNumber = getDayNumber()
-              
-              return (
-                <div 
-                  key={trip.id} 
-                  className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-200"
-                >
-                  <div className="flex flex-col sm:flex-row">
-                    {/* Image - Airbnb style rounded */}
-                    {firstImage && (
-                      <div className="sm:w-40 sm:h-32 h-40 flex-shrink-0 relative sm:m-3 sm:rounded-xl overflow-hidden">
-                        <img 
-                          src={firstImage} 
-                          alt={trip.title}
-                          className="w-full h-full object-cover"
-                        />
-                        {tripImages.length > 1 && (
-                          <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">
-                            +{tripImages.length - 1}
-                          </span>
-                        )}
-                        {/* Day Badge on image */}
-                        {dayNumber !== null && dayNumber > 0 && (
-                          <span 
-                            className="absolute top-2 left-2 px-2 py-1 text-xs font-bold text-white rounded-lg"
+        ) : (() => {
+          // Helper to calculate day number
+          const getDayNumber = (trip: Trip) => {
+            if (!siteSettings?.tripStartDate || !trip.date) return null
+            const startDate = new Date(siteSettings.tripStartDate)
+            const tripDate = new Date(trip.date)
+            startDate.setHours(0, 0, 0, 0)
+            tripDate.setHours(0, 0, 0, 0)
+            const diffTime = tripDate.getTime() - startDate.getTime()
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+            return diffDays + 1
+          }
+          
+          // Group trips by day number
+          const tripsByDay = new Map<number | null, Trip[]>()
+          const sortedTrips = [...trips].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          
+          sortedTrips.forEach(trip => {
+            const dayNum = getDayNumber(trip)
+            if (!tripsByDay.has(dayNum)) {
+              tripsByDay.set(dayNum, [])
+            }
+            tripsByDay.get(dayNum)!.push(trip)
+          })
+          
+          // Sort day keys
+          const sortedDays = Array.from(tripsByDay.keys()).sort((a, b) => {
+            if (a === null) return 1
+            if (b === null) return -1
+            return a - b
+          })
+          
+          return (
+            <div className="space-y-4">
+              {sortedDays.map(dayNum => {
+                const dayTrips = tripsByDay.get(dayNum) || []
+                const isMultiple = dayTrips.length > 1
+                const isExpanded = expandedDays.has(dayNum || 0)
+                const firstTrip = dayTrips[0]
+                const firstImage = parseImages(firstTrip.image_url)[0]
+                
+                // Mobile: Collapsible for multiple trips per day
+                if (isMultiple) {
+                  return (
+                    <div key={dayNum || 'no-day'} className="md:hidden">
+                      {/* Collapsed Day Card */}
+                      <button
+                        onClick={() => {
+                          const newSet = new Set(expandedDays)
+                          if (isExpanded) {
+                            newSet.delete(dayNum || 0)
+                          } else {
+                            newSet.add(dayNum || 0)
+                          }
+                          setExpandedDays(newSet)
+                        }}
+                        className="w-full bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-200"
+                      >
+                        <div className="flex items-center p-4 gap-4">
+                          {/* Day Badge */}
+                          <div 
+                            className="w-14 h-14 rounded-xl flex flex-col items-center justify-center text-white flex-shrink-0"
                             style={{ backgroundColor: themeColor }}
                           >
-                            Day {dayNumber}
+                            <span className="text-[10px] font-medium opacity-80">Day</span>
+                            <span className="text-xl font-bold">{dayNum}</span>
+                          </div>
+                          
+                          {/* Info */}
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-semibold text-gray-800">
+                              {dayTrips.length} 個行程
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(firstTrip.date).toLocaleDateString('zh-TW', { month: 'long', day: 'numeric' })}
+                            </p>
+                          </div>
+                          
+                          {/* Expand Icon */}
+                          <span className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                            ▼
                           </span>
+                        </div>
+                      </button>
+                      
+                      {/* Expanded Trips */}
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="pt-2 space-y-2 pl-4">
+                              {dayTrips.map(trip => {
+                                const tripImages = parseImages(trip.image_url)
+                                const img = tripImages[0]
+                                return (
+                                  <div key={trip.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                                    <div className="flex items-center gap-3 p-3">
+                                      {img && (
+                                        <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
+                                          <img src={img} alt={trip.title} className="w-full h-full object-cover" />
+                                        </div>
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-gray-800 truncate">{trip.title}</p>
+                                        <p className="text-xs text-gray-400 truncate">📍 {trip.location}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex border-t border-gray-100">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleEdit(trip) }}
+                                        className="flex-1 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                                      >
+                                        編輯
+                                      </button>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleDelete(trip.id) }}
+                                        className="flex-1 py-2 text-xs font-medium text-red-500 hover:bg-red-50 border-l border-gray-100"
+                                      >
+                                        刪除
+                                      </button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </motion.div>
                         )}
-                      </div>
-                    )}
-                    
-                    {/* Content */}
-                    <div className="flex-1 p-4 flex flex-col justify-between">
-                      <div>
-                        {/* Title */}
-                        <h3 className="text-base font-semibold text-gray-800 mb-1 line-clamp-1">
-                          {trip.title}
-                        </h3>
+                      </AnimatePresence>
+                    </div>
+                  )
+                }
+                
+                // Single trip or Desktop: Show normally
+                return dayTrips.map(trip => {
+                  const tripImages = parseImages(trip.image_url)
+                  const img = tripImages[0]
+                  const dayNumber = getDayNumber(trip)
+                  
+                  return (
+                    <div 
+                      key={trip.id} 
+                      className={`bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-200 ${isMultiple ? 'hidden md:block' : ''}`}
+                    >
+                      <div className="flex flex-col sm:flex-row">
+                        {img && (
+                          <div className="sm:w-40 sm:h-32 h-40 flex-shrink-0 relative sm:m-3 sm:rounded-xl overflow-hidden">
+                            <img src={img} alt={trip.title} className="w-full h-full object-cover" />
+                            {tripImages.length > 1 && (
+                              <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">
+                                +{tripImages.length - 1}
+                              </span>
+                            )}
+                            {dayNumber !== null && dayNumber > 0 && (
+                              <span 
+                                className="absolute top-2 left-2 px-2 py-1 text-xs font-bold text-white rounded-lg"
+                                style={{ backgroundColor: themeColor }}
+                              >
+                                Day {dayNumber}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         
-                        {/* Date & Location */}
-                        <p className="text-sm text-gray-500 mb-1">
-                          {new Date(trip.date).toLocaleDateString('zh-TW', { 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          })}
-                        </p>
-                        <p className="text-sm text-gray-400 line-clamp-1">
-                          📍 {trip.location}
-                        </p>
+                        <div className="flex-1 p-4 flex flex-col justify-between">
+                          <div>
+                            <h3 className="text-base font-semibold text-gray-800 mb-1 line-clamp-1">{trip.title}</h3>
+                            <p className="text-sm text-gray-500 mb-1">
+                              {new Date(trip.date).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })}
+                            </p>
+                            <p className="text-sm text-gray-400 line-clamp-1">📍 {trip.location}</p>
+                          </div>
+                          <div className="hidden sm:flex items-center gap-2 mt-3">
+                            <button
+                              onClick={() => handleEdit(trip)}
+                              className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                              編輯
+                            </button>
+                            <button
+                              onClick={() => handleDelete(trip.id)}
+                              className="px-3 py-1.5 text-xs font-medium text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                            >
+                              刪除
+                            </button>
+                          </div>
+                        </div>
                       </div>
                       
-                      {/* Actions - Desktop */}
-                      <div className="hidden sm:flex items-center gap-2 mt-3">
+                      <div className="sm:hidden flex border-t border-gray-100">
                         <button
                           onClick={() => handleEdit(trip)}
-                          className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                          className="flex-1 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
                         >
                           編輯
                         </button>
                         <button
                           onClick={() => handleDelete(trip.id)}
-                          className="px-3 py-1.5 text-xs font-medium text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                          className="flex-1 py-3 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors border-l border-gray-100"
                         >
                           刪除
                         </button>
                       </div>
                     </div>
-                  </div>
-                  
-                  {/* Actions - Mobile */}
-                  <div className="sm:hidden flex border-t border-gray-100">
-                    <button
-                      onClick={() => handleEdit(trip)}
-                      className="flex-1 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                    >
-                      編輯
-                    </button>
-                    <button
-                      onClick={() => handleDelete(trip.id)}
-                      className="flex-1 py-3 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors border-l border-gray-100"
-                    >
-                      刪除
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
+                  )
+                })
+              })}
+            </div>
+          )
+        })()}
       </div>
       
       {/* Mobile: Airbnb-style Bottom Navigation */}
@@ -2125,12 +2258,21 @@ export default function AdminPage() {
             <span className="text-[10px] font-medium">心願清單</span>
           </a>
           
-          {/* 櫻花 Tab - just visual, no function in panel */}
+          {/* Chiikawa Tab */}
           <button
-            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400"
+            onClick={() => {
+              const newValue = !isSakuraMode
+              setIsSakuraMode(newValue)
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('sakura_mode', String(newValue))
+              }
+            }}
+            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+              isSakuraMode ? 'text-pink-500' : 'text-gray-400'
+            }`}
           >
-            <span className="text-xl mb-0.5">🔘</span>
-            <span className="text-[10px] font-medium">櫻花</span>
+            <span className="text-xl mb-0.5">{isSakuraMode ? '🌸' : '🔘'}</span>
+            <span className="text-[10px] font-medium">chiikawa</span>
           </button>
           
           {/* 旅遊須知 Tab */}

@@ -96,7 +96,12 @@ export default function WishlistPage() {
   })
   const [isLoading, setIsLoading] = useState(true)
   const [settings, setSettings] = useState<SiteSettings | null>(null)
-  const [isSakuraMode, setIsSakuraMode] = useState(false)
+  const [isSakuraMode, setIsSakuraMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sakura_mode') === 'true'
+    }
+    return false
+  })
   const [isAdmin, setIsAdmin] = useState(false)
   const [showTravelNotice, setShowTravelNotice] = useState(false)
   
@@ -679,15 +684,21 @@ export default function WishlistPage() {
             <span className="text-[10px] font-medium">心願清單</span>
           </button>
           
-          {/* 櫻花 Tab */}
+          {/* Chiikawa Tab */}
           <button
-            onClick={() => setIsSakuraMode(!isSakuraMode)}
+            onClick={() => {
+              const newValue = !isSakuraMode
+              setIsSakuraMode(newValue)
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('sakura_mode', String(newValue))
+              }
+            }}
             className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
               isSakuraMode ? 'text-pink-500' : 'text-gray-400'
             }`}
           >
             <span className="text-xl mb-0.5">{isSakuraMode ? '🌸' : '🔘'}</span>
-            <span className="text-[10px] font-medium">櫻花</span>
+            <span className="text-[10px] font-medium">chiikawa</span>
           </button>
           
           {/* 旅遊須知 Tab */}

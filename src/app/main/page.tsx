@@ -179,7 +179,13 @@ const getWeatherIcon = (dayNum: number) => {
 export default function MainPage() {
   const [trips, setTrips] = useState<Trip[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isSakuraMode, setIsSakuraMode] = useState(false) // Default OFF
+  const [isSakuraMode, setIsSakuraMode] = useState(() => {
+    // Initialize from localStorage
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sakura_mode') === 'true'
+    }
+    return false
+  })
   const [error, setError] = useState<string | null>(null)
   const [settings, setSettings] = useState<SiteSettings | null>(null)
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null)
@@ -665,7 +671,11 @@ export default function MainPage() {
   }
 
   const toggleSakuraMode = () => {
-    setIsSakuraMode(!isSakuraMode)
+    const newValue = !isSakuraMode
+    setIsSakuraMode(newValue)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sakura_mode', String(newValue))
+    }
   }
 
   const handleTripClick = (tripId: number) => {
@@ -830,7 +840,7 @@ export default function MainPage() {
       </AnimatePresence>
 
       {/* Main Content */}
-      <div className="pt-20 md:pt-16 h-screen flex flex-col md:flex-row">
+      <div className="pt-[72px] md:pt-[68px] h-screen flex flex-col md:flex-row">
         {/* Sidebar - Trip List - Full height on mobile */}
         <motion.aside
           initial={{ opacity: 0, x: -20 }}
@@ -1218,7 +1228,7 @@ export default function MainPage() {
             <span className="text-[10px] font-medium">心願清單</span>
           </Link>
           
-          {/* 櫻花 Tab */}
+          {/* Chiikawa Tab */}
           <button
             onClick={() => {
               toggleSakuraMode()
@@ -1231,7 +1241,7 @@ export default function MainPage() {
             }`}
           >
             <span className="text-xl mb-0.5">{isSakuraMode ? '🌸' : '🔘'}</span>
-            <span className="text-[10px] font-medium">櫻花</span>
+            <span className="text-[10px] font-medium">chiikawa</span>
           </button>
           
           {/* 旅遊須知 Tab */}
