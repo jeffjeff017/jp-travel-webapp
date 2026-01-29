@@ -170,7 +170,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
               initial="initial"
               animate="animate"
               exit="exit"
-              className="absolute right-full mr-1 md:right-auto md:bottom-full md:mb-2 md:mr-0 z-[100] md:left-1/2 md:-translate-x-1/2 top-1/2 -translate-y-1/2 md:top-auto md:translate-y-0"
+              className="absolute right-full mr-1 md:right-auto md:bottom-full md:mb-2 md:mr-0 z-[100] md:left-1/2 md:-translate-x-1/2 top-[calc(50%-5px)] -translate-y-1/2 md:top-auto md:translate-y-0"
             >
               <div className="bg-white px-2 py-1 md:px-3 md:py-2 rounded-lg md:rounded-xl shadow-lg border border-pink-200 md:border-2 whitespace-nowrap relative">
                 <span className="text-[10px] md:text-xs font-bold text-pink-500">
