@@ -30,8 +30,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Protect /admin routes - admin only
-  if (pathname.startsWith('/admin')) {
+  // Protect /panel routes - admin only
+  if (pathname.startsWith('/panel')) {
     if (!isAdmin) {
       const loginUrl = new URL('/login', request.url)
       return NextResponse.redirect(loginUrl)
@@ -47,9 +47,17 @@ export function middleware(request: NextRequest) {
     }
   }
 
+  // Protect /wishlist - require any authentication
+  if (pathname === '/wishlist') {
+    if (!isAuthenticated) {
+      const loginUrl = new URL('/login', request.url)
+      return NextResponse.redirect(loginUrl)
+    }
+  }
+
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/', '/main', '/admin/:path*', '/login'],
+  matcher: ['/', '/main', '/panel/:path*', '/login', '/wishlist'],
 }

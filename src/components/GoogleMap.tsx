@@ -73,6 +73,7 @@ export default function GoogleMapComponent({
   const [showAllScheduleItems, setShowAllScheduleItems] = useState(false)
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isGettingLocation, setIsGettingLocation] = useState(false)
+  const [searchMarker, setSearchMarker] = useState<{ lat: number; lng: number; name: string } | null>(null)
   const [routeInfo, setRouteInfo] = useState<{
     distance: string
     duration: string
@@ -238,6 +239,40 @@ export default function GoogleMapComponent({
 
     return () => clearInterval(interval)
   }, [directions, currentLocation, selectedTrip, calculateRoute])
+  
+  // Handle search query from main page
+  useEffect(() => {
+    if (!map || !isLoaded) return
+    
+    const searchQuery = localStorage.getItem('map_search_query')
+    if (!searchQuery) return
+    
+    // Clear the search query immediately
+    localStorage.removeItem('map_search_query')
+    
+    // Use Places service to search
+    const service = new google.maps.places.PlacesService(map)
+    const request = {
+      query: searchQuery,
+      region: 'jp', // Prefer Japan results
+    }
+    
+    service.textSearch(request, (results, status) => {
+      if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+        const place = results[0]
+        if (place.geometry?.location) {
+          const location = {
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
+            name: place.name || searchQuery,
+          }
+          setSearchMarker(location)
+          map.panTo({ lat: location.lat, lng: location.lng })
+          map.setZoom(16)
+        }
+      }
+    })
+  }, [map, isLoaded])
   
   // Show navigation route from current location to selected trip
   const showNavigation = useCallback(async () => {
@@ -406,6 +441,53 @@ export default function GoogleMapComponent({
               anchor: new google.maps.Point(24, 48),
             }}
           />
+        )}
+
+        {/* Search Result Marker */}
+        {searchMarker && (
+          <Marker
+            position={{ lat: searchMarker.lat, lng: searchMarker.lng }}
+            onClick={() => {
+              // Clear search marker when clicked
+              setSearchMarker(null)
+            }}
+            icon={{
+              url: 'data:image/svg+xml,' + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 56" width="48" height="56">
+                  <path fill="#10B981" stroke="white" stroke-width="2" d="M24 2C14.06 2 6 10.06 6 20c0 12 18 32 18 32s18-20 18-32c0-9.94-8.06-18-18-18z"/>
+                  <circle fill="white" cx="24" cy="20" r="10"/>
+                  <text x="24" y="24" text-anchor="middle" font-size="14" fill="#10B981">🔍</text>
+                </svg>
+              `),
+              scaledSize: new google.maps.Size(48, 56),
+              anchor: new google.maps.Point(24, 56),
+            }}
+          />
+        )}
+        
+        {/* Search Result Info Window */}
+        {searchMarker && (
+          <InfoWindow
+            position={{ lat: searchMarker.lat, lng: searchMarker.lng }}
+            options={{ 
+              pixelOffset: new google.maps.Size(0, -50),
+              maxWidth: 280
+            }}
+            onCloseClick={() => setSearchMarker(null)}
+          >
+            <div style={{ width: '200px' }} className="p-2">
+              <h3 className="font-medium text-gray-800 mb-1">{searchMarker.name}</h3>
+              <p className="text-xs text-gray-500 mb-2">搜尋結果</p>
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${searchMarker.lat},${searchMarker.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs rounded-full transition-colors"
+              >
+                在 Google Maps 開啟
+              </a>
+            </div>
+          </InfoWindow>
         )}
 
         {/* Trip Markers - Larger */}

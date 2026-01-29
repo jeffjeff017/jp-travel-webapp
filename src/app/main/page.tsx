@@ -217,6 +217,11 @@ export default function MainPage() {
   const [showWishlistPopup, setShowWishlistPopup] = useState(false)
   const [showInfoPopup, setShowInfoPopup] = useState(false)
   
+  // Search state
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchLocation, setSearchLocation] = useState<{ lat: number; lng: number; name: string } | null>(null)
+  
   useEffect(() => {
     setIsAdmin(canEdit())
     setIsActualAdmin(checkIsAdmin())
@@ -681,35 +686,148 @@ export default function MainPage() {
         <ModeToggle isSakuraMode={isSakuraMode} onToggle={toggleSakuraMode} />
       </div>
 
-      {/* Header */}
+      {/* Header - Airbnb style search */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-md border-b border-sakura-100"
+        className="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100"
       >
-        <div className="container mx-auto px-4 py-3 md:py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 md:gap-3">
-            <span className="text-xl md:text-2xl">🌸</span>
-            <h1 className="text-lg md:text-xl font-medium text-gray-800">
-              <span className="text-sakura-500">{settings?.title || '日本旅遊'}</span>
-            </h1>
-          </div>
-          
-          {/* Desktop only nav */}
-          <nav className="hidden md:flex items-center gap-4">
-            {/* Admin Control Panel Button - Admin only */}
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center gap-3">
+            {/* Search Bar - Airbnb style */}
+            <button
+              onClick={() => setShowSearch(true)}
+              className="flex-1 flex items-center gap-3 px-4 py-2.5 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition-shadow"
+            >
+              <span className="text-lg">🔍</span>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-medium text-gray-800">搜尋地點</p>
+                <p className="text-xs text-gray-400">景點、餐廳、住宿...</p>
+              </div>
+            </button>
+            
+            {/* Desktop: Admin Control Panel Button */}
             {isActualAdmin && (
               <Link
-                href="/admin"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-sakura-600 hover:bg-sakura-50 rounded-lg transition-colors"
+                href="/panel"
+                className="hidden md:flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-sakura-600 hover:bg-sakura-50 rounded-full transition-colors"
               >
                 <span>⚙️</span>
-                <span>控制台</span>
               </Link>
             )}
-          </nav>
+          </div>
         </div>
       </motion.header>
+      
+      {/* Search Overlay */}
+      <AnimatePresence>
+        {showSearch && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-white z-50"
+          >
+            {/* Search Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setShowSearch(false)
+                    setSearchQuery('')
+                  }}
+                  className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  ←
+                </button>
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="搜尋地點..."
+                    className="w-full px-4 py-3 bg-gray-100 rounded-full text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-sakura-200"
+                    autoFocus
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 bg-gray-200 rounded-full text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Search Content */}
+            <div className="p-4">
+              {searchQuery ? (
+                <div className="space-y-2">
+                  {/* Search with Google Maps */}
+                  <button
+                    onClick={() => {
+                      // Open map popup with search query
+                      setShowSearch(false)
+                      setShowMapPopup(true)
+                      setActiveBottomTab('map')
+                      // Store search query for map to use
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('map_search_query', searchQuery)
+                      }
+                      setSearchQuery('')
+                    }}
+                    className="w-full flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
+                  >
+                    <span className="w-10 h-10 flex items-center justify-center bg-sakura-100 text-sakura-600 rounded-full">
+                      🗺️
+                    </span>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium text-gray-800">在地圖上搜尋「{searchQuery}」</p>
+                      <p className="text-xs text-gray-500">查看位置和路線</p>
+                    </div>
+                    <span className="text-gray-400">→</span>
+                  </button>
+                  
+                  {/* Search in trips */}
+                  {trips.filter(trip => 
+                    trip.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    trip.location.toLowerCase().includes(searchQuery.toLowerCase())
+                  ).map(trip => (
+                    <button
+                      key={trip.id}
+                      onClick={() => {
+                        setShowSearch(false)
+                        setSelectedTripId(trip.id)
+                        setShowMapPopup(true)
+                        setActiveBottomTab('map')
+                        setSearchQuery('')
+                      }}
+                      className="w-full flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
+                    >
+                      <span className="w-10 h-10 flex items-center justify-center bg-blue-100 text-blue-600 rounded-full">
+                        📍
+                      </span>
+                      <div className="flex-1 text-left">
+                        <p className="font-medium text-gray-800">{trip.title}</p>
+                        <p className="text-xs text-gray-500">{trip.location}</p>
+                      </div>
+                      <span className="text-gray-400">→</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-5xl mb-4">🔍</div>
+                  <p className="text-gray-500">輸入地點名稱開始搜尋</p>
+                  <p className="text-xs text-gray-400 mt-2">例如：東京塔、淺草寺、拉麵...</p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <div className="pt-14 md:pt-16 h-screen flex flex-col md:flex-row">
@@ -1082,46 +1200,25 @@ export default function MainPage() {
       {/* Mobile: Airbnb-style Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-area-bottom">
         <div className="flex items-center justify-around h-16 px-2">
-          {/* Home/Itinerary Tab */}
+          {/* 行程 Tab - Active on main page */}
           <button
             onClick={() => setActiveBottomTab('home')}
-            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-              activeBottomTab === 'home' ? 'text-sakura-500' : 'text-gray-400'
-            }`}
+            className="flex flex-col items-center justify-center flex-1 h-full text-sakura-500"
           >
             <span className="text-xl mb-0.5">📋</span>
             <span className="text-[10px] font-medium">行程</span>
           </button>
           
-          {/* Map Tab */}
-          <button
-            onClick={() => {
-              setActiveBottomTab('map')
-              setShowMapPopup(true)
-            }}
-            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-              activeBottomTab === 'map' ? 'text-sakura-500' : 'text-gray-400'
-            }`}
-          >
-            <span className="text-xl mb-0.5">🗺️</span>
-            <span className="text-[10px] font-medium">地圖</span>
-          </button>
-          
-          {/* Wishlist Tab */}
-          <button
-            onClick={() => {
-              setActiveBottomTab('wishlist')
-              setShowWishlistPopup(true)
-            }}
-            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-              activeBottomTab === 'wishlist' ? 'text-sakura-500' : 'text-gray-400'
-            }`}
+          {/* 心願清單 Tab */}
+          <Link
+            href="/wishlist"
+            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-sakura-500 transition-colors"
           >
             <span className="text-xl mb-0.5">💖</span>
-            <span className="text-[10px] font-medium">心願</span>
-          </button>
+            <span className="text-[10px] font-medium">心願清單</span>
+          </Link>
           
-          {/* Sakura Mode Tab */}
+          {/* 櫻花 Tab */}
           <button
             onClick={() => {
               toggleSakuraMode()
@@ -1137,29 +1234,28 @@ export default function MainPage() {
             <span className="text-[10px] font-medium">櫻花</span>
           </button>
           
-          {/* Admin/Info Tab */}
-          {isActualAdmin ? (
-            <Link
-              href="/admin"
-              className="flex flex-col items-center justify-center flex-1 h-full text-gray-400"
-            >
-              <span className="text-xl mb-0.5">⚙️</span>
-              <span className="text-[10px] font-medium">控制台</span>
-            </Link>
-          ) : (
-            <button
-              onClick={() => {
-                setActiveBottomTab('info')
-                setShowInfoPopup(true)
-              }}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-                activeBottomTab === 'info' ? 'text-sakura-500' : 'text-gray-400'
-              }`}
-            >
-              <span className="text-xl mb-0.5">ℹ️</span>
-              <span className="text-[10px] font-medium">資訊</span>
-            </button>
-          )}
+          {/* 旅遊須知 Tab */}
+          <button
+            onClick={() => {
+              setActiveBottomTab('info')
+              setShowInfoPopup(true)
+            }}
+            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+              activeBottomTab === 'info' ? 'text-sakura-500' : 'text-gray-400'
+            }`}
+          >
+            <span className="text-xl mb-0.5">📖</span>
+            <span className="text-[10px] font-medium">旅遊須知</span>
+          </button>
+          
+          {/* 個人資料 Tab */}
+          <Link
+            href="/panel"
+            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-sakura-500 transition-colors"
+          >
+            <span className="text-xl mb-0.5">👤</span>
+            <span className="text-[10px] font-medium">個人資料</span>
+          </Link>
         </div>
       </nav>
       
@@ -1280,7 +1376,7 @@ export default function MainPage() {
       />
       
       
-      {/* Mobile: Info Popup */}
+      {/* Mobile: Travel Notice Popup (旅遊須知) */}
       <AnimatePresence>
         {showInfoPopup && (
           <motion.div
@@ -1298,12 +1394,12 @@ export default function MainPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute bottom-0 left-0 right-0 h-[50vh] bg-white rounded-t-3xl overflow-hidden"
+              className="absolute bottom-0 left-0 right-0 h-[70vh] bg-white rounded-t-3xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Popup Header */}
               <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                <h3 className="font-medium text-gray-800">ℹ️ 資訊</h3>
+                <h3 className="font-medium text-gray-800">📖 旅遊須知</h3>
                 <button
                   onClick={() => {
                     setShowInfoPopup(false)
@@ -1315,29 +1411,70 @@ export default function MainPage() {
                 </button>
               </div>
               
-              {/* Info Content */}
-              <div className="p-4 space-y-4">
-                <div className="text-center py-6">
-                  <span className="text-4xl mb-4 block">🌸</span>
-                  <h4 className="text-lg font-medium text-gray-800 mb-2">{settings?.title || '日本旅遊'}</h4>
-                  <p className="text-sm text-gray-500">共 {settings?.totalDays || 7} 天行程</p>
-                  <p className="text-sm text-gray-500">{trips.length} 個目的地</p>
-                </div>
+              {/* Travel Notice Content */}
+              <div className="p-4 overflow-y-auto h-[calc(70vh-60px)]">
+                {/* Travel Essentials */}
+                {settings?.travelEssentials && settings.travelEssentials.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                      <span>🎒</span>
+                      <span>旅遊必備</span>
+                    </h4>
+                    <div className="space-y-2">
+                      {settings.travelEssentials.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                          <span>{item.icon}</span>
+                          <span className="text-sm text-gray-700">{item.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
+                {/* Travel Preparations */}
+                {settings?.travelPreparations && settings.travelPreparations.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                      <span>📝</span>
+                      <span>出發前準備</span>
+                    </h4>
+                    <div className="space-y-2">
+                      {settings.travelPreparations.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                          <span>{item.icon}</span>
+                          <span className="text-sm text-gray-700">{item.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Empty State */}
+                {(!settings?.travelEssentials?.length && !settings?.travelPreparations?.length) && (
+                  <div className="text-center py-12">
+                    <span className="text-5xl mb-4 block">📖</span>
+                    <p className="text-gray-500">暫無旅遊須知</p>
+                    <p className="text-xs text-gray-400 mt-2">可在控制台設定旅遊須知</p>
+                  </div>
+                )}
+                
+                {/* User Info & Logout */}
                 {currentUser && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-sm text-gray-600">
-                      目前登入：<span className="font-medium">{currentUser.displayName}</span>
-                    </p>
-                    <button
-                      onClick={() => {
-                        logout()
-                        window.location.href = '/login'
-                      }}
-                      className="mt-3 w-full py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
-                    >
-                      登出
-                    </button>
+                  <div className="mt-6 pt-6 border-t border-gray-100">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-sm text-gray-600">
+                        目前登入：<span className="font-medium">{currentUser.displayName}</span>
+                      </p>
+                      <button
+                        onClick={() => {
+                          logout()
+                          window.location.href = '/login'
+                        }}
+                        className="mt-3 w-full py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
+                      >
+                        登出
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

@@ -82,7 +82,7 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
         await new Promise(resolve => setTimeout(resolve, 100))
         // Redirect based on role - admin goes to admin page, user goes to main
         if (user.role === 'admin') {
-          window.location.href = '/admin'
+          window.location.href = '/panel'
         } else {
           window.location.href = '/main'
         }
@@ -173,23 +173,6 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
       >
         {/* Header */}
         <div className="text-center mb-8">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-            className="w-24 h-24 mx-auto mb-4 relative"
-          >
-            {characterImage && (
-              <Image
-                src={characterImage}
-                alt="Character"
-                fill
-                className="object-contain"
-                priority
-                unoptimized
-              />
-            )}
-          </motion.div>
           <h1 className="text-2xl font-medium text-gray-800">{t.login.title}</h1>
         </div>
 
@@ -305,7 +288,7 @@ export default function LoginPage() {
       if (isAuthenticated()) {
         // Already logged in, redirect based on role
         if (isAdmin()) {
-          router.replace('/admin')
+          router.replace('/panel')
         } else {
           router.replace('/main')
         }

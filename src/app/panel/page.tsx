@@ -2088,57 +2088,47 @@ export default function AdminPage() {
       {/* Mobile: Airbnb-style Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-area-bottom">
         <div className="flex items-center justify-around h-16 px-2">
-          {/* Settings Tab */}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-purple-500 transition-colors"
-          >
-            <span className="text-xl mb-0.5">🎨</span>
-            <span className="text-[10px] font-medium">設定</span>
-          </button>
-          
-          {/* Users Tab */}
-          <button
-            onClick={async () => {
-              try {
-                const freshUsers = await getUsersAsync()
-                setUsers(freshUsers)
-              } catch (err) {
-                setUsers(getUsers())
-              }
-              setShowUserManagement(true)
-            }}
-            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-blue-500 transition-colors"
-          >
-            <span className="text-xl mb-0.5">👥</span>
-            <span className="text-[10px] font-medium">用戶</span>
-          </button>
-          
-          {/* View Site Tab */}
+          {/* 行程 Tab */}
           <a
             href="/main"
-            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-green-500 transition-colors"
+            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-sakura-500 transition-colors"
           >
-            <span className="text-xl mb-0.5">🏠</span>
-            <span className="text-[10px] font-medium">查看</span>
+            <span className="text-xl mb-0.5">📋</span>
+            <span className="text-[10px] font-medium">行程</span>
           </a>
           
-          {/* Trash Tab */}
-          <button
-            onClick={() => setShowTrashBin(true)}
-            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-orange-500 transition-colors"
+          {/* 心願清單 Tab */}
+          <a
+            href="/wishlist"
+            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-sakura-500 transition-colors"
           >
-            <span className="text-xl mb-0.5">🗑️</span>
-            <span className="text-[10px] font-medium">回收</span>
+            <span className="text-xl mb-0.5">💖</span>
+            <span className="text-[10px] font-medium">心願清單</span>
+          </a>
+          
+          {/* 櫻花 Tab - just visual, no function in panel */}
+          <button
+            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400"
+          >
+            <span className="text-xl mb-0.5">🔘</span>
+            <span className="text-[10px] font-medium">櫻花</span>
           </button>
           
-          {/* Logout Tab */}
+          {/* 旅遊須知 Tab */}
           <button
-            onClick={handleLogout}
-            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-red-500 transition-colors"
+            onClick={() => setShowTravelNotice(true)}
+            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-sakura-500 transition-colors"
           >
-            <span className="text-xl mb-0.5">🚪</span>
-            <span className="text-[10px] font-medium">登出</span>
+            <span className="text-xl mb-0.5">📖</span>
+            <span className="text-[10px] font-medium">旅遊須知</span>
+          </button>
+          
+          {/* 個人資料 Tab - Active */}
+          <button
+            className="flex flex-col items-center justify-center flex-1 h-full text-sakura-500"
+          >
+            <span className="text-xl mb-0.5">👤</span>
+            <span className="text-[10px] font-medium">個人資料</span>
           </button>
         </div>
       </nav>
