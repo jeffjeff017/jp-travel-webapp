@@ -608,9 +608,9 @@ export default function AdminPage() {
         {/* Bento Grid Layout */}
         <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-8">
           
-          {/* Destination Switcher - Large Card */}
+          {/* Destination Switcher - Large Card (Full row on all screens) */}
           <div 
-            className="md:col-span-2 lg:col-span-2 bg-gradient-to-br rounded-2xl p-6 text-white relative overflow-hidden"
+            className="col-span-2 lg:col-span-2 bg-gradient-to-br rounded-2xl p-4 md:p-6 text-white relative overflow-hidden"
             style={{ background: `linear-gradient(135deg, ${themeColor} 0%, ${adjustColor(themeColor, -30)} 100%)` }}
           >
             <div className="absolute top-0 right-0 text-[120px] opacity-20 -mr-4 -mt-4">
@@ -810,12 +810,13 @@ export default function AdminPage() {
           <h2 className="text-lg font-medium text-gray-800">
             {t.admin.manageTrips} ({trips.length})
           </h2>
+          {/* Desktop only: Add trip button */}
           <button
             onClick={() => {
               resetForm()
               setShowForm(true)
             }}
-            className="px-4 py-2 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+            className="hidden md:flex px-4 py-2 text-white rounded-lg font-medium transition-colors items-center gap-2"
             style={{ backgroundColor: themeColor }}
           >
             <span>+</span> {t.admin.addTrip}
@@ -1976,7 +1977,7 @@ export default function AdminPage() {
           )}
         </AnimatePresence>
 
-        {/* Trips Grid - 4 columns horizontal scroll */}
+        {/* Trips List - Airbnb Style */}
         {isLoading ? (
           <div className="bg-white rounded-xl border border-gray-200 p-8">
             <div className="flex items-center justify-center">
@@ -1992,101 +1993,113 @@ export default function AdminPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto pb-4">
-            <div className="flex gap-4" style={{ minWidth: 'min-content' }}>
-              {[...trips].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((trip) => {
-                // Parse images
-                const tripImages = parseImages(trip.image_url)
-                const firstImage = tripImages[0]
-                
-                // Parse schedule items
-                const scheduleItems = parseScheduleItems(trip.description)
-                
-                // Calculate day number
-                const getDayNumber = () => {
-                  if (!siteSettings?.tripStartDate || !trip.date) return null
-                  const startDate = new Date(siteSettings.tripStartDate)
-                  const tripDate = new Date(trip.date)
-                  startDate.setHours(0, 0, 0, 0)
-                  tripDate.setHours(0, 0, 0, 0)
-                  const diffTime = tripDate.getTime() - startDate.getTime()
-                  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-                  return diffDays + 1
-                }
-                const dayNumber = getDayNumber()
-                
-                return (
-                  <div 
-                    key={trip.id} 
-                    className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col flex-shrink-0 w-[280px] md:w-[300px]"
-                  >
-                    {/* Image */}
+          <div className="space-y-4">
+            {[...trips].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((trip) => {
+              // Parse images
+              const tripImages = parseImages(trip.image_url)
+              const firstImage = tripImages[0]
+              
+              // Calculate day number
+              const getDayNumber = () => {
+                if (!siteSettings?.tripStartDate || !trip.date) return null
+                const startDate = new Date(siteSettings.tripStartDate)
+                const tripDate = new Date(trip.date)
+                startDate.setHours(0, 0, 0, 0)
+                tripDate.setHours(0, 0, 0, 0)
+                const diffTime = tripDate.getTime() - startDate.getTime()
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+                return diffDays + 1
+              }
+              const dayNumber = getDayNumber()
+              
+              return (
+                <div 
+                  key={trip.id} 
+                  className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-200"
+                >
+                  <div className="flex flex-col sm:flex-row">
+                    {/* Image - Airbnb style rounded */}
                     {firstImage && (
-                      <div className="w-full h-36 flex-shrink-0 relative">
+                      <div className="sm:w-40 sm:h-32 h-40 flex-shrink-0 relative sm:m-3 sm:rounded-xl overflow-hidden">
                         <img 
                           src={firstImage} 
                           alt={trip.title}
                           className="w-full h-full object-cover"
                         />
                         {tripImages.length > 1 && (
-                          <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded">
+                          <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">
                             +{tripImages.length - 1}
+                          </span>
+                        )}
+                        {/* Day Badge on image */}
+                        {dayNumber !== null && dayNumber > 0 && (
+                          <span 
+                            className="absolute top-2 left-2 px-2 py-1 text-xs font-bold text-white rounded-lg"
+                            style={{ backgroundColor: themeColor }}
+                          >
+                            Day {dayNumber}
                           </span>
                         )}
                       </div>
                     )}
                     
                     {/* Content */}
-                    <div className="flex-1 p-3">
-                      {/* Title & Day Badge */}
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <h3 className="text-base font-semibold text-gray-800 line-clamp-1">
+                    <div className="flex-1 p-4 flex flex-col justify-between">
+                      <div>
+                        {/* Title */}
+                        <h3 className="text-base font-semibold text-gray-800 mb-1 line-clamp-1">
                           {trip.title}
                         </h3>
-                        {dayNumber !== null && dayNumber > 0 && (
-                          <span className="px-2 py-0.5 text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded-full whitespace-nowrap flex-shrink-0">
-                            Day {dayNumber}
-                          </span>
-                        )}
+                        
+                        {/* Date & Location */}
+                        <p className="text-sm text-gray-500 mb-1">
+                          {new Date(trip.date).toLocaleDateString('zh-TW', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                        </p>
+                        <p className="text-sm text-gray-400 line-clamp-1">
+                          📍 {trip.location}
+                        </p>
                       </div>
                       
-                      {/* Date */}
-                      <div className="flex items-center gap-1 text-xs text-sakura-600 mb-2">
-                        <span>📅</span>
-                        <span>{new Date(trip.date).toLocaleDateString('zh-TW')}</span>
+                      {/* Actions - Desktop */}
+                      <div className="hidden sm:flex items-center gap-2 mt-3">
+                        <button
+                          onClick={() => handleEdit(trip)}
+                          className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                        >
+                          編輯
+                        </button>
+                        <button
+                          onClick={() => handleDelete(trip.id)}
+                          className="px-3 py-1.5 text-xs font-medium text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                        >
+                          刪除
+                        </button>
                       </div>
-                      
-                      {/* Location */}
-                      <div className="flex items-center gap-1 text-xs text-gray-500 mb-2">
-                        <span>📍</span>
-                        <span className="truncate">{trip.location}</span>
-                      </div>
-                      
-                      {/* Coordinates */}
-                      <div className="text-[10px] text-gray-400">
-                        座標：{trip.lat?.toFixed(4)}, {trip.lng?.toFixed(4)}
-                      </div>
-                    </div>
-                    
-                    {/* Actions */}
-                    <div className="flex border-t border-gray-100">
-                      <button
-                        onClick={() => handleEdit(trip)}
-                        className="flex-1 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1"
-                      >
-                        ✏️ 編輯
-                      </button>
-                      <button
-                        onClick={() => handleDelete(trip.id)}
-                        className="flex-1 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors flex items-center justify-center gap-1 border-l border-gray-100"
-                      >
-                        🗑️ 刪除
-                      </button>
                     </div>
                   </div>
-                )
-              })}
-            </div>
+                  
+                  {/* Actions - Mobile */}
+                  <div className="sm:hidden flex border-t border-gray-100">
+                    <button
+                      onClick={() => handleEdit(trip)}
+                      className="flex-1 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      編輯
+                    </button>
+                    <button
+                      onClick={() => handleDelete(trip.id)}
+                      className="flex-1 py-3 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors border-l border-gray-100"
+                    >
+                      刪除
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
