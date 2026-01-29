@@ -328,7 +328,9 @@ export default function WishlistButton({
       // Update existing item
       const updatedItem = {
         ...editingItem,
-        name: isLinkOnlyCategory ? newItemLink.trim() : newItemName.trim(), 
+        name: isLinkOnlyCategory 
+          ? (newItemName.trim() || newItemLink.trim()) // Use title if provided, else link
+          : newItemName.trim(), 
         note: newItemNote.trim() || undefined,
         imageUrl: newItemImage || editingItem.imageUrl,
         link: newItemLink.trim() || undefined
@@ -355,7 +357,9 @@ export default function WishlistButton({
       // Create new item - first save to Supabase to get the ID
       const newItemData = {
         category: catId,
-        name: isLinkOnlyCategory ? newItemLink.trim() : newItemName.trim(),
+        name: isLinkOnlyCategory 
+          ? (newItemName.trim() || newItemLink.trim()) // Use title if provided, else link
+          : newItemName.trim(),
         note: newItemNote.trim() || undefined,
         imageUrl: newItemImage || undefined,
         link: newItemLink.trim() || undefined,
@@ -393,10 +397,12 @@ export default function WishlistButton({
   // Edit item
   const startEdit = (item: WishlistItem) => {
     setEditingItem(item)
-    setNewItemName(item.name)
+    // For threads: if name equals link, it means no title was set
+    const isThreadsCategory = item.category === 'threads'
+    setNewItemName(isThreadsCategory && item.name === item.link ? '' : item.name)
     setNewItemNote(item.note || '')
     setNewItemImage(item.imageUrl || '')
-    setNewItemLink(item.link || item.name || '') // For threads, the name IS the link
+    setNewItemLink(item.link || '')
     setIsAdding(true)
   }
 
@@ -665,14 +671,21 @@ export default function WishlistButton({
                       {/* Different form for Threads (link-only) vs other categories */}
                       {isLinkOnlyCategory ? (
                         <>
-                          {/* Threads - Link only form */}
+                          {/* Threads - Title + Link form */}
+                          <input
+                            type="text"
+                            value={newItemName}
+                            onChange={(e) => setNewItemName(e.target.value)}
+                            placeholder="標題（選填）"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm mb-2"
+                            autoFocus
+                          />
                           <input
                             type="url"
                             value={newItemLink}
                             onChange={(e) => setNewItemLink(e.target.value)}
                             placeholder="貼上 Threads 鏈結 (必填)"
                             className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm"
-                            autoFocus
                           />
                           <p className="text-xs text-gray-400 mt-1">
                             例如：https://www.threads.net/@user/post/xxx
@@ -825,7 +838,10 @@ export default function WishlistButton({
                               <div className="flex-1 min-w-0">
                                 {isThreadsItem ? (
                                   <>
-                                    {/* Threads - show link (truncated to 1 line) */}
+                                    {/* Threads - show title (if set) and link */}
+                                    {item.name && item.name !== item.link && (
+                                      <p className="font-medium text-gray-800 truncate">{item.name}</p>
+                                    )}
                                     <a
                                       href={item.link || item.name}
                                       target="_blank"
