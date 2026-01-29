@@ -48,6 +48,8 @@ interface WishlistButtonProps {
   totalDays?: number
   onAddToTrip?: (item: WishlistItem, day: number, time: string, category: string) => void
   onNavigateToDay?: (day: number) => void
+  isOpen?: boolean // Controlled open state (for mobile bottom nav)
+  onOpenChange?: (open: boolean) => void // Callback when open state changes
 }
 
 const STORAGE_KEY = 'japan_travel_wishlist'
@@ -87,9 +89,21 @@ function toSupabaseFormat(item: Omit<WishlistItem, 'id' | 'addedAt'>): Omit<Wish
 export default function WishlistButton({ 
   totalDays = 7, 
   onAddToTrip,
-  onNavigateToDay 
+  onNavigateToDay,
+  isOpen: controlledIsOpen,
+  onOpenChange
 }: WishlistButtonProps) {
-  const [isOpen, setIsOpen] = useState(false)
+  const [internalIsOpen, setInternalIsOpen] = useState(false)
+  
+  // Use controlled or uncontrolled state
+  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen
+  const setIsOpen = (open: boolean) => {
+    if (onOpenChange) {
+      onOpenChange(open)
+    } else {
+      setInternalIsOpen(open)
+    }
+  }
   const [activeTab, setActiveTab] = useState('cafe')
   const [activeFoodSubTab, setActiveFoodSubTab] = useState('restaurant') // Sub-tab for food category
   const [wishlist, setWishlist] = useState<Wishlist>({
@@ -501,18 +515,18 @@ export default function WishlistButton({
 
   return (
     <>
-      {/* Floating Button - Circle on mobile, pill on desktop */}
+      {/* Floating Button - Hidden on mobile (uses bottom nav), shown on desktop */}
       <motion.button
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-[88px] right-6 z-30 bg-gradient-to-r from-pink-400 to-rose-500 text-white shadow-lg hover:from-pink-500 hover:to-rose-600 transition-all flex items-center justify-center gap-2 w-14 h-14 rounded-full md:w-auto md:h-auto md:p-4 md:rounded-2xl"
+        className="hidden md:flex fixed bottom-[88px] right-6 z-30 bg-gradient-to-r from-pink-400 to-rose-500 text-white shadow-lg hover:from-pink-500 hover:to-rose-600 transition-all items-center justify-center gap-2 p-4 rounded-2xl"
         title="心願清單"
       >
         <span className="text-xl">💝</span>
-        <span className="hidden md:inline font-medium text-sm">心願清單</span>
+        <span className="font-medium text-sm">心願清單</span>
       </motion.button>
 
       {/* Wishlist Modal - Centered */}

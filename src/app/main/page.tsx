@@ -212,6 +212,11 @@ export default function MainPage() {
   // Mobile map popup state
   const [showMapPopup, setShowMapPopup] = useState(false)
   
+  // Mobile bottom nav state
+  const [activeBottomTab, setActiveBottomTab] = useState<'home' | 'map' | 'wishlist' | 'info'>('home')
+  const [showWishlistPopup, setShowWishlistPopup] = useState(false)
+  const [showInfoPopup, setShowInfoPopup] = useState(false)
+  
   useEffect(() => {
     setIsAdmin(canEdit())
     setIsActualAdmin(checkIsAdmin())
@@ -682,23 +687,16 @@ export default function MainPage() {
         animate={{ opacity: 1, y: 0 }}
         className="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-md border-b border-sakura-100"
       >
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🌸</span>
-            <h1 className="text-xl font-medium text-gray-800">
+        <div className="container mx-auto px-4 py-3 md:py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 md:gap-3">
+            <span className="text-xl md:text-2xl">🌸</span>
+            <h1 className="text-lg md:text-xl font-medium text-gray-800">
               <span className="text-sakura-500">{settings?.title || '日本旅遊'}</span>
             </h1>
           </div>
           
-          <nav className="flex items-center gap-2 md:gap-4">
-            {/* Map Button - Mobile only, moved from bottom */}
-            <button
-              onClick={() => setShowMapPopup(true)}
-              className="md:hidden flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-sakura-600 hover:bg-sakura-50 rounded-lg transition-colors"
-            >
-              <span>🗺️</span>
-              <span>地圖</span>
-            </button>
+          {/* Desktop only nav */}
+          <nav className="hidden md:flex items-center gap-4">
             {/* Admin Control Panel Button - Admin only */}
             {isActualAdmin && (
               <Link
@@ -714,13 +712,13 @@ export default function MainPage() {
       </motion.header>
 
       {/* Main Content */}
-      <div className="pt-16 h-screen flex flex-col md:flex-row">
+      <div className="pt-14 md:pt-16 h-screen flex flex-col md:flex-row">
         {/* Sidebar - Trip List - Full height on mobile */}
         <motion.aside
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.2 }}
-          className="w-full h-full md:h-auto md:w-1/2 bg-white/90 backdrop-blur-sm border-r border-sakura-100 overflow-y-auto pb-20 md:pb-0"
+          className="w-full h-full md:h-auto md:w-1/2 bg-white/90 backdrop-blur-sm border-r border-sakura-100 overflow-y-auto pb-24 md:pb-0"
         >
           <div className="p-4">
             {/* Home Location Card - Now at TOP with background image */}
@@ -1081,31 +1079,89 @@ export default function MainPage() {
         </motion.div>
       </div>
       
-      {/* Mobile: Floating Mode Toggle Button */}
-      <div className="md:hidden fixed bottom-6 left-6 z-50">
-        {/* Mode Toggle Button with Click Hint */}
-        <div className="relative">
+      {/* Mobile: Airbnb-style Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-area-bottom">
+        <div className="flex items-center justify-around h-16 px-2">
+          {/* Home/Itinerary Tab */}
+          <button
+            onClick={() => setActiveBottomTab('home')}
+            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+              activeBottomTab === 'home' ? 'text-sakura-500' : 'text-gray-400'
+            }`}
+          >
+            <span className="text-xl mb-0.5">📋</span>
+            <span className="text-[10px] font-medium">行程</span>
+          </button>
+          
+          {/* Map Tab */}
+          <button
+            onClick={() => {
+              setActiveBottomTab('map')
+              setShowMapPopup(true)
+            }}
+            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+              activeBottomTab === 'map' ? 'text-sakura-500' : 'text-gray-400'
+            }`}
+          >
+            <span className="text-xl mb-0.5">🗺️</span>
+            <span className="text-[10px] font-medium">地圖</span>
+          </button>
+          
+          {/* Wishlist Tab */}
+          <button
+            onClick={() => {
+              setActiveBottomTab('wishlist')
+              setShowWishlistPopup(true)
+            }}
+            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+              activeBottomTab === 'wishlist' ? 'text-sakura-500' : 'text-gray-400'
+            }`}
+          >
+            <span className="text-xl mb-0.5">💖</span>
+            <span className="text-[10px] font-medium">心願</span>
+          </button>
+          
+          {/* Sakura Mode Tab */}
           <button
             onClick={() => {
               toggleSakuraMode()
-              // Hide hint after first click
               if (typeof window !== 'undefined') {
                 localStorage.setItem('mode_toggle_clicked', 'true')
               }
             }}
-            className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 ${
-              isSakuraMode 
-                ? 'bg-pink-400 hover:bg-pink-500' 
-                : 'bg-gray-100 hover:bg-gray-200'
+            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+              isSakuraMode ? 'text-pink-500' : 'text-gray-400'
             }`}
           >
-            <span className="text-2xl">{isSakuraMode ? '🌸' : '🔘'}</span>
+            <span className="text-xl mb-0.5">{isSakuraMode ? '🌸' : '🔘'}</span>
+            <span className="text-[10px] font-medium">櫻花</span>
           </button>
           
-          {/* Click Hint - Only on mobile, hide after clicked */}
-          <ModeToggleHint />
+          {/* Admin/Info Tab */}
+          {isActualAdmin ? (
+            <Link
+              href="/admin"
+              className="flex flex-col items-center justify-center flex-1 h-full text-gray-400"
+            >
+              <span className="text-xl mb-0.5">⚙️</span>
+              <span className="text-[10px] font-medium">控制台</span>
+            </Link>
+          ) : (
+            <button
+              onClick={() => {
+                setActiveBottomTab('info')
+                setShowInfoPopup(true)
+              }}
+              className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                activeBottomTab === 'info' ? 'text-sakura-500' : 'text-gray-400'
+              }`}
+            >
+              <span className="text-xl mb-0.5">ℹ️</span>
+              <span className="text-[10px] font-medium">資訊</span>
+            </button>
+          )}
         </div>
-      </div>
+      </nav>
       
       {/* Mobile: Map Popup */}
       <AnimatePresence>
@@ -1114,8 +1170,11 @@ export default function MainPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="md:hidden fixed inset-0 bg-black/50 z-50"
-            onClick={() => setShowMapPopup(false)}
+            className="md:hidden fixed inset-0 bg-black/50 z-[60]"
+            onClick={() => {
+              setShowMapPopup(false)
+              setActiveBottomTab('home')
+            }}
           >
             <motion.div
               initial={{ y: '100%' }}
@@ -1129,7 +1188,10 @@ export default function MainPage() {
               <div className="flex items-center justify-between p-4 border-b border-gray-100">
                 <h3 className="font-medium text-gray-800">地圖</h3>
                 <button
-                  onClick={() => setShowMapPopup(false)}
+                  onClick={() => {
+                    setShowMapPopup(false)
+                    setActiveBottomTab('home')
+                  }}
                   className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
                 >
                   ✕
@@ -1146,6 +1208,7 @@ export default function MainPage() {
                     setSelectedTripId(id)
                     if (id === null) {
                       setShowMapPopup(false)
+                      setActiveBottomTab('home')
                     }
                   }}
                 />
@@ -1158,13 +1221,24 @@ export default function MainPage() {
       {/* Chiikawa Pet - Floating character when sakura mode is on */}
       <ChiikawaPet enabled={isSakuraMode} />
 
-      {/* Daily Popup - Bottom Right */}
-      <DailyPopup />
+      {/* Daily Popup - Bottom Right - Hidden on mobile */}
+      <div className="hidden md:block">
+        <DailyPopup />
+      </div>
 
-      {/* Wishlist Button - Above DailyPopup */}
+      {/* Wishlist Button - Hidden on mobile (shown via bottom nav) */}
       <WishlistButton 
         totalDays={settings?.totalDays || 7}
-        onNavigateToDay={(day) => setSelectedDay(day)}
+        isOpen={showWishlistPopup}
+        onOpenChange={(open) => {
+          setShowWishlistPopup(open)
+          if (!open) setActiveBottomTab('home')
+        }}
+        onNavigateToDay={(day) => {
+          setSelectedDay(day)
+          setShowWishlistPopup(false)
+          setActiveBottomTab('home')
+        }}
         onAddToTrip={async (item, day, time, category) => {
           // Get the date for this day
           if (!settings?.tripStartDate) return
@@ -1197,11 +1271,80 @@ export default function MainPage() {
             const updatedTrips = await getTrips()
             setTrips(updatedTrips)
             setSelectedDay(day)
+            setShowWishlistPopup(false)
+            setActiveBottomTab('home')
           } catch (error) {
             console.error('Failed to create trip from wishlist:', error)
           }
         }}
       />
+      
+      
+      {/* Mobile: Info Popup */}
+      <AnimatePresence>
+        {showInfoPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="md:hidden fixed inset-0 bg-black/50 z-[60]"
+            onClick={() => {
+              setShowInfoPopup(false)
+              setActiveBottomTab('home')
+            }}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="absolute bottom-0 left-0 right-0 h-[50vh] bg-white rounded-t-3xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Popup Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <h3 className="font-medium text-gray-800">ℹ️ 資訊</h3>
+                <button
+                  onClick={() => {
+                    setShowInfoPopup(false)
+                    setActiveBottomTab('home')
+                  }}
+                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              {/* Info Content */}
+              <div className="p-4 space-y-4">
+                <div className="text-center py-6">
+                  <span className="text-4xl mb-4 block">🌸</span>
+                  <h4 className="text-lg font-medium text-gray-800 mb-2">{settings?.title || '日本旅遊'}</h4>
+                  <p className="text-sm text-gray-500">共 {settings?.totalDays || 7} 天行程</p>
+                  <p className="text-sm text-gray-500">{trips.length} 個目的地</p>
+                </div>
+                
+                {currentUser && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-sm text-gray-600">
+                      目前登入：<span className="font-medium">{currentUser.displayName}</span>
+                    </p>
+                    <button
+                      onClick={() => {
+                        logout()
+                        window.location.href = '/login'
+                      }}
+                      className="mt-3 w-full py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
+                    >
+                      登出
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Trip Form Modal */}
       <AnimatePresence>
