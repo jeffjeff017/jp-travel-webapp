@@ -153,37 +153,36 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
 
   return (
     <div 
-      className="fixed bottom-20 right-4 md:bottom-6 md:left-6 md:right-auto z-50 cursor-pointer select-none w-10 h-10 md:w-20 md:h-20 flex flex-col items-center justify-center"
+      className="fixed bottom-20 right-4 md:bottom-6 md:left-6 md:right-auto z-50 cursor-pointer select-none w-14 h-14 md:w-20 md:h-20 flex flex-col items-center justify-center"
       onClick={handleClick}
     >
-      {/* Speech Bubble - Positioned to the left on mobile, above on desktop */}
-      <AnimatePresence>
-        {isClicked && speechMessage && (
-          <motion.div
-            variants={speechBubbleVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="absolute right-full mr-1 md:right-auto md:bottom-full md:mb-2 md:mr-0 z-[100] md:left-1/2 md:-translate-x-1/2 top-1/2 -translate-y-1/2 md:top-auto md:translate-y-0"
-          >
-            <div className="bg-white px-1.5 py-1 md:px-3 md:py-2 rounded-lg md:rounded-xl shadow-lg border border-pink-200 md:border-2 whitespace-nowrap relative">
-              <span className="text-[8px] md:text-xs font-bold text-pink-500">
-                {speechMessage}
-              </span>
-              {/* Arrow - right side on mobile, bottom on desktop */}
-              <div className="hidden md:block absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white" />
-              <div className="md:hidden absolute top-1/2 -translate-y-1/2 -right-1.5 w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-white" />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Chiikawa Character */}
+      {/* Chiikawa Character with floating animation - bubble moves together */}
       <motion.div
         variants={floatingVariants}
         animate="animate"
         className="relative w-full h-full flex items-center justify-center"
       >
+        {/* Speech Bubble - Inside floating wrapper so it animates together */}
+        <AnimatePresence>
+          {isClicked && speechMessage && (
+            <motion.div
+              variants={speechBubbleVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="absolute right-full mr-1 md:right-auto md:bottom-full md:mb-2 md:mr-0 z-[100] md:left-1/2 md:-translate-x-1/2 top-1/2 -translate-y-1/2 md:top-auto md:translate-y-0"
+            >
+              <div className="bg-white px-2 py-1 md:px-3 md:py-2 rounded-lg md:rounded-xl shadow-lg border border-pink-200 md:border-2 whitespace-nowrap relative">
+                <span className="text-[10px] md:text-xs font-bold text-pink-500">
+                  {speechMessage}
+                </span>
+                {/* Arrow - right side on mobile, bottom on desktop */}
+                <div className="hidden md:block absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white" />
+                <div className="md:hidden absolute top-1/2 -translate-y-1/2 -right-1.5 w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-white" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <motion.div
           variants={isHappyBounce ? happyBounceVariants : clickVariants}
           initial="initial"
@@ -261,7 +260,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
           repeat: Infinity,
           ease: 'easeInOut',
         }}
-        className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 md:w-14 h-1.5 md:h-2 bg-black/20 rounded-full blur-sm"
+        className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-10 md:w-14 h-1.5 md:h-2 bg-black/20 rounded-full blur-sm"
       />
 
     </div>

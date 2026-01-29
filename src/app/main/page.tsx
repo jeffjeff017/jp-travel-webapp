@@ -830,7 +830,7 @@ export default function MainPage() {
       </AnimatePresence>
 
       {/* Main Content */}
-      <div className="pt-14 md:pt-16 h-screen flex flex-col md:flex-row">
+      <div className="pt-20 md:pt-16 h-screen flex flex-col md:flex-row">
         {/* Sidebar - Trip List - Full height on mobile */}
         <motion.aside
           initial={{ opacity: 0, x: -20 }}
