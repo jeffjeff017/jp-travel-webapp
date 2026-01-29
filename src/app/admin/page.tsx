@@ -549,15 +549,16 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-gray-50 pb-20 md:pb-0">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">⚙️</span>
-            <h1 className="text-xl font-medium text-gray-800">{t.admin.dashboard}</h1>
+        <div className="container mx-auto px-4 py-3 md:py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 md:gap-3">
+            <span className="text-xl md:text-2xl">⚙️</span>
+            <h1 className="text-lg md:text-xl font-medium text-gray-800">{t.admin.dashboard}</h1>
           </div>
-          <div className="flex items-center gap-4">
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-4">
             <LanguageSwitch />
             <a
               href="/main"
@@ -571,6 +572,10 @@ export default function AdminPage() {
             >
               {t.admin.logout}
             </button>
+          </div>
+          {/* Mobile: Language switch only */}
+          <div className="md:hidden">
+            <LanguageSwitch />
           </div>
         </div>
       </header>
@@ -2079,6 +2084,64 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+      
+      {/* Mobile: Airbnb-style Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-area-bottom">
+        <div className="flex items-center justify-around h-16 px-2">
+          {/* Settings Tab */}
+          <button
+            onClick={() => setShowSettings(true)}
+            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-purple-500 transition-colors"
+          >
+            <span className="text-xl mb-0.5">🎨</span>
+            <span className="text-[10px] font-medium">設定</span>
+          </button>
+          
+          {/* Users Tab */}
+          <button
+            onClick={async () => {
+              try {
+                const freshUsers = await getUsersAsync()
+                setUsers(freshUsers)
+              } catch (err) {
+                setUsers(getUsers())
+              }
+              setShowUserManagement(true)
+            }}
+            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-blue-500 transition-colors"
+          >
+            <span className="text-xl mb-0.5">👥</span>
+            <span className="text-[10px] font-medium">用戶</span>
+          </button>
+          
+          {/* View Site Tab */}
+          <a
+            href="/main"
+            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-green-500 transition-colors"
+          >
+            <span className="text-xl mb-0.5">🏠</span>
+            <span className="text-[10px] font-medium">查看</span>
+          </a>
+          
+          {/* Trash Tab */}
+          <button
+            onClick={() => setShowTrashBin(true)}
+            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-orange-500 transition-colors"
+          >
+            <span className="text-xl mb-0.5">🗑️</span>
+            <span className="text-[10px] font-medium">回收</span>
+          </button>
+          
+          {/* Logout Tab */}
+          <button
+            onClick={handleLogout}
+            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-red-500 transition-colors"
+          >
+            <span className="text-xl mb-0.5">🚪</span>
+            <span className="text-[10px] font-medium">登出</span>
+          </button>
+        </div>
+      </nav>
     </main>
   )
 }
