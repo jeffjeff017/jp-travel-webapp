@@ -191,7 +191,6 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
             )}
           </motion.div>
           <h1 className="text-2xl font-medium text-gray-800">{t.login.title}</h1>
-          <p className="text-gray-500 mt-2">{t.login.subtitle}</p>
         </div>
 
         {/* Login Form */}
@@ -248,19 +247,19 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
                 required
               />
             </div>
-            
-            {/* reCAPTCHA v3 indicator */}
-            {recaptchaEnabled && (
-              <p className="text-xs text-gray-400 text-center">
-                此網站受 reCAPTCHA 保護
-              </p>
-            )}
           </div>
+
+          {/* reCAPTCHA v3 indicator - shown above login button */}
+          {recaptchaEnabled && (
+            <p className="text-[10px] text-gray-400 text-center mt-4 mb-2">
+              此網站受 reCAPTCHA 保護
+            </p>
+          )}
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full mt-6 py-3 bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            className={`w-full py-3 bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${recaptchaEnabled ? '' : 'mt-6'}`}
           >
             {isLoading ? (
               <>
