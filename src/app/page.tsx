@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { useLanguage } from '@/lib/i18n'
+import SakuraCanvas from '@/components/SakuraCanvas'
 
 export default function LandingPage() {
   const [isTransitioning, setIsTransitioning] = useState(false)
@@ -19,7 +20,9 @@ export default function LandingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center overflow-hidden">
+    <main className="min-h-screen bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center overflow-hidden relative">
+      {/* Sakura Effect */}
+      <SakuraCanvas enabled={true} />
       <AnimatePresence mode="wait">
         {!isTransitioning ? (
           <motion.div
@@ -39,16 +42,6 @@ export default function LandingPage() {
             >
               <span className="text-sakura-500">日本</span>旅遊
             </motion.h1>
-
-            {/* Subtitle */}
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="text-gray-500 mb-8 text-lg"
-            >
-              {t.landing.subtitle}
-            </motion.p>
 
             {/* Decorative sakura */}
             <motion.div
