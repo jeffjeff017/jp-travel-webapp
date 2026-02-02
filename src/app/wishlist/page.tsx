@@ -52,6 +52,20 @@ const STORAGE_KEY = 'japan_travel_wishlist'
 const CACHE_KEY = 'japan_travel_wishlist_cache_time'
 const CACHE_DURATION = 5 * 60 * 1000
 
+// Helper function for Google Maps URL
+const getGoogleMapsUrl = (placeName: string) => {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeName + ' Japan')}`
+}
+
+// Check if a link is a Google Maps URL
+const isGoogleMapsLink = (link?: string) => {
+  if (!link) return false
+  return link.includes('google.com/maps') || link.includes('maps.google')
+}
+
+// Check if an item is a threads item (should not show Google Maps link)
+const isThreadsCategory = (category: string) => category === 'threads'
+
 // Convert from Supabase format to local format
 function fromSupabaseFormat(db: WishlistItemDB): WishlistItem {
   return {
@@ -472,6 +486,33 @@ export default function WishlistPage() {
                     <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.note}</p>
                   )}
                   
+                  {/* Link - Google Maps or custom link (not for threads) */}
+                  {!isThreadsCategory(item.category) && (
+                    <div className="mt-2">
+                      {item.link && !isGoogleMapsLink(item.link) ? (
+                        <a
+                          href={item.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600"
+                        >
+                          🔗 點擊連結轉跳
+                        </a>
+                      ) : (
+                        <a
+                          href={item.link && isGoogleMapsLink(item.link) ? item.link : getGoogleMapsUrl(item.name)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600"
+                        >
+                          🗺️ 在 Google Maps 查看
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  
                   {/* Actions */}
                   <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
                     <span className="text-xs text-gray-400">
@@ -766,8 +807,35 @@ export default function WishlistPage() {
                   <p className="text-gray-600 mb-4">{selectedItemPopup.note}</p>
                 )}
                 
-                {/* URL */}
-                {selectedItemPopup.link && (
+                {/* Link - Google Maps or custom link (not for threads) */}
+                {!isThreadsCategory(selectedItemPopup.category) && (
+                  <div className="mb-4">
+                    {selectedItemPopup.link && !isGoogleMapsLink(selectedItemPopup.link) ? (
+                      <a
+                        href={selectedItemPopup.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-blue-500 hover:text-blue-600"
+                      >
+                        <span>🔗</span>
+                        <span>點擊連結轉跳</span>
+                      </a>
+                    ) : (
+                      <a
+                        href={selectedItemPopup.link && isGoogleMapsLink(selectedItemPopup.link) ? selectedItemPopup.link : getGoogleMapsUrl(selectedItemPopup.name)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-blue-500 hover:text-blue-600"
+                      >
+                        <span>🗺️</span>
+                        <span>在 Google Maps 查看</span>
+                      </a>
+                    )}
+                  </div>
+                )}
+                
+                {/* Threads link */}
+                {isThreadsCategory(selectedItemPopup.category) && selectedItemPopup.link && (
                   <a
                     href={selectedItemPopup.link}
                     target="_blank"

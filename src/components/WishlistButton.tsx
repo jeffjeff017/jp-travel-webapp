@@ -742,6 +742,13 @@ export default function WishlistButton({
                             placeholder="備註 (選填)"
                             className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm mt-2"
                           />
+                          <input
+                            type="url"
+                            value={newItemLink}
+                            onChange={(e) => setNewItemLink(e.target.value)}
+                            placeholder="連結 (選填) - 例如：Instagram, 食記等"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm mt-2"
+                          />
                         </>
                       )}
                       
@@ -867,15 +874,26 @@ export default function WishlistButton({
                                     {item.note && (
                                       <p className="text-xs text-gray-500 mt-0.5">{item.note}</p>
                                     )}
-                                    {/* Google Maps Link - Below note */}
-                                    <a
-                                      href={getGoogleMapsUrl(item.name)}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 mt-1"
-                                    >
-                                      🗺️ 在 Google Maps 查看
-                                    </a>
+                                    {/* Link - Google Maps or custom link */}
+                                    {item.link && !item.link.includes('google.com/maps') && !item.link.includes('maps.google') ? (
+                                      <a
+                                        href={item.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 mt-1"
+                                      >
+                                        🔗 點擊連結轉跳
+                                      </a>
+                                    ) : (
+                                      <a
+                                        href={item.link && (item.link.includes('google.com/maps') || item.link.includes('maps.google')) ? item.link : getGoogleMapsUrl(item.name)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 mt-1"
+                                      >
+                                        🗺️ 在 Google Maps 查看
+                                      </a>
+                                    )}
                                     {item.addedToDay && (
                                       <button
                                         onClick={() => handleNavigateToDay(item.addedToDay!)}
