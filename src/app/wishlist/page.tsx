@@ -96,12 +96,7 @@ export default function WishlistPage() {
   })
   const [isLoading, setIsLoading] = useState(true)
   const [settings, setSettings] = useState<SiteSettings | null>(null)
-  const [isSakuraMode, setIsSakuraMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('sakura_mode') === 'true'
-    }
-    return false
-  })
+  const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [showTravelNotice, setShowTravelNotice] = useState(false)
   
@@ -111,11 +106,20 @@ export default function WishlistPage() {
   const [newItemName, setNewItemName] = useState('')
   const [newItemNote, setNewItemNote] = useState('')
   const [newItemImage, setNewItemImage] = useState('')
+  const [newItemUrl, setNewItemUrl] = useState('')
+  const [newItemCategory, setNewItemCategory] = useState('cafe')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selectedItemPopup, setSelectedItemPopup] = useState<WishlistItem | null>(null)
   
   useEffect(() => {
     setIsAdmin(checkIsAdmin())
+    
+    // Load sakura mode from localStorage
+    const savedSakuraMode = localStorage.getItem('sakura_mode')
+    if (savedSakuraMode === 'true') {
+      setIsSakuraMode(true)
+    }
     
     // Load settings
     const loadSettings = async () => {
@@ -252,12 +256,13 @@ export default function WishlistPage() {
     setIsSubmitting(true)
     
     try {
-      const category = getCurrentCategory()
+      const category = newItemCategory
       const newItem = {
         category,
         name: newItemName.trim(),
         note: newItemNote.trim() || undefined,
         imageUrl: newItemImage || undefined,
+        link: newItemUrl.trim() || undefined,
         isFavorite: false,
       }
       
@@ -277,6 +282,8 @@ export default function WishlistPage() {
       setNewItemName('')
       setNewItemNote('')
       setNewItemImage('')
+      setNewItemUrl('')
+      setNewItemCategory('cafe')
       setShowAddForm(false)
     } catch (err) {
       console.error('Failed to add item:', err)
@@ -420,7 +427,8 @@ export default function WishlistPage() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow group"
+                className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow group cursor-pointer"
+                onClick={() => setSelectedItemPopup(item)}
               >
                 {/* Image */}
                 <div className="relative aspect-[4/3] bg-gray-100">
@@ -470,7 +478,10 @@ export default function WishlistPage() {
                       {CATEGORIES.find(c => c.id === item.category || (c.id === 'food' && ['restaurant', 'bakery'].includes(item.category)))?.name || item.category}
                     </span>
                     <button
-                      onClick={() => handleDeleteItem(item)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteItem(item)
+                      }}
                       className="text-xs text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       刪除
@@ -512,37 +523,21 @@ export default function WishlistPage() {
               </div>
               
               <div className="space-y-4">
-                {/* Category indicator */}
-                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                  <span className="text-sm text-gray-500">分類：</span>
-                  <span className="text-sm font-medium text-gray-700">
-                    {CATEGORIES.find(c => c.id === (activeTab === 'all' ? 'cafe' : activeTab))?.icon}{' '}
-                    {activeTab === 'food' ? FOOD_SUBTABS.find(s => s.id === activeFoodSubTab)?.name : CATEGORIES.find(c => c.id === (activeTab === 'all' ? 'cafe' : activeTab))?.name}
-                  </span>
-                </div>
-                
-                {/* Name */}
+                {/* Category Selector */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">名稱 *</label>
-                  <input
-                    type="text"
-                    value={newItemName}
-                    onChange={(e) => setNewItemName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
-                    placeholder="輸入名稱..."
-                  />
-                </div>
-                
-                {/* Note */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
-                  <textarea
-                    value={newItemNote}
-                    onChange={(e) => setNewItemNote(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none resize-none"
-                    placeholder="輸入備註..."
-                    rows={2}
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">分類</label>
+                  <select
+                    value={newItemCategory}
+                    onChange={(e) => setNewItemCategory(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none bg-white"
+                  >
+                    <option value="cafe">☕ Cafe</option>
+                    <option value="restaurant">🍽️ 餐廳</option>
+                    <option value="bakery">🥐 麵包店</option>
+                    <option value="shopping">🛍️ Shopping</option>
+                    <option value="park">🌳 Park</option>
+                    <option value="threads">🔗 Threads</option>
+                  </select>
                 </div>
                 
                 {/* Image */}
@@ -574,6 +569,42 @@ export default function WishlistPage() {
                       <span className="text-sm">上傳圖片</span>
                     </button>
                   )}
+                </div>
+                
+                {/* Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">名稱 *</label>
+                  <input
+                    type="text"
+                    value={newItemName}
+                    onChange={(e) => setNewItemName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                    placeholder="輸入名稱..."
+                  />
+                </div>
+                
+                {/* Note */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
+                  <textarea
+                    value={newItemNote}
+                    onChange={(e) => setNewItemNote(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none resize-none"
+                    placeholder="輸入備註..."
+                    rows={2}
+                  />
+                </div>
+                
+                {/* URL */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">網址</label>
+                  <input
+                    type="url"
+                    value={newItemUrl}
+                    onChange={(e) => setNewItemUrl(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                    placeholder="https://..."
+                  />
                 </div>
               </div>
               
@@ -666,6 +697,119 @@ export default function WishlistPage() {
         )}
       </AnimatePresence>
       
+      {/* Item Detail Popup */}
+      <AnimatePresence>
+        {selectedItemPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center"
+            onClick={() => setSelectedItemPopup(null)}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="w-full md:max-w-lg bg-white rounded-t-3xl md:rounded-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Image */}
+              {selectedItemPopup.imageUrl && (
+                <div className="relative aspect-video bg-gray-100">
+                  <img
+                    src={selectedItemPopup.imageUrl}
+                    alt={selectedItemPopup.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    onClick={() => setSelectedItemPopup(null)}
+                    className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-black/50 text-white rounded-full"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+              
+              {/* Content */}
+              <div className="p-6">
+                {!selectedItemPopup.imageUrl && (
+                  <div className="flex justify-end mb-2">
+                    <button
+                      onClick={() => setSelectedItemPopup(null)}
+                      className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+                
+                {/* Category badge */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
+                    {CATEGORIES.find(c => c.id === selectedItemPopup.category || (c.id === 'food' && ['restaurant', 'bakery'].includes(selectedItemPopup.category)))?.icon}{' '}
+                    {selectedItemPopup.category === 'restaurant' ? '餐廳' : 
+                     selectedItemPopup.category === 'bakery' ? '麵包店' :
+                     CATEGORIES.find(c => c.id === selectedItemPopup.category)?.name || selectedItemPopup.category}
+                  </span>
+                  {selectedItemPopup.isFavorite && (
+                    <span className="text-red-500">❤️ 已收藏</span>
+                  )}
+                </div>
+                
+                {/* Title */}
+                <h2 className="text-xl font-semibold text-gray-800 mb-2">{selectedItemPopup.name}</h2>
+                
+                {/* Note */}
+                {selectedItemPopup.note && (
+                  <p className="text-gray-600 mb-4">{selectedItemPopup.note}</p>
+                )}
+                
+                {/* URL */}
+                {selectedItemPopup.link && (
+                  <a
+                    href={selectedItemPopup.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-blue-500 hover:text-blue-600 mb-4"
+                  >
+                    <span>🔗</span>
+                    <span className="underline truncate">{selectedItemPopup.link}</span>
+                  </a>
+                )}
+                
+                {/* Actions */}
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => {
+                      handleToggleFavorite(selectedItemPopup)
+                      setSelectedItemPopup({ ...selectedItemPopup, isFavorite: !selectedItemPopup.isFavorite })
+                    }}
+                    className={`flex-1 py-3 rounded-xl font-medium transition-colors ${
+                      selectedItemPopup.isFavorite 
+                        ? 'bg-red-50 text-red-500' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {selectedItemPopup.isFavorite ? '❤️ 取消收藏' : '🤍 收藏'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleDeleteItem(selectedItemPopup)
+                      setSelectedItemPopup(null)
+                    }}
+                    className="px-6 py-3 bg-red-50 text-red-500 rounded-xl font-medium hover:bg-red-100 transition-colors"
+                  >
+                    刪除
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
       {/* Mobile: Airbnb-style Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-area-bottom">
         <div className="flex items-center justify-around h-16 px-2">
@@ -698,7 +842,7 @@ export default function WishlistPage() {
             }`}
           >
             <span className="text-xl mb-0.5">{isSakuraMode ? '🌸' : '🔘'}</span>
-            <span className="text-[10px] font-medium">chiikawa</span>
+            <span className="text-[10px] font-medium">{isSakuraMode ? '摸摸Chiikawa' : '點擊'}</span>
           </button>
           
           {/* 旅遊須知 Tab */}

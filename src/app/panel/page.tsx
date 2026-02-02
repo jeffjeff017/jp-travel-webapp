@@ -167,12 +167,8 @@ export default function AdminPage() {
   // Expanded days state for trip grouping
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set())
   // Sakura mode state (synced with localStorage)
-  const [isSakuraMode, setIsSakuraMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('sakura_mode') === 'true'
-    }
-    return false
-  })
+  const [isSakuraMode, setIsSakuraMode] = useState(false)
+  const [isAdminUser, setIsAdminUser] = useState(false)
   const [trashItems, setTrashItems] = useState<{
     trips: Trip[]
     users: User[]
@@ -192,6 +188,13 @@ export default function AdminPage() {
         console.error('Failed to parse trash:', e)
       }
     }
+    // Load sakura mode from localStorage
+    const savedSakuraMode = localStorage.getItem('sakura_mode')
+    if (savedSakuraMode === 'true') {
+      setIsSakuraMode(true)
+    }
+    // Check if user is admin
+    setIsAdminUser(isAdmin())
   }, [])
   
   // Save trash to localStorage
@@ -587,7 +590,7 @@ export default function AdminPage() {
             </button>
           </div>
           {/* Mobile: Language switch only for admin */}
-          {isAdmin() && (
+          {isAdminUser && (
             <div className="md:hidden">
               <LanguageSwitch />
             </div>
@@ -617,6 +620,27 @@ export default function AdminPage() {
         {/* Bento Grid Layout */}
         <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-8">
           
+          {/* Mobile Logout Card - Full row */}
+          <div className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center">
+                  <span className="text-xl">🚪</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800 text-sm">登出帳號</h3>
+                  <p className="text-xs text-gray-500">退出目前登入的帳號</p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 text-sm bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-colors font-medium"
+              >
+                登出
+              </button>
+            </div>
+          </div>
+
           {/* Destination Switcher - Large Card (Full row on all screens) */}
           <div 
             className="col-span-2 lg:col-span-2 bg-gradient-to-br rounded-2xl p-4 md:p-6 text-white relative overflow-hidden"
@@ -809,27 +833,6 @@ export default function AdminPage() {
               className="mt-4 w-full py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
             >
               查看垃圾桶
-            </button>
-          </div>
-
-          {/* Mobile Logout Card */}
-          <div className="md:hidden bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center mb-3">
-                  <span className="text-xl">🚪</span>
-                </div>
-                <h3 className="font-semibold text-gray-800 mb-1">登出帳號</h3>
-                <p className="text-xs text-gray-500">
-                  退出目前登入的帳號
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="mt-4 w-full py-2 text-sm bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-colors font-medium"
-            >
-              登出
             </button>
           </div>
 
@@ -2272,7 +2275,7 @@ export default function AdminPage() {
             }`}
           >
             <span className="text-xl mb-0.5">{isSakuraMode ? '🌸' : '🔘'}</span>
-            <span className="text-[10px] font-medium">chiikawa</span>
+            <span className="text-[10px] font-medium">{isSakuraMode ? '摸摸Chiikawa' : '點擊'}</span>
           </button>
           
           {/* 旅遊須知 Tab */}
@@ -2338,19 +2341,19 @@ export default function AdminPage() {
                 </button>
               </div>
               
-              {/* Travel Notice Content */}
-              <div className="p-4 overflow-y-auto max-h-[calc(70vh-60px)]">
+              {/* Travel Notice Content - Checklist Style */}
+              <div className="overflow-y-auto max-h-[calc(70vh-60px)]">
                 {/* Travel Essentials */}
                 {travelEssentials && travelEssentials.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                  <div className="mb-4">
+                    <h4 className="font-medium text-gray-700 px-4 py-3 flex items-center gap-2 bg-gray-50">
                       <span>🎒</span>
                       <span>旅遊必備</span>
                     </h4>
-                    <div className="space-y-2">
+                    <div className="divide-y divide-gray-100">
                       {travelEssentials.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                          <span>{item.icon}</span>
+                        <div key={idx} className="flex items-center gap-3 px-4 py-3">
+                          <span className="text-lg">{item.icon}</span>
                           <span className="text-sm text-gray-700">{item.text}</span>
                         </div>
                       ))}
@@ -2361,14 +2364,14 @@ export default function AdminPage() {
                 {/* Travel Preparations */}
                 {travelPreparations && travelPreparations.length > 0 && (
                   <div>
-                    <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                    <h4 className="font-medium text-gray-700 px-4 py-3 flex items-center gap-2 bg-gray-50">
                       <span>📝</span>
                       <span>出發前準備</span>
                     </h4>
-                    <div className="space-y-2">
+                    <div className="divide-y divide-gray-100">
                       {travelPreparations.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                          <span>{item.icon}</span>
+                        <div key={idx} className="flex items-center gap-3 px-4 py-3">
+                          <span className="text-lg">{item.icon}</span>
                           <span className="text-sm text-gray-700">{item.text}</span>
                         </div>
                       ))}

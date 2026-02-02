@@ -179,13 +179,7 @@ const getWeatherIcon = (dayNum: number) => {
 export default function MainPage() {
   const [trips, setTrips] = useState<Trip[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isSakuraMode, setIsSakuraMode] = useState(() => {
-    // Initialize from localStorage
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('sakura_mode') === 'true'
-    }
-    return false
-  })
+  const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [settings, setSettings] = useState<SiteSettings | null>(null)
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null)
@@ -232,6 +226,11 @@ export default function MainPage() {
     setIsAdmin(canEdit())
     setIsActualAdmin(checkIsAdmin())
     setCurrentUser(getCurrentUser())
+    // Load sakura mode from localStorage
+    const savedSakuraMode = localStorage.getItem('sakura_mode')
+    if (savedSakuraMode === 'true') {
+      setIsSakuraMode(true)
+    }
   }, [])
 
   useEffect(() => {
@@ -1241,7 +1240,7 @@ export default function MainPage() {
             }`}
           >
             <span className="text-xl mb-0.5">{isSakuraMode ? '🌸' : '🔘'}</span>
-            <span className="text-[10px] font-medium">chiikawa</span>
+            <span className="text-[10px] font-medium">{isSakuraMode ? '摸摸Chiikawa' : '點擊'}</span>
           </button>
           
           {/* 旅遊須知 Tab */}
