@@ -371,7 +371,7 @@ export default function WishlistPage() {
   const foodCount = (wishlist.restaurant?.length || 0) + (wishlist.bakery?.length || 0)
   
   return (
-    <main className={`min-h-screen bg-gray-50 pb-24 ${!isSakuraMode ? 'clean-mode' : ''}`}>
+    <main className={`bg-gray-50 pb-20 ${!isSakuraMode ? 'clean-mode' : ''}`}>
       <SakuraCanvas enabled={isSakuraMode} />
       
       {/* Header - Airbnb style */}
