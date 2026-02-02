@@ -725,6 +725,12 @@ export default function MainPage() {
     }
   }
 
+  // Generate random avatar URL based on username
+  const getRandomAvatar = (username: string) => {
+    // Using DiceBear avatars API with "adventurer" style for cute avatars
+    return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(username)}&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede`
+  }
+
   const handleTripClick = (tripId: number) => {
     setSelectedTripId(tripId)
     // On mobile, show map popup when clicking a trip
@@ -1520,23 +1526,13 @@ export default function MainPage() {
                             {checkedUsers.length > 0 && (
                               <div className="flex -space-x-2">
                                 {checkedUsers.slice(0, 3).map((user, i) => (
-                                  user.avatarUrl ? (
-                                    <img 
-                                      key={i}
-                                      src={user.avatarUrl} 
-                                      alt={user.displayName}
-                                      className="w-6 h-6 rounded-full border-2 border-white object-cover"
-                                      title={user.displayName}
-                                    />
-                                  ) : (
-                                    <div 
-                                      key={i}
-                                      className="w-6 h-6 rounded-full bg-sakura-400 text-white text-xs flex items-center justify-center border-2 border-white"
-                                      title={user.displayName}
-                                    >
-                                      {user.displayName.charAt(0).toUpperCase()}
-                                    </div>
-                                  )
+                                  <img 
+                                    key={i}
+                                    src={user.avatarUrl || getRandomAvatar(user.username)} 
+                                    alt={user.displayName}
+                                    className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
+                                    title={user.displayName}
+                                  />
                                 ))}
                                 {checkedUsers.length > 3 && (
                                   <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">
@@ -1586,23 +1582,13 @@ export default function MainPage() {
                             {checkedUsers.length > 0 && (
                               <div className="flex -space-x-2">
                                 {checkedUsers.slice(0, 3).map((user, i) => (
-                                  user.avatarUrl ? (
-                                    <img 
-                                      key={i}
-                                      src={user.avatarUrl} 
-                                      alt={user.displayName}
-                                      className="w-6 h-6 rounded-full border-2 border-white object-cover"
-                                      title={user.displayName}
-                                    />
-                                  ) : (
-                                    <div 
-                                      key={i}
-                                      className="w-6 h-6 rounded-full bg-sakura-400 text-white text-xs flex items-center justify-center border-2 border-white"
-                                      title={user.displayName}
-                                    >
-                                      {user.displayName.charAt(0).toUpperCase()}
-                                    </div>
-                                  )
+                                  <img 
+                                    key={i}
+                                    src={user.avatarUrl || getRandomAvatar(user.username)} 
+                                    alt={user.displayName}
+                                    className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
+                                    title={user.displayName}
+                                  />
                                 ))}
                                 {checkedUsers.length > 3 && (
                                   <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">

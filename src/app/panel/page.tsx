@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
+import SakuraCanvas from '@/components/SakuraCanvas'
+import ChiikawaPet from '@/components/ChiikawaPet'
 import { logout, canAccessAdmin, isAdmin, getUsers, getUsersAsync, updateUser, updateUserAsync, deleteUser, deleteUserAsync, type User, type UserRole } from '@/lib/auth'
 import {
   getTrips,
@@ -562,7 +564,10 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-20 md:pb-0">
+    <main className={`min-h-screen bg-gray-50 pb-20 md:pb-0 ${!isSakuraMode ? 'clean-mode' : ''}`}>
+      {/* Sakura Effect */}
+      <SakuraCanvas enabled={isSakuraMode} />
+      
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3 md:py-4 flex items-center justify-between gap-4">
@@ -2238,6 +2243,11 @@ export default function AdminPage() {
             </div>
           )
         })()}
+      </div>
+      
+      {/* Chiikawa Pet - only show on mobile when sakura mode is on */}
+      <div className="md:hidden">
+        <ChiikawaPet enabled={isSakuraMode} />
       </div>
       
       {/* Mobile: Airbnb-style Bottom Navigation */}

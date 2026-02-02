@@ -15,6 +15,7 @@ import {
 import { getSettings, getSettingsAsync, type SiteSettings } from '@/lib/settings'
 import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, logout } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
+import ChiikawaPet from '@/components/ChiikawaPet'
 
 // Main categories
 const CATEGORIES = [
@@ -914,6 +915,11 @@ export default function WishlistPage() {
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* Chiikawa Pet - only show on mobile when sakura mode is on */}
+      <div className="md:hidden">
+        <ChiikawaPet enabled={isSakuraMode} />
+      </div>
       
       {/* Mobile: Airbnb-style Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-area-bottom">
