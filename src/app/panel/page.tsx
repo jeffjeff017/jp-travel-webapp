@@ -2270,12 +2270,28 @@ export default function AdminPage() {
                 localStorage.setItem('sakura_mode', String(newValue))
               }
             }}
-            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+            className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-300 ${
               isSakuraMode ? 'text-pink-500' : 'text-gray-400'
             }`}
           >
-            <span className="text-xl mb-0.5">{isSakuraMode ? '🌸' : '🔘'}</span>
-            <span className="text-[10px] font-medium">{isSakuraMode ? '摸摸Chiikawa' : '點擊'}</span>
+            <motion.span 
+              className="text-xl mb-0.5"
+              animate={{ 
+                scale: isSakuraMode ? [1, 1.3, 1] : 1,
+                rotate: isSakuraMode ? [0, 15, -15, 0] : 0
+              }}
+              transition={{ duration: 0.4 }}
+            >
+              {isSakuraMode ? '🌸' : '🔘'}
+            </motion.span>
+            <motion.span 
+              className="text-[10px] font-medium"
+              initial={false}
+              animate={{ opacity: 1, y: 0 }}
+              key={isSakuraMode ? 'sakura' : 'normal'}
+            >
+              {isSakuraMode ? '摸摸Chiikawa' : '點擊'}
+            </motion.span>
           </button>
           
           {/* 旅遊須知 Tab */}

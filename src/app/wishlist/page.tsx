@@ -125,6 +125,7 @@ export default function WishlistPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedItemPopup, setSelectedItemPopup] = useState<WishlistItem | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   
   useEffect(() => {
     setIsAdmin(checkIsAdmin())
@@ -233,15 +234,28 @@ export default function WishlistPage() {
     loadWishlist()
   }, [groupByCategory])
   
-  // Get filtered items based on active tab
+  // Get filtered items based on active tab and search query
   const getFilteredItems = () => {
+    let items: WishlistItem[] = []
+    
     if (activeTab === 'all') {
-      return Object.values(wishlist).flat()
+      items = Object.values(wishlist).flat()
+    } else if (activeTab === 'food') {
+      items = wishlist[activeFoodSubTab] || []
+    } else {
+      items = wishlist[activeTab] || []
     }
-    if (activeTab === 'food') {
-      return wishlist[activeFoodSubTab] || []
+    
+    // Apply search filter if there's a query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      items = items.filter(item => 
+        item.name.toLowerCase().includes(query) ||
+        (item.note && item.note.toLowerCase().includes(query))
+      )
     }
-    return wishlist[activeTab] || []
+    
+    return items
   }
   
   // Get current category for adding
@@ -365,6 +379,26 @@ export default function WishlistPage() {
             </button>
           </div>
           
+          {/* Search Field */}
+          <div className="relative mb-4">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜尋名稱或地區..."
+              className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          
           {/* Category Tabs - Airbnb style */}
           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
             {CATEGORIES.map((cat) => (
@@ -441,8 +475,11 @@ export default function WishlistPage() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow group cursor-pointer"
+                className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow group cursor-pointer select-none"
+                style={{ touchAction: 'manipulation' }}
                 onClick={() => setSelectedItemPopup(item)}
+                role="button"
+                tabIndex={0}
               >
                 {/* Image */}
                 <div className="relative aspect-[4/3] bg-gray-100">
@@ -905,12 +942,28 @@ export default function WishlistPage() {
                 localStorage.setItem('sakura_mode', String(newValue))
               }
             }}
-            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+            className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-300 ${
               isSakuraMode ? 'text-pink-500' : 'text-gray-400'
             }`}
           >
-            <span className="text-xl mb-0.5">{isSakuraMode ? '🌸' : '🔘'}</span>
-            <span className="text-[10px] font-medium">{isSakuraMode ? '摸摸Chiikawa' : '點擊'}</span>
+            <motion.span 
+              className="text-xl mb-0.5"
+              animate={{ 
+                scale: isSakuraMode ? [1, 1.3, 1] : 1,
+                rotate: isSakuraMode ? [0, 15, -15, 0] : 0
+              }}
+              transition={{ duration: 0.4 }}
+            >
+              {isSakuraMode ? '🌸' : '🔘'}
+            </motion.span>
+            <motion.span 
+              className="text-[10px] font-medium"
+              initial={false}
+              animate={{ opacity: 1, y: 0 }}
+              key={isSakuraMode ? 'sakura' : 'normal'}
+            >
+              {isSakuraMode ? '摸摸Chiikawa' : '點擊'}
+            </motion.span>
           </button>
           
           {/* 旅遊須知 Tab */}

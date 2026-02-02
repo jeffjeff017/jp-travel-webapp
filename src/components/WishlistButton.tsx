@@ -114,6 +114,7 @@ export default function WishlistButton({
     park: [],
     threads: [],
   })
+  const [searchQuery, setSearchQuery] = useState('')
   
   // Get the actual category ID for data storage
   const getActiveCategoryId = () => {
@@ -126,6 +127,16 @@ export default function WishlistButton({
   // Get count for food tab (sum of restaurant + bakery)
   const getFoodCount = () => {
     return (wishlist.restaurant?.length || 0) + (wishlist.bakery?.length || 0)
+  }
+  
+  // Get filtered items based on search query
+  const getFilteredItems = (items: WishlistItem[]) => {
+    if (!searchQuery.trim()) return items
+    const query = searchQuery.toLowerCase().trim()
+    return items.filter(item => 
+      item.name.toLowerCase().includes(query) ||
+      (item.note && item.note.toLowerCase().includes(query))
+    )
   }
   const [newItemName, setNewItemName] = useState('')
   const [newItemNote, setNewItemNote] = useState('')
@@ -655,8 +666,30 @@ export default function WishlistButton({
                   )}
                 </div>
                 
+                {/* Search Field */}
+                <div className="px-4 py-2 border-b border-gray-100">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="搜尋名稱或地區..."
+                      className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100 transition-all"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
                 {/* Content */}
-                <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(85vh - 160px)' }}>
+                <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(85vh - 210px)' }}>
                   {/* Add/Edit Form */}
                   {isAdding ? (
                     <motion.div
@@ -779,30 +812,48 @@ export default function WishlistButton({
                   )}
                   
                   {/* Items List */}
-                  {wishlist[getActiveCategoryId()]?.length === 0 && !isAdding ? (
-                    <div className="text-center py-8">
-                      {activeTab === 'threads' ? (
-                        <span className="flex justify-center mb-2">
-                          <Image
-                            src="/images/threads-logo.png"
-                            alt="Threads"
-                            width={48}
-                            height={48}
-                            className="object-contain"
-                          />
-                        </span>
-                      ) : (
-                        <span className="text-4xl block mb-2">
-                          {activeTab === 'food' 
-                            ? FOOD_SUBTABS.find(s => s.id === activeFoodSubTab)?.icon
-                            : CATEGORIES.find(c => c.id === activeTab)?.icon}
-                        </span>
-                      )}
-                      <p className="text-gray-400 text-sm">還沒有收藏任何項目</p>
-                    </div>
-                  ) : (
+                  {(() => {
+                    const currentItems = getFilteredItems(wishlist[getActiveCategoryId()] || [])
+                    const hasNoItems = wishlist[getActiveCategoryId()]?.length === 0
+                    const hasNoFilteredItems = currentItems.length === 0 && searchQuery.trim()
+                    
+                    if (hasNoItems && !isAdding) {
+                      return (
+                        <div className="text-center py-8">
+                          {activeTab === 'threads' ? (
+                            <span className="flex justify-center mb-2">
+                              <Image
+                                src="/images/threads-logo.png"
+                                alt="Threads"
+                                width={48}
+                                height={48}
+                                className="object-contain"
+                              />
+                            </span>
+                          ) : (
+                            <span className="text-4xl block mb-2">
+                              {activeTab === 'food' 
+                                ? FOOD_SUBTABS.find(s => s.id === activeFoodSubTab)?.icon
+                                : CATEGORIES.find(c => c.id === activeTab)?.icon}
+                            </span>
+                          )}
+                          <p className="text-gray-400 text-sm">還沒有收藏任何項目</p>
+                        </div>
+                      )
+                    }
+                    
+                    if (hasNoFilteredItems) {
+                      return (
+                        <div className="text-center py-8">
+                          <span className="text-4xl block mb-2">🔍</span>
+                          <p className="text-gray-400 text-sm">找不到符合「{searchQuery}」的項目</p>
+                        </div>
+                      )
+                    }
+                    
+                    return (
                     <div className="space-y-3">
-                      {getSortedItems(wishlist[getActiveCategoryId()] || []).map((item, index) => {
+                      {getSortedItems(currentItems).map((item, index) => {
                         const isThreadsItem = activeTab === 'threads'
                         
                         return (
@@ -1006,7 +1057,8 @@ export default function WishlistButton({
                         )
                       })}
                     </div>
-                  )}
+                    )
+                  })()}
                 </div>
               </div>
             </motion.div>
