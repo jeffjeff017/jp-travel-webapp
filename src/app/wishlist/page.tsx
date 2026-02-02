@@ -509,7 +509,7 @@ export default function WishlistPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full md:max-w-md bg-white rounded-t-3xl md:rounded-2xl p-6"
+              className="w-full md:max-w-md bg-white rounded-t-3xl md:rounded-2xl p-6 pb-24 md:pb-6 max-h-[85vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
@@ -712,7 +712,7 @@ export default function WishlistPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full md:max-w-lg bg-white rounded-t-3xl md:rounded-2xl overflow-hidden"
+              className="w-full md:max-w-lg bg-white rounded-t-3xl md:rounded-2xl overflow-hidden max-h-[85vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Image */}
@@ -733,7 +733,7 @@ export default function WishlistPage() {
               )}
               
               {/* Content */}
-              <div className="p-6">
+              <div className="p-6 pb-24 md:pb-6">
                 {!selectedItemPopup.imageUrl && (
                   <div className="flex justify-end mb-2">
                     <button

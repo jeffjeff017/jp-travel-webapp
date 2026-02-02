@@ -207,7 +207,7 @@ export default function MainPage() {
   // Check if user can edit (admin or regular user like "girl")
   const [isAdmin, setIsAdmin] = useState(false)
   const [isActualAdmin, setIsActualAdmin] = useState(false) // True only for admin role
-  const [currentUser, setCurrentUser] = useState<{ username: string; role: string; displayName: string } | null>(null)
+  const [currentUser, setCurrentUser] = useState<{ username: string; role: string; displayName: string; avatarUrl?: string } | null>(null)
   
   // Mobile map popup state
   const [showMapPopup, setShowMapPopup] = useState(false)
@@ -222,6 +222,9 @@ export default function MainPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchLocation, setSearchLocation] = useState<{ lat: number; lng: number; name: string } | null>(null)
   
+  // Travel notice checklist state
+  const [checkedItems, setCheckedItems] = useState<Record<string, { username: string; displayName: string; avatarUrl?: string }[]>>({})
+  
   useEffect(() => {
     setIsAdmin(canEdit())
     setIsActualAdmin(checkIsAdmin())
@@ -231,7 +234,52 @@ export default function MainPage() {
     if (savedSakuraMode === 'true') {
       setIsSakuraMode(true)
     }
+    // Load checked travel notice items from localStorage
+    const savedCheckedItems = localStorage.getItem('travel_notice_checked')
+    if (savedCheckedItems) {
+      try {
+        setCheckedItems(JSON.parse(savedCheckedItems))
+      } catch (e) {
+        console.error('Failed to parse checked items:', e)
+      }
+    }
   }, [])
+  
+  // Toggle travel notice item check
+  const toggleCheckItem = (itemKey: string) => {
+    if (!currentUser) return
+    
+    const user = { 
+      username: currentUser.username, 
+      displayName: currentUser.displayName,
+      avatarUrl: currentUser.avatarUrl 
+    }
+    
+    setCheckedItems(prev => {
+      const currentUsers = prev[itemKey] || []
+      const userIndex = currentUsers.findIndex(u => u.username === currentUser.username)
+      
+      let newUsers: typeof currentUsers
+      if (userIndex >= 0) {
+        // User already checked, remove them
+        newUsers = currentUsers.filter(u => u.username !== currentUser.username)
+      } else {
+        // User not checked, add them
+        newUsers = [...currentUsers, user]
+      }
+      
+      const newCheckedItems = { ...prev, [itemKey]: newUsers }
+      localStorage.setItem('travel_notice_checked', JSON.stringify(newCheckedItems))
+      return newCheckedItems
+    })
+  }
+  
+  // Check if current user has checked an item
+  const isItemCheckedByUser = (itemKey: string) => {
+    if (!currentUser) return false
+    const users = checkedItems[itemKey] || []
+    return users.some(u => u.username === currentUser.username)
+  }
 
   useEffect(() => {
     async function initializeData() {
@@ -1420,40 +1468,136 @@ export default function MainPage() {
                 </button>
               </div>
               
-              {/* Travel Notice Content */}
-              <div className="p-4 overflow-y-auto h-[calc(70vh-60px)]">
+              {/* Travel Notice Content - Checklist Style */}
+              <div className="overflow-y-auto h-[calc(70vh-60px)]">
                 {/* Travel Essentials */}
                 {settings?.travelEssentials && settings.travelEssentials.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                  <div className="mb-4">
+                    <h4 className="font-medium text-gray-700 px-4 py-3 flex items-center gap-2 bg-gray-50">
                       <span>🎒</span>
                       <span>旅遊必備</span>
                     </h4>
-                    <div className="space-y-2">
-                      {settings.travelEssentials.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                          <span>{item.icon}</span>
-                          <span className="text-sm text-gray-700">{item.text}</span>
-                        </div>
-                      ))}
+                    <div className="divide-y divide-gray-100">
+                      {settings.travelEssentials.map((item, idx) => {
+                        const itemKey = `essential_${item.icon}_${item.text}`
+                        const isChecked = isItemCheckedByUser(itemKey)
+                        const checkedUsers = checkedItems[itemKey] || []
+                        return (
+                          <div 
+                            key={idx} 
+                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                            onClick={() => toggleCheckItem(itemKey)}
+                          >
+                            {/* Checkbox */}
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isChecked 
+                                ? 'bg-green-500 border-green-500 text-white' 
+                                : 'border-gray-300'
+                            }`}>
+                              {isChecked && <span className="text-xs">✓</span>}
+                            </div>
+                            <span className="text-lg">{item.icon}</span>
+                            <span className={`text-sm flex-1 ${isChecked ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                              {item.text}
+                            </span>
+                            {/* Checked users avatars */}
+                            {checkedUsers.length > 0 && (
+                              <div className="flex -space-x-2">
+                                {checkedUsers.slice(0, 3).map((user, i) => (
+                                  user.avatarUrl ? (
+                                    <img 
+                                      key={i}
+                                      src={user.avatarUrl} 
+                                      alt={user.displayName}
+                                      className="w-6 h-6 rounded-full border-2 border-white object-cover"
+                                      title={user.displayName}
+                                    />
+                                  ) : (
+                                    <div 
+                                      key={i}
+                                      className="w-6 h-6 rounded-full bg-sakura-400 text-white text-xs flex items-center justify-center border-2 border-white"
+                                      title={user.displayName}
+                                    >
+                                      {user.displayName.charAt(0).toUpperCase()}
+                                    </div>
+                                  )
+                                ))}
+                                {checkedUsers.length > 3 && (
+                                  <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">
+                                    +{checkedUsers.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
                 
                 {/* Travel Preparations */}
                 {settings?.travelPreparations && settings.travelPreparations.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                  <div className="mb-4">
+                    <h4 className="font-medium text-gray-700 px-4 py-3 flex items-center gap-2 bg-gray-50">
                       <span>📝</span>
                       <span>出發前準備</span>
                     </h4>
-                    <div className="space-y-2">
-                      {settings.travelPreparations.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                          <span>{item.icon}</span>
-                          <span className="text-sm text-gray-700">{item.text}</span>
-                        </div>
-                      ))}
+                    <div className="divide-y divide-gray-100">
+                      {settings.travelPreparations.map((item, idx) => {
+                        const itemKey = `prep_${item.icon}_${item.text}`
+                        const isChecked = isItemCheckedByUser(itemKey)
+                        const checkedUsers = checkedItems[itemKey] || []
+                        return (
+                          <div 
+                            key={idx} 
+                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                            onClick={() => toggleCheckItem(itemKey)}
+                          >
+                            {/* Checkbox */}
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isChecked 
+                                ? 'bg-green-500 border-green-500 text-white' 
+                                : 'border-gray-300'
+                            }`}>
+                              {isChecked && <span className="text-xs">✓</span>}
+                            </div>
+                            <span className="text-lg">{item.icon}</span>
+                            <span className={`text-sm flex-1 ${isChecked ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                              {item.text}
+                            </span>
+                            {/* Checked users avatars */}
+                            {checkedUsers.length > 0 && (
+                              <div className="flex -space-x-2">
+                                {checkedUsers.slice(0, 3).map((user, i) => (
+                                  user.avatarUrl ? (
+                                    <img 
+                                      key={i}
+                                      src={user.avatarUrl} 
+                                      alt={user.displayName}
+                                      className="w-6 h-6 rounded-full border-2 border-white object-cover"
+                                      title={user.displayName}
+                                    />
+                                  ) : (
+                                    <div 
+                                      key={i}
+                                      className="w-6 h-6 rounded-full bg-sakura-400 text-white text-xs flex items-center justify-center border-2 border-white"
+                                      title={user.displayName}
+                                    >
+                                      {user.displayName.charAt(0).toUpperCase()}
+                                    </div>
+                                  )
+                                ))}
+                                {checkedUsers.length > 3 && (
+                                  <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">
+                                    +{checkedUsers.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
