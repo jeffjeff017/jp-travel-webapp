@@ -17,6 +17,10 @@ import {
   DEFAULT_DESTINATIONS,
   saveSupabaseDestination,
   deleteSupabaseDestination,
+  getSupabaseWishlistItems,
+  updateSupabaseWishlistItem,
+  deleteSupabaseWishlistItem,
+  type WishlistItemDB,
 } from '@/lib/supabase'
 import { 
   getSettings, 
@@ -168,6 +172,11 @@ export default function AdminPage() {
   const [showTrashBin, setShowTrashBin] = useState(false)
   // Expanded days state for trip grouping
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set())
+  // Wishlist management state
+  const [showWishlistManagement, setShowWishlistManagement] = useState(false)
+  const [wishlistItems, setWishlistItems] = useState<WishlistItemDB[]>([])
+  const [editingWishlistItem, setEditingWishlistItem] = useState<WishlistItemDB | null>(null)
+  const [wishlistSearchQuery, setWishlistSearchQuery] = useState('')
   // Sakura mode state (synced with localStorage)
   const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [isAdminUser, setIsAdminUser] = useState(false)
@@ -271,6 +280,37 @@ export default function AdminPage() {
       setMessage({ type: 'error', text: '載入行程失敗' })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const loadWishlistItems = async () => {
+    try {
+      const items = await getSupabaseWishlistItems()
+      setWishlistItems(items)
+    } catch (err) {
+      console.error('Failed to load wishlist items:', err)
+    }
+  }
+
+  const handleDeleteWishlistItem = async (item: WishlistItemDB) => {
+    if (!confirm(`確定要刪除「${item.name}」嗎？`)) return
+    try {
+      await deleteSupabaseWishlistItem(item.id)
+      setWishlistItems(prev => prev.filter(i => i.id !== item.id))
+      setMessage({ type: 'success', text: '已刪除收藏項目' })
+    } catch (err) {
+      setMessage({ type: 'error', text: '刪除失敗' })
+    }
+  }
+
+  const handleUpdateWishlistItem = async (item: WishlistItemDB, updates: Partial<WishlistItemDB>) => {
+    try {
+      await updateSupabaseWishlistItem(item.id, updates)
+      setWishlistItems(prev => prev.map(i => i.id === item.id ? { ...i, ...updates } : i))
+      setEditingWishlistItem(null)
+      setMessage({ type: 'success', text: '已更新收藏項目' })
+    } catch (err) {
+      setMessage({ type: 'error', text: '更新失敗' })
     }
   }
 
@@ -643,6 +683,28 @@ export default function AdminPage() {
               >
                 登出
               </button>
+            </div>
+          </div>
+
+          {/* Mobile Wishlist Management Card - Full row */}
+          <div 
+            className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+            onClick={() => {
+              loadWishlistItems()
+              setShowWishlistManagement(true)
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center">
+                  <span className="text-xl">💝</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800 text-sm">心願清單管理</h3>
+                  <p className="text-xs text-gray-500">編輯或刪除收藏的項目</p>
+                </div>
+              </div>
+              <span className="text-gray-400">→</span>
             </div>
           </div>
 
@@ -2334,6 +2396,184 @@ export default function AdminPage() {
           </button>
         </div>
       </nav>
+      
+      {/* Mobile: Wishlist Management Popup */}
+      <AnimatePresence>
+        {showWishlistManagement && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="md:hidden fixed inset-0 bg-black/50 z-[60]"
+            onClick={() => {
+              setShowWishlistManagement(false)
+              setEditingWishlistItem(null)
+            }}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="absolute bottom-0 left-0 right-0 h-[85vh] bg-white rounded-t-3xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Popup Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <h3 className="font-medium text-gray-800 flex items-center gap-2">
+                  <span>💝</span>
+                  <span>心願清單管理</span>
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowWishlistManagement(false)
+                    setEditingWishlistItem(null)
+                  }}
+                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              {/* Search */}
+              <div className="px-4 py-3 border-b border-gray-100">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+                  <input
+                    type="text"
+                    value={wishlistSearchQuery}
+                    onChange={(e) => setWishlistSearchQuery(e.target.value)}
+                    placeholder="搜尋名稱..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400"
+                  />
+                </div>
+              </div>
+              
+              {/* Wishlist Items */}
+              <div className="overflow-y-auto h-[calc(85vh-130px)] p-4">
+                {wishlistItems.length === 0 ? (
+                  <div className="text-center py-12">
+                    <span className="text-5xl mb-4 block">💝</span>
+                    <p className="text-gray-500">暫無收藏項目</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {wishlistItems
+                      .filter(item => !wishlistSearchQuery || item.name.toLowerCase().includes(wishlistSearchQuery.toLowerCase()))
+                      .sort((a, b) => (b.is_favorite ? 1 : 0) - (a.is_favorite ? 1 : 0))
+                      .map((item) => (
+                        <div key={item.id} className="bg-gray-50 rounded-xl p-3">
+                          {editingWishlistItem?.id === item.id ? (
+                            // Edit mode
+                            <div className="space-y-3">
+                              <input
+                                type="text"
+                                value={editingWishlistItem.name}
+                                onChange={(e) => setEditingWishlistItem({ ...editingWishlistItem, name: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-sakura-400"
+                                placeholder="名稱"
+                              />
+                              <textarea
+                                value={editingWishlistItem.note || ''}
+                                onChange={(e) => setEditingWishlistItem({ ...editingWishlistItem, note: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-sakura-400 resize-none"
+                                placeholder="備註"
+                                rows={2}
+                              />
+                              <input
+                                type="url"
+                                value={editingWishlistItem.link || ''}
+                                onChange={(e) => setEditingWishlistItem({ ...editingWishlistItem, link: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-sakura-400"
+                                placeholder="連結 (選填)"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => setEditingWishlistItem(null)}
+                                  className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm"
+                                >
+                                  取消
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateWishlistItem(item, {
+                                    name: editingWishlistItem.name,
+                                    note: editingWishlistItem.note,
+                                    link: editingWishlistItem.link,
+                                  })}
+                                  className="flex-1 py-2 bg-sakura-500 text-white rounded-lg text-sm"
+                                >
+                                  儲存
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            // View mode
+                            <div className="flex items-start gap-3">
+                              {/* Image */}
+                              {item.image_url ? (
+                                <img
+                                  src={item.image_url}
+                                  alt={item.name}
+                                  className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                                />
+                              ) : (
+                                <div className="w-16 h-16 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-2xl">
+                                    {item.category === 'cafe' ? '☕' :
+                                     item.category === 'restaurant' ? '🍽️' :
+                                     item.category === 'bakery' ? '🥐' :
+                                     item.category === 'shopping' ? '🛍️' :
+                                     item.category === 'park' ? '🌳' :
+                                     item.category === 'threads' ? '🔗' : '📌'}
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Content */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1">
+                                  <h4 className="font-medium text-gray-800 text-sm truncate">{item.name}</h4>
+                                  {item.is_favorite && <span className="text-red-500">❤️</span>}
+                                </div>
+                                {item.note && (
+                                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{item.note}</p>
+                                )}
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {item.category === 'cafe' ? 'Cafe' :
+                                   item.category === 'restaurant' ? '餐廳' :
+                                   item.category === 'bakery' ? '麵包店' :
+                                   item.category === 'shopping' ? 'Shopping' :
+                                   item.category === 'park' ? 'Park' :
+                                   item.category === 'threads' ? 'Threads' : item.category}
+                                </p>
+                              </div>
+                              
+                              {/* Actions */}
+                              <div className="flex gap-1 flex-shrink-0">
+                                <button
+                                  onClick={() => setEditingWishlistItem(item)}
+                                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-lg"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteWishlistItem(item)}
+                                  className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       {/* Mobile: Travel Notice Popup (Read-only) */}
       <AnimatePresence>

@@ -256,6 +256,13 @@ export default function WishlistPage() {
       )
     }
     
+    // Sort by favorite (favorites first)
+    items = [...items].sort((a, b) => {
+      if (a.isFavorite && !b.isFavorite) return -1
+      if (!a.isFavorite && b.isFavorite) return 1
+      return 0
+    })
+    
     return items
   }
   
@@ -551,20 +558,11 @@ export default function WishlistPage() {
                     </div>
                   )}
                   
-                  {/* Actions */}
-                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
+                  {/* Category */}
+                  <div className="mt-3 pt-2 border-t border-gray-50">
                     <span className="text-xs text-gray-400">
                       {CATEGORIES.find(c => c.id === item.category || (c.id === 'food' && ['restaurant', 'bakery'].includes(item.category)))?.name || item.category}
                     </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteItem(item)
-                      }}
-                      className="text-xs text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      刪除
-                    </button>
                   </div>
                 </div>
               </motion.div>
@@ -899,15 +897,6 @@ export default function WishlistPage() {
                     }`}
                   >
                     {selectedItemPopup.isFavorite ? '❤️ 取消收藏' : '🤍 收藏'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleDeleteItem(selectedItemPopup)
-                      setSelectedItemPopup(null)
-                    }}
-                    className="px-6 py-3 bg-red-50 text-red-500 rounded-xl font-medium hover:bg-red-100 transition-colors"
-                  >
-                    刪除
                   </button>
                 </div>
               </div>
