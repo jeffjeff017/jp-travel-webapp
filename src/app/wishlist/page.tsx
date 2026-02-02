@@ -24,6 +24,7 @@ const CATEGORIES = [
   { id: 'food', name: '餐廳', icon: '🍽️', color: 'from-red-400 to-pink-500', hasSubTabs: true },
   { id: 'shopping', name: 'Shopping', icon: '🛍️', color: 'from-purple-400 to-indigo-500' },
   { id: 'park', name: 'Park', icon: '🌳', color: 'from-green-400 to-emerald-500' },
+  { id: 'threads', name: 'Threads', icon: '🔗', color: 'from-gray-600 to-gray-800' },
 ]
 
 // Sub-tabs for food category
@@ -781,7 +782,8 @@ export default function WishlistPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center"
+            className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center overscroll-none"
+            style={{ touchAction: 'none' }}
             onClick={() => setSelectedItemPopup(null)}
           >
             <motion.div
@@ -789,7 +791,8 @@ export default function WishlistPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full md:max-w-lg bg-white rounded-t-3xl md:rounded-2xl overflow-hidden max-h-[85vh] overflow-y-auto"
+              className="w-full md:max-w-lg bg-white rounded-t-3xl md:rounded-2xl overflow-hidden max-h-[85vh] overflow-y-auto overscroll-contain"
+              style={{ WebkitOverflowScrolling: 'touch' }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Image */}
