@@ -30,9 +30,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Protect /panel routes - admin only
+  // Protect /panel routes - require any authentication (not just admin)
   if (pathname.startsWith('/panel')) {
-    if (!isAdmin) {
+    if (!isAuthenticated) {
       const loginUrl = new URL('/login', request.url)
       return NextResponse.redirect(loginUrl)
     }

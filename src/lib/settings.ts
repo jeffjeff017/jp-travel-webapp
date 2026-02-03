@@ -36,6 +36,12 @@ export interface SiteSettings {
   travelPreparations?: TravelNoticeItem[]
   // reCAPTCHA setting
   recaptchaEnabled?: boolean
+  // Chiikawa widget custom messages per character (editable by admin)
+  chiikawaMessages?: {
+    chiikawa?: string[]
+    hachiware?: string[]
+    usagi?: string[]
+  }
 }
 
 // Default travel notice items
@@ -91,6 +97,7 @@ function fromSupabaseFormat(db: SiteSettingsDB): SiteSettings | null {
     travelEssentials: db.travel_essentials || defaultTravelEssentials,
     travelPreparations: db.travel_preparations || defaultTravelPreparations,
     recaptchaEnabled: db.recaptcha_enabled || false,
+    chiikawaMessages: db.chiikawa_messages || undefined,
   }
 }
 
@@ -106,6 +113,7 @@ function toSupabaseFormat(settings: Partial<SiteSettings>): Partial<Omit<SiteSet
   if (settings.travelEssentials !== undefined) result.travel_essentials = settings.travelEssentials
   if (settings.travelPreparations !== undefined) result.travel_preparations = settings.travelPreparations
   if (settings.recaptchaEnabled !== undefined) result.recaptcha_enabled = settings.recaptchaEnabled
+  if (settings.chiikawaMessages !== undefined) result.chiikawa_messages = settings.chiikawaMessages
   
   return result
 }

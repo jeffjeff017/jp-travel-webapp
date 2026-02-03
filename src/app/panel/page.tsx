@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
-import { logout, canAccessAdmin, isAdmin, getUsers, getUsersAsync, updateUser, updateUserAsync, deleteUser, deleteUserAsync, type User, type UserRole } from '@/lib/auth'
+import { logout, canAccessAdmin, isAdmin, isAuthenticated, getCurrentUser, getUsers, getUsersAsync, updateUser, updateUserAsync, deleteUser, deleteUserAsync, type User, type UserRole } from '@/lib/auth'
 import {
   getTrips,
   createTrip,
@@ -149,6 +149,9 @@ export default function AdminPage() {
   const [showTravelNotice, setShowTravelNotice] = useState(false)
   const [showTravelNoticePopup, setShowTravelNoticePopup] = useState(false) // Mobile read-only popup
   const [travelEssentials, setTravelEssentials] = useState<TravelNoticeItem[]>([])
+  // Checklist state for travel notice
+  const [checkedItems, setCheckedItems] = useState<Record<string, { username: string; displayName: string; avatarUrl?: string }[]>>({})
+  const [currentUser, setCurrentUser] = useState<{ username: string; role: string; displayName: string; avatarUrl?: string } | null>(null)
   const [travelPreparations, setTravelPreparations] = useState<TravelNoticeItem[]>([])
   const [newItemText, setNewItemText] = useState('')
   const [newItemIcon, setNewItemIcon] = useState('📌')
@@ -177,6 +180,19 @@ export default function AdminPage() {
   const [wishlistItems, setWishlistItems] = useState<WishlistItemDB[]>([])
   const [editingWishlistItem, setEditingWishlistItem] = useState<WishlistItemDB | null>(null)
   const [wishlistSearchQuery, setWishlistSearchQuery] = useState('')
+  // Chiikawa widget dialogue state
+  const [showChiikawaEdit, setShowChiikawaEdit] = useState(false)
+  const [chiikawaMessages, setChiikawaMessages] = useState<{
+    chiikawa: string[]
+    hachiware: string[]
+    usagi: string[]
+  }>({
+    chiikawa: ['呀哈！ヤハ！', '噗嚕嚕嚕嚕！プルルルル！', '嗚拉！ウラ！', '哈？ハァ？'],
+    hachiware: ['チャリメラ〜 查露麵拉～', 'わははは！おかしいね！哇哈哈哈！太有趣了吧！'],
+    usagi: ['ウンッ！嗯！', 'ワッ！ワッ！哇！哇！'],
+  })
+  const [newChiikawaMessage, setNewChiikawaMessage] = useState('')
+  const [editingCharacter, setEditingCharacter] = useState<'chiikawa' | 'hachiware' | 'usagi'>('chiikawa')
   // Sakura mode state (synced with localStorage)
   const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [isAdminUser, setIsAdminUser] = useState(false)
@@ -206,7 +222,59 @@ export default function AdminPage() {
     }
     // Check if user is admin
     setIsAdminUser(isAdmin())
+    // Load current user
+    setCurrentUser(getCurrentUser())
+    // Load checked travel notice items from localStorage
+    const savedCheckedItems = localStorage.getItem('travel_notice_checked')
+    if (savedCheckedItems) {
+      try {
+        setCheckedItems(JSON.parse(savedCheckedItems))
+      } catch (e) {
+        console.error('Failed to parse checked items:', e)
+      }
+    }
   }, [])
+  
+  // Generate random avatar URL based on username
+  const getRandomAvatar = (username: string) => {
+    return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(username)}&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede`
+  }
+  
+  // Toggle travel notice item check
+  const toggleCheckItem = (itemKey: string) => {
+    if (!currentUser) return
+    
+    const user = { 
+      username: currentUser.username, 
+      displayName: currentUser.displayName,
+      avatarUrl: currentUser.avatarUrl 
+    }
+    
+    setCheckedItems(prev => {
+      const currentUsers = prev[itemKey] || []
+      const userIndex = currentUsers.findIndex(u => u.username === currentUser.username)
+      
+      let newUsers: typeof currentUsers
+      if (userIndex >= 0) {
+        // User already checked, remove them
+        newUsers = currentUsers.filter(u => u.username !== currentUser.username)
+      } else {
+        // User not checked, add them
+        newUsers = [...currentUsers, user]
+      }
+      
+      const newCheckedItems = { ...prev, [itemKey]: newUsers }
+      localStorage.setItem('travel_notice_checked', JSON.stringify(newCheckedItems))
+      return newCheckedItems
+    })
+  }
+  
+  // Check if current user has checked an item
+  const isItemCheckedByUser = (itemKey: string) => {
+    if (!currentUser) return false
+    const users = checkedItems[itemKey] || []
+    return users.some(u => u.username === currentUser.username)
+  }
   
   // Save trash to localStorage
   const saveTrash = (newTrash: typeof trashItems) => {
@@ -223,7 +291,8 @@ export default function AdminPage() {
       // Small delay to ensure cookies are loaded
       await new Promise(resolve => setTimeout(resolve, 100))
       
-      if (!canAccessAdmin()) {
+      // Allow any authenticated user to access profile page
+      if (!isAuthenticated()) {
         window.location.href = '/login'
         return
       }
@@ -266,6 +335,19 @@ export default function AdminPage() {
         homeLocationImageUrl: settings.homeLocation?.imageUrl || ''
       })
       setRecaptchaEnabled(settings.recaptchaEnabled || false)
+      // Load chiikawa messages with defaults
+      const defaultMessages = {
+        chiikawa: ['呀哈！ヤハ！', '噗嚕嚕嚕嚕！プルルルル！', '嗚拉！ウラ！', '哈？ハァ？'],
+        hachiware: ['チャリメラ〜 查露麵拉～', 'わははは！おかしいね！哇哈哈哈！太有趣了吧！'],
+        usagi: ['ウンッ！嗯！', 'ワッ！ワッ！哇！哇！'],
+      }
+      if (settings.chiikawaMessages) {
+        setChiikawaMessages({
+          chiikawa: settings.chiikawaMessages.chiikawa || defaultMessages.chiikawa,
+          hachiware: settings.chiikawaMessages.hachiware || defaultMessages.hachiware,
+          usagi: settings.chiikawaMessages.usagi || defaultMessages.usagi,
+        })
+      }
     }
     
     initAdmin()
@@ -686,28 +768,70 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Mobile Wishlist Management Card - Full row */}
-          <div 
-            className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
-            onClick={() => {
-              loadWishlistItems()
-              setShowWishlistManagement(true)
-            }}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center">
-                  <span className="text-xl">💝</span>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-800 text-sm">心願清單管理</h3>
-                  <p className="text-xs text-gray-500">編輯或刪除收藏的項目</p>
+          {/* Mobile Admin Cards Row - Wishlist Management + Chiikawa Dialogue (Admin only) */}
+          {isAdminUser && (
+            <>
+              {/* Wishlist Management Card */}
+              <div 
+                className="md:hidden col-span-1 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => {
+                  loadWishlistItems()
+                  setShowWishlistManagement(true)
+                }}
+              >
+                <div className="flex flex-col items-center text-center gap-2">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center">
+                    <span className="text-xl">💝</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800 text-sm">心願清單管理</h3>
+                    <p className="text-xs text-gray-500">編輯或刪除項目</p>
+                  </div>
                 </div>
               </div>
-              <span className="text-gray-400">→</span>
-            </div>
-          </div>
+              
+              {/* Chiikawa Dialogue Edit Card */}
+              <div 
+                className="md:hidden col-span-1 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setShowChiikawaEdit(true)}
+              >
+                <div className="flex flex-col items-center text-center gap-2">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-300 to-pink-400 flex items-center justify-center">
+                    <span className="text-xl">🐹</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800 text-sm">Chiikawa 對白</h3>
+                    <p className="text-xs text-gray-500">編輯小精靈對話</p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+          
+          {/* Non-admin Mobile - Trip Management Card - Full row */}
+          {!isAdminUser && (
+            <a 
+              href="/main"
+              className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sakura-400 to-sakura-600 flex items-center justify-center">
+                    <span className="text-xl">📋</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800 text-sm">行程管理</h3>
+                    <p className="text-xs text-gray-500">查看及編輯旅行行程</p>
+                  </div>
+                </div>
+                <span className="text-gray-400">→</span>
+              </div>
+            </a>
+          )}
 
+          {/* Admin Only Content Below */}
+          {isAdminUser && (
+            <>
           {/* Destination Switcher - Large Card (Full row on all screens) */}
           <div 
             className="col-span-2 lg:col-span-2 bg-gradient-to-br rounded-2xl p-4 md:p-6 text-white relative overflow-hidden"
@@ -902,26 +1026,31 @@ export default function AdminPage() {
               查看垃圾桶
             </button>
           </div>
+            </>
+          )}
+          {/* End of Admin Only Content */}
 
         </div>
 
-        {/* Action Bar */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-medium text-gray-800">
-            {t.admin.manageTrips} ({trips.length})
-          </h2>
-          {/* Desktop only: Add trip button */}
-          <button
-            onClick={() => {
-              resetForm()
-              setShowForm(true)
-            }}
-            className="hidden md:flex px-4 py-2 text-white rounded-lg font-medium transition-colors items-center gap-2"
-            style={{ backgroundColor: themeColor }}
-          >
-            <span>+</span> {t.admin.addTrip}
-          </button>
-        </div>
+        {/* Action Bar - Admin Only */}
+        {isAdminUser && (
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-medium text-gray-800">
+              {t.admin.manageTrips} ({trips.length})
+            </h2>
+            {/* Desktop only: Add trip button */}
+            <button
+              onClick={() => {
+                resetForm()
+                setShowForm(true)
+              }}
+              className="hidden md:flex px-4 py-2 text-white rounded-lg font-medium transition-colors items-center gap-2"
+              style={{ backgroundColor: themeColor }}
+            >
+              <span>+</span> {t.admin.addTrip}
+            </button>
+          </div>
+        )}
 
         {/* Settings Modal */}
         <AnimatePresence>
@@ -2590,15 +2719,12 @@ export default function AdminPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute bottom-0 left-0 right-0 max-h-[70vh] bg-white rounded-t-3xl overflow-hidden"
+              className="absolute bottom-0 left-0 right-0 h-[70vh] bg-white rounded-t-3xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Popup Header */}
               <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                <h3 className="font-medium text-gray-800 flex items-center gap-2">
-                  <span>📖</span>
-                  <span>旅遊須知</span>
-                </h3>
+                <h3 className="font-medium text-gray-800">📖 旅遊須知</h3>
                 <button
                   onClick={() => setShowTravelNoticePopup(false)}
                   className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
@@ -2608,7 +2734,7 @@ export default function AdminPage() {
               </div>
               
               {/* Travel Notice Content - Checklist Style */}
-              <div className="overflow-y-auto max-h-[calc(70vh-60px)]">
+              <div className="overflow-y-auto h-[calc(70vh-60px)]">
                 {/* Travel Essentials */}
                 {travelEssentials && travelEssentials.length > 0 && (
                   <div className="mb-4">
@@ -2617,30 +2743,106 @@ export default function AdminPage() {
                       <span>旅遊必備</span>
                     </h4>
                     <div className="divide-y divide-gray-100">
-                      {travelEssentials.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-3 px-4 py-3">
-                          <span className="text-lg">{item.icon}</span>
-                          <span className="text-sm text-gray-700">{item.text}</span>
-                        </div>
-                      ))}
+                      {travelEssentials.map((item, idx) => {
+                        const itemKey = `essential_${item.icon}_${item.text}`
+                        const isChecked = isItemCheckedByUser(itemKey)
+                        const checkedUsers = checkedItems[itemKey] || []
+                        return (
+                          <div 
+                            key={idx} 
+                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                            onClick={() => toggleCheckItem(itemKey)}
+                          >
+                            {/* Checkbox */}
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isChecked 
+                                ? 'bg-green-500 border-green-500 text-white' 
+                                : 'border-gray-300'
+                            }`}>
+                              {isChecked && <span className="text-xs">✓</span>}
+                            </div>
+                            <span className="text-lg">{item.icon}</span>
+                            <span className={`text-sm flex-1 ${isChecked ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                              {item.text}
+                            </span>
+                            {/* Checked users avatars */}
+                            {checkedUsers.length > 0 && (
+                              <div className="flex -space-x-2">
+                                {checkedUsers.slice(0, 3).map((user, i) => (
+                                  <img 
+                                    key={i}
+                                    src={user.avatarUrl || getRandomAvatar(user.username)} 
+                                    alt={user.displayName}
+                                    className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
+                                    title={user.displayName}
+                                  />
+                                ))}
+                                {checkedUsers.length > 3 && (
+                                  <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">
+                                    +{checkedUsers.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
                 
                 {/* Travel Preparations */}
                 {travelPreparations && travelPreparations.length > 0 && (
-                  <div>
+                  <div className="mb-4">
                     <h4 className="font-medium text-gray-700 px-4 py-3 flex items-center gap-2 bg-gray-50">
                       <span>📝</span>
                       <span>出發前準備</span>
                     </h4>
                     <div className="divide-y divide-gray-100">
-                      {travelPreparations.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-3 px-4 py-3">
-                          <span className="text-lg">{item.icon}</span>
-                          <span className="text-sm text-gray-700">{item.text}</span>
-                        </div>
-                      ))}
+                      {travelPreparations.map((item, idx) => {
+                        const itemKey = `prep_${item.icon}_${item.text}`
+                        const isChecked = isItemCheckedByUser(itemKey)
+                        const checkedUsers = checkedItems[itemKey] || []
+                        return (
+                          <div 
+                            key={idx} 
+                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                            onClick={() => toggleCheckItem(itemKey)}
+                          >
+                            {/* Checkbox */}
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isChecked 
+                                ? 'bg-green-500 border-green-500 text-white' 
+                                : 'border-gray-300'
+                            }`}>
+                              {isChecked && <span className="text-xs">✓</span>}
+                            </div>
+                            <span className="text-lg">{item.icon}</span>
+                            <span className={`text-sm flex-1 ${isChecked ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                              {item.text}
+                            </span>
+                            {/* Checked users avatars */}
+                            {checkedUsers.length > 0 && (
+                              <div className="flex -space-x-2">
+                                {checkedUsers.slice(0, 3).map((user, i) => (
+                                  <img 
+                                    key={i}
+                                    src={user.avatarUrl || getRandomAvatar(user.username)} 
+                                    alt={user.displayName}
+                                    className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
+                                    title={user.displayName}
+                                  />
+                                ))}
+                                {checkedUsers.length > 3 && (
+                                  <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">
+                                    +{checkedUsers.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -2652,6 +2854,166 @@ export default function AdminPage() {
                     <p className="text-gray-500">暫無旅遊須知</p>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Mobile: Chiikawa Dialogue Edit Popup (Admin only) */}
+      <AnimatePresence>
+        {showChiikawaEdit && isAdminUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="md:hidden fixed inset-0 bg-black/50 z-[60]"
+            onClick={() => setShowChiikawaEdit(false)}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="absolute bottom-0 left-0 right-0 h-[85vh] bg-white rounded-t-3xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Popup Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <h3 className="font-medium text-gray-800">🐹 Chiikawa 對白設定</h3>
+                <button
+                  onClick={() => setShowChiikawaEdit(false)}
+                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              {/* Character Tabs */}
+              <div className="flex border-b border-gray-100">
+                <button
+                  onClick={() => setEditingCharacter('chiikawa')}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                    editingCharacter === 'chiikawa' 
+                      ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
+                      : 'text-gray-500'
+                  }`}
+                >
+                  <span className="block text-xl mb-1">🐹</span>
+                  ちいかわ
+                </button>
+                <button
+                  onClick={() => setEditingCharacter('hachiware')}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                    editingCharacter === 'hachiware' 
+                      ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
+                      : 'text-gray-500'
+                  }`}
+                >
+                  <span className="block text-xl mb-1">🐱</span>
+                  八ちゃん
+                </button>
+                <button
+                  onClick={() => setEditingCharacter('usagi')}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                    editingCharacter === 'usagi' 
+                      ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
+                      : 'text-gray-500'
+                  }`}
+                >
+                  <span className="block text-xl mb-1">🐰</span>
+                  うさぎ
+                </button>
+              </div>
+              
+              {/* Dialogue Edit Content */}
+              <div className="overflow-y-auto h-[calc(85vh-220px)] p-4">
+                {/* Add new message */}
+                <div className="flex gap-2 mb-4">
+                  <input
+                    type="text"
+                    value={newChiikawaMessage}
+                    onChange={(e) => setNewChiikawaMessage(e.target.value)}
+                    placeholder="輸入新對白..."
+                    className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newChiikawaMessage.trim()) {
+                        setChiikawaMessages(prev => ({
+                          ...prev,
+                          [editingCharacter]: [...prev[editingCharacter], newChiikawaMessage.trim()]
+                        }))
+                        setNewChiikawaMessage('')
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      if (newChiikawaMessage.trim()) {
+                        setChiikawaMessages(prev => ({
+                          ...prev,
+                          [editingCharacter]: [...prev[editingCharacter], newChiikawaMessage.trim()]
+                        }))
+                        setNewChiikawaMessage('')
+                      }
+                    }}
+                    disabled={!newChiikawaMessage.trim()}
+                    className="px-4 py-2.5 bg-sakura-500 hover:bg-sakura-600 disabled:bg-gray-300 text-white rounded-xl text-sm font-medium transition-colors"
+                  >
+                    新增
+                  </button>
+                </div>
+                
+                {/* Message list for current character */}
+                <div className="space-y-2">
+                  {chiikawaMessages[editingCharacter].map((msg, idx) => (
+                    <div 
+                      key={idx}
+                      className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl"
+                    >
+                      <span className="text-lg">💬</span>
+                      <span className="flex-1 text-sm text-gray-700">{msg}</span>
+                      <button
+                        onClick={() => {
+                          setChiikawaMessages(prev => ({
+                            ...prev,
+                            [editingCharacter]: prev[editingCharacter].filter((_, i) => i !== idx)
+                          }))
+                        }}
+                        className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  ))}
+                  
+                  {chiikawaMessages[editingCharacter].length === 0 && (
+                    <div className="text-center py-8">
+                      <span className="text-4xl mb-2 block">
+                        {editingCharacter === 'chiikawa' ? '🐹' : editingCharacter === 'hachiware' ? '🐱' : '🐰'}
+                      </span>
+                      <p className="text-sm text-gray-400">尚未設定對白</p>
+                      <p className="text-xs text-gray-400 mt-1">請新增對白</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Save Button */}
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100">
+                <button
+                  onClick={async () => {
+                    // Save to settings
+                    const settings = getSettings()
+                    const updatedSettings = { ...settings, chiikawaMessages }
+                    saveSettings(updatedSettings)
+                    await saveSettingsAsync({ chiikawaMessages })
+                    setMessage({ type: 'success', text: 'Chiikawa 對白已儲存' })
+                    setShowChiikawaEdit(false)
+                  }}
+                  className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
+                >
+                  儲存設定
+                </button>
               </div>
             </motion.div>
           </motion.div>

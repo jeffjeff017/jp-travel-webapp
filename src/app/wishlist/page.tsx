@@ -115,6 +115,9 @@ export default function WishlistPage() {
   const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [showTravelNotice, setShowTravelNotice] = useState(false)
+  // Checklist state for travel notice
+  const [checkedItems, setCheckedItems] = useState<Record<string, { username: string; displayName: string; avatarUrl?: string }[]>>({})
+  const [currentUser, setCurrentUser] = useState<{ username: string; role: string; displayName: string; avatarUrl?: string } | null>(null)
   
   // Add/Edit form state
   const [showAddForm, setShowAddForm] = useState(false)
@@ -131,11 +134,22 @@ export default function WishlistPage() {
   
   useEffect(() => {
     setIsAdmin(checkIsAdmin())
+    setCurrentUser(getCurrentUser())
     
     // Load sakura mode from localStorage
     const savedSakuraMode = localStorage.getItem('sakura_mode')
     if (savedSakuraMode === 'true') {
       setIsSakuraMode(true)
+    }
+    
+    // Load checked travel notice items from localStorage
+    const savedCheckedItems = localStorage.getItem('travel_notice_checked')
+    if (savedCheckedItems) {
+      try {
+        setCheckedItems(JSON.parse(savedCheckedItems))
+      } catch (e) {
+        console.error('Failed to parse checked items:', e)
+      }
     }
     
     // Load settings
@@ -149,6 +163,47 @@ export default function WishlistPage() {
     }
     loadSettings()
   }, [])
+  
+  // Generate random avatar URL based on username
+  const getRandomAvatar = (username: string) => {
+    return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(username)}&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede`
+  }
+  
+  // Toggle travel notice item check
+  const toggleCheckItem = (itemKey: string) => {
+    if (!currentUser) return
+    
+    const user = { 
+      username: currentUser.username, 
+      displayName: currentUser.displayName,
+      avatarUrl: currentUser.avatarUrl 
+    }
+    
+    setCheckedItems(prev => {
+      const currentUsers = prev[itemKey] || []
+      const userIndex = currentUsers.findIndex(u => u.username === currentUser.username)
+      
+      let newUsers: typeof currentUsers
+      if (userIndex >= 0) {
+        // User already checked, remove them
+        newUsers = currentUsers.filter(u => u.username !== currentUser.username)
+      } else {
+        // User not checked, add them
+        newUsers = [...currentUsers, user]
+      }
+      
+      const newCheckedItems = { ...prev, [itemKey]: newUsers }
+      localStorage.setItem('travel_notice_checked', JSON.stringify(newCheckedItems))
+      return newCheckedItems
+    })
+  }
+  
+  // Check if current user has checked an item
+  const isItemCheckedByUser = (itemKey: string) => {
+    if (!currentUser) return false
+    const users = checkedItems[itemKey] || []
+    return users.some(u => u.username === currentUser.username)
+  }
   
   // Group items by category
   const groupByCategory = useCallback((items: WishlistItem[]): Wishlist => {
@@ -706,14 +761,14 @@ export default function WishlistPage() {
         )}
       </AnimatePresence>
       
-      {/* Travel Notice Popup */}
+      {/* Travel Notice Popup - Checklist Style */}
       <AnimatePresence>
         {showTravelNotice && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center"
+            className="md:hidden fixed inset-0 bg-black/50 z-[60]"
             onClick={() => setShowTravelNotice(false)}
           >
             <motion.div
@@ -721,53 +776,137 @@ export default function WishlistPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full md:max-w-md bg-white rounded-t-3xl md:rounded-2xl max-h-[80vh] overflow-hidden"
+              className="absolute bottom-0 left-0 right-0 h-[70vh] bg-white rounded-t-3xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                <h3 className="font-semibold text-gray-800">旅遊須知</h3>
+                <h3 className="font-medium text-gray-800">📖 旅遊須知</h3>
                 <button
                   onClick={() => setShowTravelNotice(false)}
-                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
+                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
                 >
                   ✕
                 </button>
               </div>
-              <div className="p-4 overflow-y-auto max-h-[calc(80vh-60px)]">
+              <div className="overflow-y-auto h-[calc(70vh-60px)]">
+                {/* Travel Essentials */}
                 {settings?.travelEssentials && settings.travelEssentials.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                  <div className="mb-4">
+                    <h4 className="font-medium text-gray-700 px-4 py-3 flex items-center gap-2 bg-gray-50">
                       <span>🎒</span>
                       <span>旅遊必備</span>
                     </h4>
-                    <div className="space-y-2">
-                      {settings.travelEssentials.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                          <span>{item.icon}</span>
-                          <span className="text-sm text-gray-700">{item.text}</span>
-                        </div>
-                      ))}
+                    <div className="divide-y divide-gray-100">
+                      {settings.travelEssentials.map((item, idx) => {
+                        const itemKey = `essential_${item.icon}_${item.text}`
+                        const isChecked = isItemCheckedByUser(itemKey)
+                        const itemCheckedUsers = checkedItems[itemKey] || []
+                        return (
+                          <div 
+                            key={idx} 
+                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                            onClick={() => toggleCheckItem(itemKey)}
+                          >
+                            {/* Checkbox */}
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isChecked 
+                                ? 'bg-green-500 border-green-500 text-white' 
+                                : 'border-gray-300'
+                            }`}>
+                              {isChecked && <span className="text-xs">✓</span>}
+                            </div>
+                            <span className="text-lg">{item.icon}</span>
+                            <span className={`text-sm flex-1 ${isChecked ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                              {item.text}
+                            </span>
+                            {/* Checked users avatars */}
+                            {itemCheckedUsers.length > 0 && (
+                              <div className="flex -space-x-2">
+                                {itemCheckedUsers.slice(0, 3).map((user, i) => (
+                                  <img 
+                                    key={i}
+                                    src={user.avatarUrl || getRandomAvatar(user.username)} 
+                                    alt={user.displayName}
+                                    className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
+                                    title={user.displayName}
+                                  />
+                                ))}
+                                {itemCheckedUsers.length > 3 && (
+                                  <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">
+                                    +{itemCheckedUsers.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
+                
+                {/* Travel Preparations */}
                 {settings?.travelPreparations && settings.travelPreparations.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                  <div className="mb-4">
+                    <h4 className="font-medium text-gray-700 px-4 py-3 flex items-center gap-2 bg-gray-50">
                       <span>📝</span>
                       <span>出發前準備</span>
                     </h4>
-                    <div className="space-y-2">
-                      {settings.travelPreparations.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                          <span>{item.icon}</span>
-                          <span className="text-sm text-gray-700">{item.text}</span>
-                        </div>
-                      ))}
+                    <div className="divide-y divide-gray-100">
+                      {settings.travelPreparations.map((item, idx) => {
+                        const itemKey = `prep_${item.icon}_${item.text}`
+                        const isChecked = isItemCheckedByUser(itemKey)
+                        const itemCheckedUsers = checkedItems[itemKey] || []
+                        return (
+                          <div 
+                            key={idx} 
+                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                            onClick={() => toggleCheckItem(itemKey)}
+                          >
+                            {/* Checkbox */}
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isChecked 
+                                ? 'bg-green-500 border-green-500 text-white' 
+                                : 'border-gray-300'
+                            }`}>
+                              {isChecked && <span className="text-xs">✓</span>}
+                            </div>
+                            <span className="text-lg">{item.icon}</span>
+                            <span className={`text-sm flex-1 ${isChecked ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                              {item.text}
+                            </span>
+                            {/* Checked users avatars */}
+                            {itemCheckedUsers.length > 0 && (
+                              <div className="flex -space-x-2">
+                                {itemCheckedUsers.slice(0, 3).map((user, i) => (
+                                  <img 
+                                    key={i}
+                                    src={user.avatarUrl || getRandomAvatar(user.username)} 
+                                    alt={user.displayName}
+                                    className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
+                                    title={user.displayName}
+                                  />
+                                ))}
+                                {itemCheckedUsers.length > 3 && (
+                                  <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">
+                                    +{itemCheckedUsers.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
+                
+                {/* Empty State */}
                 {(!settings?.travelEssentials?.length && !settings?.travelPreparations?.length) && (
-                  <p className="text-gray-500 text-center py-8">暫無旅遊須知</p>
+                  <div className="text-center py-12">
+                    <span className="text-5xl mb-4 block">📖</span>
+                    <p className="text-gray-500">暫無旅遊須知</p>
+                  </div>
                 )}
               </div>
             </motion.div>

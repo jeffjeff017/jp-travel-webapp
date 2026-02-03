@@ -15,8 +15,15 @@ const CHARACTER_IMAGES = [
   '/images/chii-pet.png',
 ]
 
-// Character-specific messages
-const MESSAGES_BY_CHARACTER: Record<string, string[]> = {
+// Character key mapping
+const CHARACTER_KEYS: Record<string, 'chiikawa' | 'hachiware' | 'usagi'> = {
+  '/images/chiikawa-pet.png': 'chiikawa',
+  '/images/hachiware-pet.png': 'hachiware',
+  '/images/chii-pet.png': 'usagi',
+}
+
+// Default character-specific messages
+const DEFAULT_MESSAGES_BY_CHARACTER: Record<string, string[]> = {
   '/images/chii-pet.png': [
     'ウンッ！嗯！',
     'ワッ！ワッ！哇！哇！',
@@ -33,23 +40,53 @@ const MESSAGES_BY_CHARACTER: Record<string, string[]> = {
   ],
 }
 
+// Type for custom messages per character
+type CustomMessages = {
+  chiikawa?: string[]
+  hachiware?: string[]
+  usagi?: string[]
+}
+
 export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
   const [isClicked, setIsClicked] = useState(false)
   const [speechMessage, setSpeechMessage] = useState('')
   const [isHappyBounce, setIsHappyBounce] = useState(false)
   const [characterImage, setCharacterImage] = useState(CHARACTER_IMAGES[0])
+  const [customMessages, setCustomMessages] = useState<CustomMessages | null>(null)
 
-  // Select random character on mount
+  // Select random character on mount and load custom messages from settings
   useEffect(() => {
     const randomIndex = Math.floor(Math.random() * CHARACTER_IMAGES.length)
     setCharacterImage(CHARACTER_IMAGES[randomIndex])
+    
+    // Load custom messages from localStorage settings
+    try {
+      const settingsStr = localStorage.getItem('site_settings')
+      if (settingsStr) {
+        const settings = JSON.parse(settingsStr)
+        if (settings.chiikawaMessages) {
+          setCustomMessages(settings.chiikawaMessages)
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load chiikawa messages:', e)
+    }
   }, [])
 
-  // Random speech message on click based on current character
+  // Random speech message on click - use custom messages if available for this character
   const getRandomMessage = useCallback(() => {
-    const messages = MESSAGES_BY_CHARACTER[characterImage] || MESSAGES_BY_CHARACTER['/images/chiikawa-pet.png']
+    const characterKey = CHARACTER_KEYS[characterImage]
+    
+    // Check if custom messages exist for this specific character
+    if (customMessages && characterKey && customMessages[characterKey] && customMessages[characterKey]!.length > 0) {
+      const messages = customMessages[characterKey]!
+      return messages[Math.floor(Math.random() * messages.length)]
+    }
+    
+    // Otherwise fall back to default messages for this character
+    const messages = DEFAULT_MESSAGES_BY_CHARACTER[characterImage] || DEFAULT_MESSAGES_BY_CHARACTER['/images/chiikawa-pet.png']
     return messages[Math.floor(Math.random() * messages.length)]
-  }, [characterImage])
+  }, [characterImage, customMessages])
 
   // Handle click interaction
   const handleClick = useCallback(() => {

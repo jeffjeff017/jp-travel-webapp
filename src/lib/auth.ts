@@ -181,9 +181,13 @@ export async function deleteUserAsync(username: string): Promise<{ success: bool
 }
 
 // Login function - returns user info if successful
+// Username and password comparison is case-insensitive
 export function login(username: string, password: string): User | null {
   const users = getLocalUsers()
-  const user = users.find(u => u.username === username && u.password === password)
+  const user = users.find(u => 
+    u.username.toLowerCase() === username.toLowerCase() && 
+    u.password.toLowerCase() === password.toLowerCase()
+  )
   
   if (user) {
     // Generate token based on role
