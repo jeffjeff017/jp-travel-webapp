@@ -795,6 +795,46 @@ export default function AdminPage() {
             </div>
           </div>
 
+          {/* Mobile Travel Wallet Card - Full row */}
+          <div 
+            className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+            onClick={async () => {
+              // Load wallet data
+              const user = getCurrentUser()
+              if (user) {
+                const [personal, shared, settings] = await Promise.all([
+                  getSupabaseExpenses('personal', user.username),
+                  getSupabaseExpenses('shared'),
+                  getSupabaseWalletSettings(),
+                ])
+                setPersonalExpenses(personal)
+                setSharedExpenses(shared)
+                setWalletSettings(settings)
+                if (settings) {
+                  setBudgetForm({ amount: settings.shared_budget.toString() })
+                }
+              }
+              setShowWallet(true)
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                  <span className="text-xl">💰</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800 text-sm">旅行錢包</h3>
+                  <p className="text-xs text-gray-500">記錄旅程的洗費</p>
+                </div>
+              </div>
+              <div className="text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
           {/* Mobile Admin Cards Row - Wishlist Management + Chiikawa Dialogue (Admin only) */}
           {isAdminUser && (
             <>
@@ -1008,8 +1048,8 @@ export default function AdminPage() {
             </button>
           </div>
 
-          {/* Travel Wallet Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+          {/* Travel Wallet Card - Desktop only (mobile has full row above) */}
+          <div className="hidden md:block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center mb-3">
