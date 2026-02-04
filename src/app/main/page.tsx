@@ -1835,7 +1835,7 @@ export default function MainPage() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden"
             >
               <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                 <div>
@@ -1894,7 +1894,7 @@ export default function MainPage() {
                   </div>
 
                   {/* Date */}
-                  <div>
+                  <div className="overflow-hidden">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       日期 *
                     </label>
@@ -1902,7 +1902,7 @@ export default function MainPage() {
                       type="date"
                       value={formData.date}
                       onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                      className="w-full max-w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none box-border"
                       required
                     />
                   </div>

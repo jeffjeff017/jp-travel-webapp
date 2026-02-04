@@ -21,6 +21,18 @@ import {
   updateSupabaseWishlistItem,
   deleteSupabaseWishlistItem,
   type WishlistItemDB,
+  // Wallet/Expense
+  type ExpenseDB,
+  type ExpenseCategory,
+  type WalletSettingsDB,
+  EXPENSE_CATEGORIES,
+  USER_COLORS,
+  getSupabaseExpenses,
+  createSupabaseExpense,
+  updateSupabaseExpense,
+  deleteSupabaseExpense,
+  getSupabaseWalletSettings,
+  saveSupabaseWalletSettings,
 } from '@/lib/supabase'
 import { 
   getSettings, 
@@ -196,6 +208,21 @@ export default function AdminPage() {
   // Sakura mode state (synced with localStorage)
   const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [isAdminUser, setIsAdminUser] = useState(false)
+  // Travel Wallet state
+  const [showWallet, setShowWallet] = useState(false)
+  const [walletTab, setWalletTab] = useState<'personal' | 'shared'>('shared')
+  const [personalExpenses, setPersonalExpenses] = useState<ExpenseDB[]>([])
+  const [sharedExpenses, setSharedExpenses] = useState<ExpenseDB[]>([])
+  const [walletSettings, setWalletSettings] = useState<WalletSettingsDB | null>(null)
+  const [showExpenseForm, setShowExpenseForm] = useState(false)
+  const [editingExpense, setEditingExpense] = useState<ExpenseDB | null>(null)
+  const [expenseForm, setExpenseForm] = useState({
+    amount: '',
+    category: 'food' as ExpenseCategory,
+    note: '',
+  })
+  const [budgetForm, setBudgetForm] = useState({ amount: '' })
+  const [showBudgetForm, setShowBudgetForm] = useState(false)
   const [trashItems, setTrashItems] = useState<{
     trips: Trip[]
     users: User[]
@@ -978,6 +1005,47 @@ export default function AdminPage() {
               className="mt-4 w-full py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
             >
               編輯項目
+            </button>
+          </div>
+
+          {/* Travel Wallet Card */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center mb-3">
+                  <span className="text-xl">💰</span>
+                </div>
+                <h3 className="font-semibold text-gray-800 mb-1">旅行錢包</h3>
+                <p className="text-xs text-gray-500">
+                  記錄旅程的洗費
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  個人 / 共同支出
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                // Load wallet data
+                const user = getCurrentUser()
+                if (user) {
+                  const [personal, shared, settings] = await Promise.all([
+                    getSupabaseExpenses('personal', user.username),
+                    getSupabaseExpenses('shared'),
+                    getSupabaseWalletSettings(),
+                  ])
+                  setPersonalExpenses(personal)
+                  setSharedExpenses(shared)
+                  setWalletSettings(settings)
+                  if (settings) {
+                    setBudgetForm({ amount: settings.shared_budget.toString() })
+                  }
+                }
+                setShowWallet(true)
+              }}
+              className="mt-4 w-full py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
+            >
+              開啟錢包
             </button>
           </div>
 
@@ -1841,6 +1909,433 @@ export default function AdminPage() {
                     </button>
                   </div>
                 </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Travel Wallet Modal */}
+        <AnimatePresence>
+          {showWallet && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setShowWallet(false)
+                  setShowExpenseForm(false)
+                  setEditingExpense(null)
+                  setExpenseForm({ amount: '', category: 'food', note: '' })
+                }
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+              >
+                {/* Header */}
+                <div className="p-5 border-b border-gray-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-medium text-gray-800">💰 旅行錢包</h3>
+                    <button
+                      onClick={() => {
+                        setShowWallet(false)
+                        setShowExpenseForm(false)
+                        setEditingExpense(null)
+                      }}
+                      className="text-gray-400 hover:text-gray-600 text-xl"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  
+                  {/* Tabs */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setWalletTab('shared')}
+                      className={`flex-1 py-2.5 px-4 text-sm font-medium rounded-xl transition-colors ${
+                        walletTab === 'shared'
+                          ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-md'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      👥 共同支出
+                    </button>
+                    <button
+                      onClick={() => setWalletTab('personal')}
+                      className={`flex-1 py-2.5 px-4 text-sm font-medium rounded-xl transition-colors ${
+                        walletTab === 'personal'
+                          ? 'bg-gradient-to-r from-blue-400 to-blue-600 text-white shadow-md'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      👤 個人支出
+                    </button>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-5">
+                  {/* Shared Tab */}
+                  {walletTab === 'shared' && (
+                    <div className="space-y-4">
+                      {/* Budget Summary */}
+                      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-gray-600">預算</span>
+                          <button
+                            onClick={() => setShowBudgetForm(!showBudgetForm)}
+                            className="text-xs text-amber-600 hover:underline"
+                          >
+                            {showBudgetForm ? '取消' : '設定'}
+                          </button>
+                        </div>
+                        
+                        {showBudgetForm ? (
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              value={budgetForm.amount}
+                              onChange={(e) => setBudgetForm({ amount: e.target.value })}
+                              placeholder="輸入預算金額"
+                              className="flex-1 px-3 py-2 text-sm border border-amber-200 rounded-lg focus:border-amber-400 outline-none"
+                            />
+                            <button
+                              onClick={async () => {
+                                const amount = parseFloat(budgetForm.amount) || 0
+                                await saveSupabaseWalletSettings({ shared_budget: amount, currency: 'JPY' })
+                                setWalletSettings(prev => prev ? { ...prev, shared_budget: amount } : { id: 1, shared_budget: amount, currency: 'JPY', updated_at: new Date().toISOString() })
+                                setShowBudgetForm(false)
+                                setMessage({ type: 'success', text: '預算已更新！' })
+                              }}
+                              className="px-4 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
+                            >
+                              儲存
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="text-2xl font-bold text-gray-800">
+                              ¥{(walletSettings?.shared_budget || 0).toLocaleString()}
+                            </div>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-sm text-gray-500">已使用</span>
+                              <span className="text-sm font-medium text-orange-600">
+                                ¥{sharedExpenses.reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
+                              </span>
+                            </div>
+                            {(() => {
+                              const remaining = (walletSettings?.shared_budget || 0) - sharedExpenses.reduce((sum, e) => sum + e.amount, 0)
+                              return (
+                                <div className={`text-lg font-bold mt-1 ${remaining >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  餘額: ¥{remaining.toLocaleString()}
+                                </div>
+                              )
+                            })()}
+                          </>
+                        )}
+                      </div>
+
+                      {/* Expense List */}
+                      <div className="space-y-2">
+                        {sharedExpenses.length === 0 ? (
+                          <p className="text-center text-gray-400 text-sm py-8">尚無共同支出記錄</p>
+                        ) : (
+                          sharedExpenses.map((expense, index) => {
+                            const userColor = USER_COLORS[index % USER_COLORS.length]
+                            const category = EXPENSE_CATEGORIES.find(c => c.id === expense.category)
+                            return (
+                              <div
+                                key={expense.id}
+                                className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100 shadow-sm"
+                                style={{ borderLeftColor: userColor, borderLeftWidth: '3px' }}
+                              >
+                                {/* Avatar */}
+                                {expense.avatar_url ? (
+                                  <img src={expense.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                                ) : (
+                                  <div 
+                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium"
+                                    style={{ backgroundColor: userColor }}
+                                  >
+                                    {expense.display_name.charAt(0)}
+                                  </div>
+                                )}
+                                
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm">{category?.icon}</span>
+                                    <span className="text-sm font-medium text-gray-800 truncate">
+                                      {expense.note || category?.label}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-400">
+                                    {expense.display_name} · {new Date(expense.created_at).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                </div>
+                                
+                                <div className="text-right">
+                                  <p className="font-semibold text-red-600">-¥{expense.amount.toLocaleString()}</p>
+                                </div>
+                                
+                                {/* Edit/Delete for own expenses or admin */}
+                                {(currentUser?.username === expense.username || isAdminUser) && (
+                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={() => {
+                                        setEditingExpense(expense)
+                                        setExpenseForm({
+                                          amount: expense.amount.toString(),
+                                          category: expense.category,
+                                          note: expense.note || '',
+                                        })
+                                        setShowExpenseForm(true)
+                                      }}
+                                      className="p-1.5 text-xs text-blue-500 hover:bg-blue-50 rounded"
+                                    >
+                                      ✏️
+                                    </button>
+                                    <button
+                                      onClick={async () => {
+                                        if (confirm('確定要刪除此支出？')) {
+                                          await deleteSupabaseExpense(expense.id)
+                                          const fresh = await getSupabaseExpenses('shared')
+                                          setSharedExpenses(fresh)
+                                        }
+                                      }}
+                                      className="p-1.5 text-xs text-red-500 hover:bg-red-50 rounded"
+                                    >
+                                      🗑️
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Personal Tab */}
+                  {walletTab === 'personal' && (
+                    <div className="space-y-4">
+                      {/* Personal Summary */}
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                        <span className="text-sm text-gray-600">我的總支出</span>
+                        <div className="text-2xl font-bold text-gray-800 mt-1">
+                          ¥{personalExpenses.reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {personalExpenses.length} 筆記錄
+                        </p>
+                      </div>
+
+                      {/* Personal Expense List */}
+                      <div className="space-y-2">
+                        {personalExpenses.length === 0 ? (
+                          <p className="text-center text-gray-400 text-sm py-8">尚無個人支出記錄</p>
+                        ) : (
+                          personalExpenses.map((expense) => {
+                            const category = EXPENSE_CATEGORIES.find(c => c.id === expense.category)
+                            return (
+                              <div
+                                key={expense.id}
+                                className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100 shadow-sm"
+                              >
+                                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-lg">
+                                  {category?.icon}
+                                </div>
+                                
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-800 truncate">
+                                    {expense.note || category?.label}
+                                  </p>
+                                  <p className="text-xs text-gray-400">
+                                    {new Date(expense.created_at).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                </div>
+                                
+                                <div className="text-right">
+                                  <p className="font-semibold text-red-600">-¥{expense.amount.toLocaleString()}</p>
+                                </div>
+                                
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => {
+                                      setEditingExpense(expense)
+                                      setExpenseForm({
+                                        amount: expense.amount.toString(),
+                                        category: expense.category,
+                                        note: expense.note || '',
+                                      })
+                                      setShowExpenseForm(true)
+                                    }}
+                                    className="p-1.5 text-xs text-blue-500 hover:bg-blue-50 rounded"
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      if (confirm('確定要刪除此支出？')) {
+                                        await deleteSupabaseExpense(expense.id)
+                                        const fresh = await getSupabaseExpenses('personal', currentUser?.username)
+                                        setPersonalExpenses(fresh)
+                                      }
+                                    }}
+                                    className="p-1.5 text-xs text-red-500 hover:bg-red-50 rounded"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Add Expense Form (Floating) */}
+                <AnimatePresence>
+                  {showExpenseForm && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 20 }}
+                      className="absolute inset-x-0 bottom-0 bg-white border-t border-gray-200 rounded-t-2xl shadow-xl p-5"
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="font-medium text-gray-800">
+                          {editingExpense ? '編輯支出' : '新增支出'}
+                        </h4>
+                        <button
+                          onClick={() => {
+                            setShowExpenseForm(false)
+                            setEditingExpense(null)
+                            setExpenseForm({ amount: '', category: 'food', note: '' })
+                          }}
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {/* Amount */}
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">金額 (JPY)</label>
+                          <input
+                            type="number"
+                            value={expenseForm.amount}
+                            onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                            placeholder="0"
+                            className="w-full px-4 py-3 text-lg font-semibold border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
+                            autoFocus
+                          />
+                        </div>
+                        
+                        {/* Category */}
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">類別</label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {EXPENSE_CATEGORIES.map((cat) => (
+                              <button
+                                key={cat.id}
+                                onClick={() => setExpenseForm({ ...expenseForm, category: cat.id })}
+                                className={`py-2 px-3 text-sm rounded-lg border transition-colors flex items-center justify-center gap-1 ${
+                                  expenseForm.category === cat.id
+                                    ? 'border-amber-400 bg-amber-50 text-amber-700'
+                                    : 'border-gray-200 hover:border-gray-300'
+                                }`}
+                              >
+                                <span>{cat.icon}</span>
+                                <span>{cat.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {/* Note */}
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">備註（選填）</label>
+                          <input
+                            type="text"
+                            value={expenseForm.note}
+                            onChange={(e) => setExpenseForm({ ...expenseForm, note: e.target.value })}
+                            placeholder="例如：午餐拉麵"
+                            className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
+                          />
+                        </div>
+                        
+                        {/* Submit */}
+                        <button
+                          onClick={async () => {
+                            if (!expenseForm.amount) return
+                            
+                            const user = getCurrentUser()
+                            if (!user) return
+                            
+                            if (editingExpense) {
+                              // Update existing
+                              await updateSupabaseExpense(editingExpense.id, {
+                                amount: parseFloat(expenseForm.amount),
+                                category: expenseForm.category,
+                                note: expenseForm.note || null,
+                              })
+                            } else {
+                              // Create new
+                              await createSupabaseExpense({
+                                type: walletTab,
+                                username: user.username,
+                                display_name: user.displayName,
+                                avatar_url: user.avatarUrl || null,
+                                amount: parseFloat(expenseForm.amount),
+                                category: expenseForm.category,
+                                note: expenseForm.note || null,
+                              })
+                            }
+                            
+                            // Refresh data
+                            if (walletTab === 'shared') {
+                              const fresh = await getSupabaseExpenses('shared')
+                              setSharedExpenses(fresh)
+                            } else {
+                              const fresh = await getSupabaseExpenses('personal', user.username)
+                              setPersonalExpenses(fresh)
+                            }
+                            
+                            setShowExpenseForm(false)
+                            setEditingExpense(null)
+                            setExpenseForm({ amount: '', category: 'food', note: '' })
+                            setMessage({ type: 'success', text: editingExpense ? '支出已更新！' : '支出已新增！' })
+                          }}
+                          className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-medium rounded-xl transition-colors"
+                        >
+                          {editingExpense ? '更新' : '新增'}
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Footer - Add Button */}
+                {!showExpenseForm && (
+                  <div className="p-4 border-t border-gray-100">
+                    <button
+                      onClick={() => setShowExpenseForm(true)}
+                      className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+                    >
+                      <span className="text-lg">+</span>
+                      <span>新增{walletTab === 'shared' ? '共同' : '個人'}支出</span>
+                    </button>
+                  </div>
+                )}
               </motion.div>
             </motion.div>
           )}

@@ -687,3 +687,181 @@ export async function deleteSupabaseDestination(id: string): Promise<{ success: 
     return { success: false, error: err.message || '刪除目的地時發生錯誤' }
   }
 }
+
+// ============================================
+// Travel Wallet / Expenses
+// ============================================
+
+export type ExpenseCategory = 'food' | 'transport' | 'shopping' | 'entertainment' | 'accommodation' | 'other'
+
+export const EXPENSE_CATEGORIES: { id: ExpenseCategory; label: string; icon: string }[] = [
+  { id: 'food', label: '餐飲', icon: '🍜' },
+  { id: 'transport', label: '交通', icon: '🚃' },
+  { id: 'shopping', label: '購物', icon: '🛍️' },
+  { id: 'entertainment', label: '娛樂', icon: '🎮' },
+  { id: 'accommodation', label: '住宿', icon: '🏨' },
+  { id: 'other', label: '其他', icon: '📦' },
+]
+
+// User colors for shared wallet (avoiding green/red)
+export const USER_COLORS = [
+  '#3B82F6', // Blue
+  '#8B5CF6', // Purple
+  '#F59E0B', // Amber
+  '#06B6D4', // Cyan
+  '#EC4899', // Pink
+  '#6366F1', // Indigo
+]
+
+export type ExpenseDB = {
+  id: number
+  type: 'personal' | 'shared'
+  username: string
+  display_name: string
+  avatar_url: string | null
+  amount: number
+  category: ExpenseCategory
+  note: string | null
+  created_at: string
+}
+
+export type WalletSettingsDB = {
+  id: number
+  shared_budget: number
+  currency: string
+  updated_at: string
+}
+
+// Get all expenses (personal filtered by username, shared shows all)
+export async function getSupabaseExpenses(type: 'personal' | 'shared', username?: string): Promise<ExpenseDB[]> {
+  try {
+    let query = supabase
+      .from('expenses')
+      .select('*')
+      .eq('type', type)
+      .order('created_at', { ascending: false })
+    
+    if (type === 'personal' && username) {
+      query = query.eq('username', username)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      if (!error.message.includes('does not exist')) {
+        console.error('Error fetching expenses:', error.message)
+      }
+      return []
+    }
+
+    return data || []
+  } catch (err) {
+    console.error('Supabase expenses error:', err)
+    return []
+  }
+}
+
+export async function createSupabaseExpense(expense: Omit<ExpenseDB, 'id' | 'created_at'>): Promise<{ data: ExpenseDB | null; error: string | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('expenses')
+      .insert([expense])
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating expense:', error)
+      return { data: null, error: error.message }
+    }
+
+    return { data, error: null }
+  } catch (err: any) {
+    console.error('Create expense error:', err)
+    return { data: null, error: err.message || '新增支出時發生錯誤' }
+  }
+}
+
+export async function updateSupabaseExpense(id: number, expense: Partial<Omit<ExpenseDB, 'id' | 'created_at'>>): Promise<{ data: ExpenseDB | null; error: string | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('expenses')
+      .update(expense)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating expense:', error)
+      return { data: null, error: error.message }
+    }
+
+    return { data, error: null }
+  } catch (err: any) {
+    console.error('Update expense error:', err)
+    return { data: null, error: err.message || '更新支出時發生錯誤' }
+  }
+}
+
+export async function deleteSupabaseExpense(id: number): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { error } = await supabase
+      .from('expenses')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error deleting expense:', error)
+      return { success: false, error: error.message }
+    }
+
+    return { success: true, error: null }
+  } catch (err: any) {
+    console.error('Delete expense error:', err)
+    return { success: false, error: err.message || '刪除支出時發生錯誤' }
+  }
+}
+
+// Wallet settings (budget)
+export async function getSupabaseWalletSettings(): Promise<WalletSettingsDB | null> {
+  try {
+    const { data, error } = await supabase
+      .from('wallet_settings')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle()
+
+    if (error) {
+      if (!error.message.includes('does not exist')) {
+        console.error('Error fetching wallet settings:', error.message)
+      }
+      return null
+    }
+
+    return data
+  } catch (err) {
+    console.error('Supabase wallet settings error:', err)
+    return null
+  }
+}
+
+export async function saveSupabaseWalletSettings(settings: Partial<Omit<WalletSettingsDB, 'id' | 'updated_at'>>): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { error } = await supabase
+      .from('wallet_settings')
+      .upsert({
+        id: 1,
+        ...settings,
+        updated_at: new Date().toISOString()
+      })
+
+    if (error) {
+      console.error('Error saving wallet settings:', error)
+      return { success: false, error: error.message }
+    }
+
+    return { success: true, error: null }
+  } catch (err: any) {
+    console.error('Save wallet settings error:', err)
+    return { success: false, error: err.message || '儲存錢包設定時發生錯誤' }
+  }
+}
