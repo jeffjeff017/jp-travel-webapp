@@ -54,24 +54,51 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
   const [characterImage, setCharacterImage] = useState(CHARACTER_IMAGES[0])
   const [customMessages, setCustomMessages] = useState<CustomMessages | null>(null)
 
-  // Select random character on mount and load custom messages from settings
+  // Select random character on mount
   useEffect(() => {
     const randomIndex = Math.floor(Math.random() * CHARACTER_IMAGES.length)
     setCharacterImage(CHARACTER_IMAGES[randomIndex])
-    
-    // Load custom messages from localStorage settings
-    try {
-      const settingsStr = localStorage.getItem('site_settings')
-      if (settingsStr) {
-        const settings = JSON.parse(settingsStr)
-        if (settings.chiikawaMessages) {
-          setCustomMessages(settings.chiikawaMessages)
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load chiikawa messages:', e)
-    }
   }, [])
+  
+  // Load custom messages from settings - reload when enabled changes or on storage change
+  useEffect(() => {
+    const loadMessages = () => {
+      try {
+        const settingsStr = localStorage.getItem('site_settings')
+        if (settingsStr) {
+          const settings = JSON.parse(settingsStr)
+          if (settings.chiikawaMessages) {
+            setCustomMessages(settings.chiikawaMessages)
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load chiikawa messages:', e)
+      }
+    }
+    
+    // Load on mount and when enabled
+    loadMessages()
+    
+    // Listen for storage changes (when settings are updated in another tab or same page)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'site_settings') {
+        loadMessages()
+      }
+    }
+    
+    // Also listen for custom event when settings are saved in same page
+    const handleSettingsUpdate = () => {
+      loadMessages()
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('settingsUpdated', handleSettingsUpdate)
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('settingsUpdated', handleSettingsUpdate)
+    }
+  }, [enabled])
 
   // Random speech message on click - use custom messages if available for this character
   const getRandomMessage = useCallback(() => {

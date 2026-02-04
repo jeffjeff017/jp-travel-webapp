@@ -141,6 +141,9 @@ function saveLocalSettings(settings: SiteSettings): void {
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
     localStorage.setItem(SETTINGS_CACHE_KEY, Date.now().toString())
+    
+    // Dispatch custom event to notify components of settings update
+    window.dispatchEvent(new CustomEvent('settingsUpdated'))
   } catch (e) {
     console.error('Error saving settings to localStorage:', e)
   }
