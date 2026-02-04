@@ -8,6 +8,7 @@ interface ImageSliderProps {
   className?: string
   autoPlay?: boolean
   interval?: number
+  showCounter?: boolean // Show prominent counter badge (Airbnb style)
 }
 
 export default function ImageSlider({
@@ -15,6 +16,7 @@ export default function ImageSlider({
   className = '',
   autoPlay = true,
   interval = 6000, // Default 6 seconds
+  showCounter = false,
 }: ImageSliderProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
 
@@ -58,6 +60,12 @@ export default function ImageSlider({
             (e.target as HTMLImageElement).style.display = 'none'
           }}
         />
+        {/* Counter badge for single image */}
+        {showCounter && (
+          <div className="absolute bottom-4 right-4 bg-black/70 text-white text-sm font-medium px-3 py-1.5 rounded-lg">
+            1 / 1
+          </div>
+        )}
       </div>
     )
   }
@@ -122,10 +130,16 @@ export default function ImageSlider({
         ))}
       </div>
 
-      {/* Image Counter */}
-      <div className="absolute top-1 right-1 bg-black/40 text-white text-[10px] px-1.5 py-0.5 rounded">
-        {currentIndex + 1}/{images.length}
-      </div>
+      {/* Image Counter - Prominent style when showCounter is true */}
+      {showCounter ? (
+        <div className="absolute bottom-4 right-4 bg-black/70 text-white text-sm font-medium px-3 py-1.5 rounded-lg">
+          {currentIndex + 1} / {images.length}
+        </div>
+      ) : (
+        <div className="absolute top-1 right-1 bg-black/40 text-white text-[10px] px-1.5 py-0.5 rounded">
+          {currentIndex + 1}/{images.length}
+        </div>
+      )}
     </div>
   )
 }

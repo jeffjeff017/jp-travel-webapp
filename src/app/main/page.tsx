@@ -731,11 +731,19 @@ export default function MainPage() {
     return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(username)}&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede`
   }
 
+  // Trip detail view state (Airbnb-style)
+  const [showTripDetail, setShowTripDetail] = useState(false)
+  const [detailTrip, setDetailTrip] = useState<Trip | null>(null)
+  
   const handleTripClick = (tripId: number) => {
     setSelectedTripId(tripId)
-    // On mobile, show map popup when clicking a trip
+    // On mobile, show Airbnb-style detail view when clicking a trip
     if (window.innerWidth < 768) {
-      setShowMapPopup(true)
+      const trip = trips.find(t => t.id === tripId)
+      if (trip) {
+        setDetailTrip(trip)
+        setShowTripDetail(true)
+      }
     }
   }
 
@@ -1389,6 +1397,179 @@ export default function MainPage() {
                 />
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile: Airbnb-style Trip Detail View */}
+      <AnimatePresence>
+        {showTripDetail && detailTrip && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="md:hidden fixed inset-0 bg-white z-[70]"
+          >
+            {/* Scrollable Content */}
+            <div className="h-full overflow-y-auto pb-24">
+              {/* Image Section - Full Width with Overlay Buttons */}
+              <div className="relative">
+                {(() => {
+                  const images = parseImages(detailTrip.image_url)
+                  if (images.length > 0) {
+                    return (
+                      <div className="w-full h-[45vh] relative">
+                        <ImageSlider 
+                          images={images} 
+                          className="w-full h-full"
+                          autoPlay={false}
+                          showCounter={true}
+                        />
+                      </div>
+                    )
+                  }
+                  // Placeholder if no image
+                  return (
+                    <div className="w-full h-[30vh] bg-gradient-to-b from-sakura-100 to-sakura-50 flex items-center justify-center">
+                      <span className="text-6xl">🗾</span>
+                    </div>
+                  )
+                })()}
+                
+                {/* Back Button - Overlay */}
+                <button
+                  onClick={() => {
+                    setShowTripDetail(false)
+                    setDetailTrip(null)
+                  }}
+                  className="absolute top-4 left-4 w-9 h-9 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  ←
+                </button>
+                
+                {/* Top Right Buttons - Share & Map */}
+                <div className="absolute top-4 right-4 flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      // Open map with this trip selected
+                      setShowTripDetail(false)
+                      setShowMapPopup(true)
+                      setActiveBottomTab('map')
+                    }}
+                    className="w-9 h-9 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    🗺️
+                  </button>
+                </div>
+              </div>
+              
+              {/* Content Section */}
+              <div className="px-5 py-4 space-y-4">
+                {/* Date Badge */}
+                <span className="inline-block text-sm text-sakura-600 bg-sakura-100 px-3 py-1 rounded-full">
+                  {new Date(detailTrip.date).toLocaleDateString('zh-TW', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    weekday: 'short',
+                  })}
+                </span>
+                
+                {/* Title */}
+                <h1 className="text-2xl font-bold text-gray-800 leading-tight">
+                  {detailTrip.title}
+                </h1>
+                
+                {/* Location */}
+                <div className="flex items-start gap-2 bg-gray-50 rounded-xl p-4">
+                  <span className="text-xl">📍</span>
+                  <div className="flex-1">
+                    <p className="text-gray-700">{detailTrip.location}</p>
+                    <button
+                      onClick={() => {
+                        setShowTripDetail(false)
+                        setShowMapPopup(true)
+                        setActiveBottomTab('map')
+                      }}
+                      className="text-sm text-sakura-500 mt-1 hover:underline"
+                    >
+                      在地圖上查看 →
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Divider */}
+                <div className="border-t border-gray-100" />
+                
+                {/* Schedule Items - Always Expanded */}
+                {detailTrip.description && (
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                      <span>📋</span>
+                      行程明細
+                    </h3>
+                    <div className="space-y-2">
+                      {(() => {
+                        try {
+                          const items = JSON.parse(detailTrip.description)
+                          if (Array.isArray(items) && items.length > 0) {
+                            return items.map((item: any, idx: number) => (
+                              <div 
+                                key={idx} 
+                                className="flex items-start gap-3 p-3 bg-white border border-gray-100 rounded-xl"
+                              >
+                                {(item.time_start || item.time_end) && (
+                                  <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg whitespace-nowrap">
+                                    {item.time_start}{item.time_end ? ` - ${item.time_end}` : ''}
+                                  </span>
+                                )}
+                                <span className="text-gray-700 flex-1">{item.content}</span>
+                              </div>
+                            ))
+                          }
+                        } catch {
+                          // Legacy: render as HTML if not JSON
+                          return (
+                            <div 
+                              className="text-gray-600 bg-gray-50 rounded-xl p-4"
+                              dangerouslySetInnerHTML={{ __html: detailTrip.description }}
+                            />
+                          )
+                        }
+                        return null
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Bottom Action Bar - Fixed */}
+            {isAdmin && (
+              <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-5 py-4 safe-area-bottom">
+                <div className="flex gap-3">
+                  <button
+                    onClick={(e) => {
+                      setShowTripDetail(false)
+                      openEditForm(detailTrip, e)
+                    }}
+                    className="flex-1 py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    ✏️ 編輯行程
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      handleDeleteTrip(detailTrip.id, e)
+                      setShowTripDetail(false)
+                      setDetailTrip(null)
+                    }}
+                    className="py-3 px-4 border border-red-200 text-red-500 hover:bg-red-50 rounded-xl font-medium transition-colors"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
