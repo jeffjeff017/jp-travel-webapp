@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import { GoogleReCaptchaProvider, useGoogleReCaptcha } from 'react-google-recaptcha-v3'
-import { login, isAuthenticated, isAdmin } from '@/lib/auth'
+import { login, isAuthenticated } from '@/lib/auth'
 import { useLanguage } from '@/lib/i18n'
 import { getSettingsAsync } from '@/lib/settings'
 import SakuraCanvas from '@/components/SakuraCanvas'
@@ -80,12 +80,8 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
       if (user) {
         // Small delay to ensure cookie is set before redirect
         await new Promise(resolve => setTimeout(resolve, 100))
-        // Redirect based on role - admin goes to admin page, user goes to main
-        if (user.role === 'admin') {
-          window.location.href = '/panel'
-        } else {
-          window.location.href = '/main'
-        }
+        // All users redirect to main page after login
+        window.location.href = '/main'
       } else {
         setError(t.login.invalidCredentials)
         setIsLoading(false)
@@ -286,12 +282,8 @@ export default function LoginPage() {
       }
       
       if (isAuthenticated()) {
-        // Already logged in, redirect based on role
-        if (isAdmin()) {
-          router.replace('/panel')
-        } else {
-          router.replace('/main')
-        }
+        // Already logged in, redirect to main page
+        router.replace('/main')
       } else {
         setIsChecking(false)
       }
