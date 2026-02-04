@@ -2201,125 +2201,141 @@ export default function AdminPage() {
                   )}
                 </div>
 
-                {/* Add Expense Form (Floating) */}
+                {/* Add Expense Form (Full Screen Modal for Mobile) */}
                 <AnimatePresence>
                   {showExpenseForm && (
                     <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 20 }}
-                      className="absolute inset-x-0 bottom-0 bg-white border-t border-gray-200 rounded-t-2xl shadow-xl p-5"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 bg-black/50 z-[60] flex items-end sm:items-center justify-center"
+                      onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                          setShowExpenseForm(false)
+                          setEditingExpense(null)
+                          setExpenseForm({ amount: '', category: 'food', note: '' })
+                        }
+                      }}
                     >
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="font-medium text-gray-800">
-                          {editingExpense ? '編輯支出' : '新增支出'}
-                        </h4>
-                        <button
-                          onClick={() => {
-                            setShowExpenseForm(false)
-                            setEditingExpense(null)
-                            setExpenseForm({ amount: '', category: 'food', note: '' })
-                          }}
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          ×
-                        </button>
-                      </div>
-                      
-                      <div className="space-y-3">
-                        {/* Amount */}
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">金額 (JPY)</label>
-                          <input
-                            type="number"
-                            value={expenseForm.amount}
-                            onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                            placeholder="0"
-                            className="w-full px-4 py-3 text-lg font-semibold border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
-                            autoFocus
-                          />
+                      <motion.div
+                        initial={{ opacity: 0, y: 100 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 100 }}
+                        className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-xl max-h-[85vh] overflow-y-auto"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="sticky top-0 bg-white border-b border-gray-100 p-4 flex items-center justify-between">
+                          <h4 className="font-medium text-gray-800 text-lg">
+                            {editingExpense ? '編輯支出' : '新增支出'}
+                          </h4>
+                          <button
+                            onClick={() => {
+                              setShowExpenseForm(false)
+                              setEditingExpense(null)
+                              setExpenseForm({ amount: '', category: 'food', note: '' })
+                            }}
+                            className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center"
+                          >
+                            ×
+                          </button>
                         </div>
                         
-                        {/* Category */}
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">類別</label>
-                          <div className="grid grid-cols-3 gap-2">
-                            {EXPENSE_CATEGORIES.map((cat) => (
-                              <button
-                                key={cat.id}
-                                onClick={() => setExpenseForm({ ...expenseForm, category: cat.id })}
-                                className={`py-2 px-3 text-sm rounded-lg border transition-colors flex items-center justify-center gap-1 ${
-                                  expenseForm.category === cat.id
-                                    ? 'border-amber-400 bg-amber-50 text-amber-700'
-                                    : 'border-gray-200 hover:border-gray-300'
-                                }`}
-                              >
-                                <span>{cat.icon}</span>
-                                <span>{cat.label}</span>
-                              </button>
-                            ))}
+                        <div className="p-5 space-y-4">
+                          {/* Amount */}
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-2">金額 (JPY)</label>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              value={expenseForm.amount}
+                              onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                              placeholder="0"
+                              className="w-full px-4 py-4 text-xl font-semibold border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
+                              autoFocus
+                            />
                           </div>
+                          
+                          {/* Category */}
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-2">類別</label>
+                            <div className="grid grid-cols-3 gap-2">
+                              {EXPENSE_CATEGORIES.map((cat) => (
+                                <button
+                                  key={cat.id}
+                                  onClick={() => setExpenseForm({ ...expenseForm, category: cat.id })}
+                                  className={`py-3 px-3 text-sm rounded-xl border transition-colors flex items-center justify-center gap-1 ${
+                                    expenseForm.category === cat.id
+                                      ? 'border-amber-400 bg-amber-50 text-amber-700'
+                                      : 'border-gray-200 hover:border-gray-300'
+                                  }`}
+                                >
+                                  <span>{cat.icon}</span>
+                                  <span>{cat.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Note */}
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-2">備註（選填）</label>
+                            <input
+                              type="text"
+                              value={expenseForm.note}
+                              onChange={(e) => setExpenseForm({ ...expenseForm, note: e.target.value })}
+                              placeholder="例如：午餐拉麵"
+                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
+                            />
+                          </div>
+                          
+                          {/* Submit */}
+                          <button
+                            onClick={async () => {
+                              if (!expenseForm.amount) return
+                              
+                              const user = getCurrentUser()
+                              if (!user) return
+                              
+                              if (editingExpense) {
+                                // Update existing
+                                await updateSupabaseExpense(editingExpense.id, {
+                                  amount: parseFloat(expenseForm.amount),
+                                  category: expenseForm.category,
+                                  note: expenseForm.note || null,
+                                })
+                              } else {
+                                // Create new
+                                await createSupabaseExpense({
+                                  type: walletTab,
+                                  username: user.username,
+                                  display_name: user.displayName,
+                                  avatar_url: user.avatarUrl || null,
+                                  amount: parseFloat(expenseForm.amount),
+                                  category: expenseForm.category,
+                                  note: expenseForm.note || null,
+                                })
+                              }
+                              
+                              // Refresh data
+                              if (walletTab === 'shared') {
+                                const fresh = await getSupabaseExpenses('shared')
+                                setSharedExpenses(fresh)
+                              } else {
+                                const fresh = await getSupabaseExpenses('personal', user.username)
+                                setPersonalExpenses(fresh)
+                              }
+                              
+                              setShowExpenseForm(false)
+                              setEditingExpense(null)
+                              setExpenseForm({ amount: '', category: 'food', note: '' })
+                              setMessage({ type: 'success', text: editingExpense ? '支出已更新！' : '支出已新增！' })
+                            }}
+                            className="w-full py-4 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-medium rounded-xl transition-colors text-lg"
+                          >
+                            {editingExpense ? '更新' : '新增'}
+                          </button>
                         </div>
-                        
-                        {/* Note */}
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">備註（選填）</label>
-                          <input
-                            type="text"
-                            value={expenseForm.note}
-                            onChange={(e) => setExpenseForm({ ...expenseForm, note: e.target.value })}
-                            placeholder="例如：午餐拉麵"
-                            className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
-                          />
-                        </div>
-                        
-                        {/* Submit */}
-                        <button
-                          onClick={async () => {
-                            if (!expenseForm.amount) return
-                            
-                            const user = getCurrentUser()
-                            if (!user) return
-                            
-                            if (editingExpense) {
-                              // Update existing
-                              await updateSupabaseExpense(editingExpense.id, {
-                                amount: parseFloat(expenseForm.amount),
-                                category: expenseForm.category,
-                                note: expenseForm.note || null,
-                              })
-                            } else {
-                              // Create new
-                              await createSupabaseExpense({
-                                type: walletTab,
-                                username: user.username,
-                                display_name: user.displayName,
-                                avatar_url: user.avatarUrl || null,
-                                amount: parseFloat(expenseForm.amount),
-                                category: expenseForm.category,
-                                note: expenseForm.note || null,
-                              })
-                            }
-                            
-                            // Refresh data
-                            if (walletTab === 'shared') {
-                              const fresh = await getSupabaseExpenses('shared')
-                              setSharedExpenses(fresh)
-                            } else {
-                              const fresh = await getSupabaseExpenses('personal', user.username)
-                              setPersonalExpenses(fresh)
-                            }
-                            
-                            setShowExpenseForm(false)
-                            setEditingExpense(null)
-                            setExpenseForm({ amount: '', category: 'food', note: '' })
-                            setMessage({ type: 'success', text: editingExpense ? '支出已更新！' : '支出已新增！' })
-                          }}
-                          className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-medium rounded-xl transition-colors"
-                        >
-                          {editingExpense ? '更新' : '新增'}
-                        </button>
-                      </div>
+                      </motion.div>
                     </motion.div>
                   )}
                 </AnimatePresence>
