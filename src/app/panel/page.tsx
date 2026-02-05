@@ -206,6 +206,9 @@ export default function AdminPage() {
   })
   const [newChiikawaMessage, setNewChiikawaMessage] = useState('')
   const [editingCharacter, setEditingCharacter] = useState<'chiikawa' | 'hachiware' | 'usagi'>('usagi')
+  // Random dialogue popup state
+  const [showRandomDialogue, setShowRandomDialogue] = useState(false)
+  const [randomDialogueContent, setRandomDialogueContent] = useState({ character: '' as 'chiikawa' | 'hachiware' | 'usagi', message: '' })
   // Sakura mode state (synced with localStorage)
   const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [isAdminUser, setIsAdminUser] = useState(false)
@@ -3163,6 +3166,18 @@ export default function AdminPage() {
               if (typeof window !== 'undefined') {
                 localStorage.setItem('sakura_mode', String(newValue))
               }
+              
+              // Show random dialogue when clicking
+              const characters: ('chiikawa' | 'hachiware' | 'usagi')[] = ['chiikawa', 'hachiware', 'usagi']
+              const randomChar = characters[Math.floor(Math.random() * characters.length)]
+              const messages = chiikawaMessages[randomChar]
+              if (messages.length > 0) {
+                const randomMsg = messages[Math.floor(Math.random() * messages.length)]
+                setRandomDialogueContent({ character: randomChar, message: randomMsg })
+                setShowRandomDialogue(true)
+                // Auto close after 3 seconds
+                setTimeout(() => setShowRandomDialogue(false), 3000)
+              }
             }}
             className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-300 ${
               isSakuraMode ? 'text-pink-500' : 'text-gray-400'
@@ -3874,6 +3889,70 @@ export default function AdminPage() {
                 </button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Random Dialogue Popup */}
+      <AnimatePresence>
+        {showRandomDialogue && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 30, scale: 0.95 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[70] max-w-[85vw]"
+            onClick={() => setShowRandomDialogue(false)}
+          >
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 flex items-center gap-3">
+              {/* Character Icon */}
+              <motion.div 
+                className="w-12 h-12 rounded-full flex items-center justify-center text-2xl flex-shrink-0"
+                style={{ 
+                  backgroundColor: randomDialogueContent.character === 'usagi' ? '#ffe4e6' : 
+                                   randomDialogueContent.character === 'hachiware' ? '#fef3c7' : '#fcdbde'
+                }}
+                initial={{ rotate: -10 }}
+                animate={{ rotate: [0, -5, 5, 0] }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                {randomDialogueContent.character === 'usagi' ? '🐰' : 
+                 randomDialogueContent.character === 'hachiware' ? '🐱' : '🐹'}
+              </motion.div>
+              
+              {/* Speech Bubble */}
+              <div className="relative">
+                <div 
+                  className="px-4 py-2 rounded-xl text-sm font-medium"
+                  style={{ 
+                    backgroundColor: randomDialogueContent.character === 'usagi' ? '#ffe4e6' : 
+                                     randomDialogueContent.character === 'hachiware' ? '#fef3c7' : '#fcdbde',
+                    color: randomDialogueContent.character === 'usagi' ? '#be123c' : 
+                           randomDialogueContent.character === 'hachiware' ? '#92400e' : '#9d174d'
+                  }}
+                >
+                  {randomDialogueContent.message}
+                </div>
+                {/* Bubble tail */}
+                <div 
+                  className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 rotate-45"
+                  style={{ 
+                    backgroundColor: randomDialogueContent.character === 'usagi' ? '#ffe4e6' : 
+                                     randomDialogueContent.character === 'hachiware' ? '#fef3c7' : '#fcdbde'
+                  }}
+                />
+              </div>
+              
+              {/* Close hint */}
+              <motion.span 
+                className="text-xs text-gray-400 ml-1"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+              >
+                點擊關閉
+              </motion.span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
