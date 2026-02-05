@@ -206,9 +206,6 @@ export default function AdminPage() {
   })
   const [newChiikawaMessage, setNewChiikawaMessage] = useState('')
   const [editingCharacter, setEditingCharacter] = useState<'chiikawa' | 'hachiware' | 'usagi'>('usagi')
-  // Random dialogue popup state
-  const [showRandomDialogue, setShowRandomDialogue] = useState(false)
-  const [randomDialogueContent, setRandomDialogueContent] = useState({ character: '' as 'chiikawa' | 'hachiware' | 'usagi', message: '' })
   // Sakura mode state (synced with localStorage)
   const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [isAdminUser, setIsAdminUser] = useState(false)
@@ -2363,14 +2360,14 @@ export default function AdminPage() {
                   )}
                 </div>
 
-                {/* Add Expense Form (Full Screen Modal for Mobile) */}
+                {/* Add Expense Form (Centered Modal) */}
                 <AnimatePresence>
                   {showExpenseForm && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="fixed inset-0 bg-black/50 z-[60] flex items-end sm:items-center justify-center"
+                      className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
                       onClick={(e) => {
                         if (e.target === e.currentTarget) {
                           setShowExpenseForm(false)
@@ -2380,10 +2377,10 @@ export default function AdminPage() {
                       }}
                     >
                       <motion.div
-                        initial={{ opacity: 0, y: 100 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 100 }}
-                        className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-xl max-h-[60vh] sm:max-h-[85vh] flex flex-col"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className="bg-white w-full max-w-md rounded-2xl shadow-xl max-h-[80vh] flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {/* Header - Fixed */}
@@ -2950,7 +2947,7 @@ export default function AdminPage() {
           })
           
           return (
-            <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-1 gap-3 md:space-y-4 md:block">
               {sortedDays.map(dayNum => {
                 const dayTrips = tripsByDay.get(dayNum) || []
                 const isMultiple = dayTrips.length > 1
@@ -3060,22 +3057,22 @@ export default function AdminPage() {
                   const dayNumber = getDayNumber(trip)
                   
                   return (
-                    <div 
-                      key={trip.id} 
-                      className={`bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-200 ${isMultiple ? 'hidden md:block' : ''}`}
-                    >
-                      <div className="flex flex-col sm:flex-row">
+                    <React.Fragment key={trip.id}>
+                      {/* Mobile Card - Compact for 2-column grid */}
+                      <div 
+                        className={`md:hidden bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-200 ${isMultiple ? 'hidden' : ''}`}
+                      >
                         {img && (
-                          <div className="sm:w-40 sm:h-32 h-40 flex-shrink-0 relative sm:m-3 sm:rounded-xl overflow-hidden">
+                          <div className="h-28 relative overflow-hidden">
                             <img src={img} alt={trip.title} className="w-full h-full object-cover" />
                             {tripImages.length > 1 && (
-                              <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">
+                              <span className="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full">
                                 +{tripImages.length - 1}
                               </span>
                             )}
                             {dayNumber !== null && dayNumber > 0 && (
                               <span 
-                                className="absolute top-2 left-2 px-2 py-1 text-xs font-bold text-white rounded-lg"
+                                className="absolute top-1.5 left-1.5 px-1.5 py-0.5 text-[10px] font-bold text-white rounded"
                                 style={{ backgroundColor: themeColor }}
                               >
                                 Day {dayNumber}
@@ -3084,46 +3081,80 @@ export default function AdminPage() {
                           </div>
                         )}
                         
-                        <div className="flex-1 p-4 flex flex-col justify-between">
-                          <div>
-                            <h3 className="text-base font-semibold text-gray-800 mb-1 line-clamp-1">{trip.title}</h3>
-                            <p className="text-sm text-gray-500 mb-1">
-                              {new Date(trip.date).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })}
-                            </p>
-                            <p className="text-sm text-gray-400 line-clamp-1">📍 {trip.location}</p>
-                          </div>
-                          <div className="hidden sm:flex items-center gap-2 mt-3">
-                            <button
-                              onClick={() => handleEdit(trip)}
-                              className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                            >
-                              編輯
-                            </button>
-                            <button
-                              onClick={() => handleDelete(trip.id)}
-                              className="px-3 py-1.5 text-xs font-medium text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                            >
-                              刪除
-                            </button>
-                          </div>
+                        <div className="p-2.5">
+                          <h3 className="text-xs font-semibold text-gray-800 line-clamp-1">{trip.title}</h3>
+                          <p className="text-[10px] text-gray-500 mt-0.5">
+                            {new Date(trip.date).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })}
+                          </p>
+                          <p className="text-[10px] text-gray-400 line-clamp-1 mt-0.5">📍 {trip.location}</p>
+                        </div>
+                        
+                        <div className="flex border-t border-gray-100">
+                          <button
+                            onClick={() => handleEdit(trip)}
+                            className="flex-1 py-2 text-[10px] font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                          >
+                            編輯
+                          </button>
+                          <button
+                            onClick={() => handleDelete(trip.id)}
+                            className="flex-1 py-2 text-[10px] font-medium text-red-500 hover:bg-red-50 transition-colors border-l border-gray-100"
+                          >
+                            刪除
+                          </button>
                         </div>
                       </div>
                       
-                      <div className="sm:hidden flex border-t border-gray-100">
-                        <button
-                          onClick={() => handleEdit(trip)}
-                          className="flex-1 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                        >
-                          編輯
-                        </button>
-                        <button
-                          onClick={() => handleDelete(trip.id)}
-                          className="flex-1 py-3 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors border-l border-gray-100"
-                        >
-                          刪除
-                        </button>
+                      {/* Desktop Card - Full layout */}
+                      <div 
+                        className={`hidden md:block bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-200 ${isMultiple ? '' : ''}`}
+                      >
+                        <div className="flex flex-row">
+                          {img && (
+                            <div className="w-40 h-32 flex-shrink-0 relative m-3 rounded-xl overflow-hidden">
+                              <img src={img} alt={trip.title} className="w-full h-full object-cover" />
+                              {tripImages.length > 1 && (
+                                <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">
+                                  +{tripImages.length - 1}
+                                </span>
+                              )}
+                              {dayNumber !== null && dayNumber > 0 && (
+                                <span 
+                                  className="absolute top-2 left-2 px-2 py-1 text-xs font-bold text-white rounded-lg"
+                                  style={{ backgroundColor: themeColor }}
+                                >
+                                  Day {dayNumber}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          
+                          <div className="flex-1 p-4 flex flex-col justify-between">
+                            <div>
+                              <h3 className="text-base font-semibold text-gray-800 mb-1 line-clamp-1">{trip.title}</h3>
+                              <p className="text-sm text-gray-500 mb-1">
+                                {new Date(trip.date).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })}
+                              </p>
+                              <p className="text-sm text-gray-400 line-clamp-1">📍 {trip.location}</p>
+                            </div>
+                            <div className="flex items-center gap-2 mt-3">
+                              <button
+                                onClick={() => handleEdit(trip)}
+                                className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                              >
+                                編輯
+                              </button>
+                              <button
+                                onClick={() => handleDelete(trip.id)}
+                                className="px-3 py-1.5 text-xs font-medium text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                              >
+                                刪除
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    </React.Fragment>
                   )
                 })
               })}
@@ -3165,18 +3196,6 @@ export default function AdminPage() {
               setIsSakuraMode(newValue)
               if (typeof window !== 'undefined') {
                 localStorage.setItem('sakura_mode', String(newValue))
-              }
-              
-              // Show random dialogue when clicking
-              const characters: ('chiikawa' | 'hachiware' | 'usagi')[] = ['chiikawa', 'hachiware', 'usagi']
-              const randomChar = characters[Math.floor(Math.random() * characters.length)]
-              const messages = chiikawaMessages[randomChar]
-              if (messages.length > 0) {
-                const randomMsg = messages[Math.floor(Math.random() * messages.length)]
-                setRandomDialogueContent({ character: randomChar, message: randomMsg })
-                setShowRandomDialogue(true)
-                // Auto close after 3 seconds
-                setTimeout(() => setShowRandomDialogue(false), 3000)
               }
             }}
             className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-300 ${
@@ -3889,70 +3908,6 @@ export default function AdminPage() {
                 </button>
               </div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Random Dialogue Popup */}
-      <AnimatePresence>
-        {showRandomDialogue && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 30, scale: 0.95 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[70] max-w-[85vw]"
-            onClick={() => setShowRandomDialogue(false)}
-          >
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 flex items-center gap-3">
-              {/* Character Icon */}
-              <motion.div 
-                className="w-12 h-12 rounded-full flex items-center justify-center text-2xl flex-shrink-0"
-                style={{ 
-                  backgroundColor: randomDialogueContent.character === 'usagi' ? '#ffe4e6' : 
-                                   randomDialogueContent.character === 'hachiware' ? '#fef3c7' : '#fcdbde'
-                }}
-                initial={{ rotate: -10 }}
-                animate={{ rotate: [0, -5, 5, 0] }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-              >
-                {randomDialogueContent.character === 'usagi' ? '🐰' : 
-                 randomDialogueContent.character === 'hachiware' ? '🐱' : '🐹'}
-              </motion.div>
-              
-              {/* Speech Bubble */}
-              <div className="relative">
-                <div 
-                  className="px-4 py-2 rounded-xl text-sm font-medium"
-                  style={{ 
-                    backgroundColor: randomDialogueContent.character === 'usagi' ? '#ffe4e6' : 
-                                     randomDialogueContent.character === 'hachiware' ? '#fef3c7' : '#fcdbde',
-                    color: randomDialogueContent.character === 'usagi' ? '#be123c' : 
-                           randomDialogueContent.character === 'hachiware' ? '#92400e' : '#9d174d'
-                  }}
-                >
-                  {randomDialogueContent.message}
-                </div>
-                {/* Bubble tail */}
-                <div 
-                  className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 rotate-45"
-                  style={{ 
-                    backgroundColor: randomDialogueContent.character === 'usagi' ? '#ffe4e6' : 
-                                     randomDialogueContent.character === 'hachiware' ? '#fef3c7' : '#fcdbde'
-                  }}
-                />
-              </div>
-              
-              {/* Close hint */}
-              <motion.span 
-                className="text-xs text-gray-400 ml-1"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1 }}
-              >
-                點擊關閉
-              </motion.span>
-            </div>
           </motion.div>
         )}
       </AnimatePresence>
