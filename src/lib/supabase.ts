@@ -272,26 +272,30 @@ export async function getSupabaseUsers(): Promise<UserDB[]> {
   }
 }
 
-export async function saveSupabaseUser(user: Omit<UserDB, 'id' | 'created_at'>): Promise<{ data: UserDB | null; error: string | null }> {
+export async function saveSupabaseUser(user: Omit<UserDB, 'id' | 'created_at'>, originalUsername?: string): Promise<{ data: UserDB | null; error: string | null }> {
   try {
+    // Use originalUsername for lookup if provided (for username changes), otherwise use current username
+    const lookupUsername = originalUsername || user.username
+    
     // Check if user exists
     const { data: existing } = await supabase
       .from('users')
       .select('id')
-      .eq('username', user.username)
+      .eq('username', lookupUsername)
       .single()
 
     if (existing) {
-      // Update existing user
+      // Update existing user (including potentially new username)
       const { data, error } = await supabase
         .from('users')
         .update({
+          username: user.username, // Allow username change
           password: user.password,
           role: user.role,
           display_name: user.display_name,
           avatar_url: user.avatar_url
         })
-        .eq('username', user.username)
+        .eq('username', lookupUsername) // Use original username for lookup
         .select()
         .single()
 

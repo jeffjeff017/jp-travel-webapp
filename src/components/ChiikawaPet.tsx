@@ -15,26 +15,29 @@ const CHARACTER_IMAGES = [
   '/images/chii-pet.png',
 ]
 
-// Character key mapping
+// Character key mapping - maps image file to character key for settings
+// Note: chii-pet.png is the rabbit/usagi character (兔兔 in settings)
+// chiikawa-pet.png is Chiikawa (Chii in settings)
+// hachiware-pet.png is Hachiware (小八 in settings)
 const CHARACTER_KEYS: Record<string, 'chiikawa' | 'hachiware' | 'usagi'> = {
-  '/images/chiikawa-pet.png': 'chiikawa',
-  '/images/hachiware-pet.png': 'hachiware',
-  '/images/chii-pet.png': 'usagi',
+  '/images/chiikawa-pet.png': 'chiikawa',  // Maps to "Chii" tab in settings
+  '/images/hachiware-pet.png': 'hachiware', // Maps to "小八" tab in settings
+  '/images/chii-pet.png': 'usagi',  // Maps to "兔兔" tab in settings (rabbit character)
 }
 
-// Default character-specific messages
+// Default character-specific messages - keyed by CHARACTER TYPE, not image path
 const DEFAULT_MESSAGES_BY_CHARACTER: Record<string, string[]> = {
-  '/images/chii-pet.png': [
+  'usagi': [
     '呀哈！ヤハ！',
     '噗嚕嚕嚕嚕！プルルルル！',
     '嗚拉！ウラ！',
     '哈？ハァ？',
   ],
-  '/images/hachiware-pet.png': [
+  'hachiware': [
     'チャリメラ〜 查露麵拉～',
     'わははは！おかしいね！哇哈哈哈！太有趣了吧！',
   ],
-  '/images/chiikawa-pet.png': [
+  'chiikawa': [
     'ウンッ！嗯！',
     'ワッ！ワッ！哇！哇！',
   ],
@@ -110,8 +113,8 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
       return messages[Math.floor(Math.random() * messages.length)]
     }
     
-    // Otherwise fall back to default messages for this character
-    const messages = DEFAULT_MESSAGES_BY_CHARACTER[characterImage] || DEFAULT_MESSAGES_BY_CHARACTER['/images/chiikawa-pet.png']
+    // Otherwise fall back to default messages for this character (keyed by character type)
+    const messages = DEFAULT_MESSAGES_BY_CHARACTER[characterKey] || DEFAULT_MESSAGES_BY_CHARACTER['chiikawa']
     return messages[Math.floor(Math.random() * messages.length)]
   }, [characterImage, customMessages])
 

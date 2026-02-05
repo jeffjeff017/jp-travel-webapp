@@ -52,6 +52,7 @@ import { useLanguage } from '@/lib/i18n'
 import LanguageSwitch from '@/components/LanguageSwitch'
 import MediaUpload from '@/components/MediaUpload'
 import MultiMediaUpload from '@/components/MultiMediaUpload'
+import ImageCropper from '@/components/ImageCropper'
 
 const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
   ssr: false,
@@ -157,6 +158,11 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([])
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [userForm, setUserForm] = useState({ username: '', password: '', displayName: '', role: 'user' as UserRole, avatarUrl: '' })
+  // Profile edit state (for current user editing their own profile)
+  const [showProfileEdit, setShowProfileEdit] = useState(false)
+  const [profileForm, setProfileForm] = useState({ displayName: '', password: '', avatarUrl: '' })
+  const [showProfileCropper, setShowProfileCropper] = useState(false)
+  const [profileCropImage, setProfileCropImage] = useState<string | null>(null)
   // Travel notice state
   const [showTravelNotice, setShowTravelNotice] = useState(false)
   const [showTravelNoticePopup, setShowTravelNoticePopup] = useState(false) // Mobile read-only popup
@@ -992,26 +998,72 @@ export default function AdminPage() {
             </>
           )}
           
-          {/* Non-admin Mobile - Trip Management Card - Full row */}
-          {!isAdminUser && (
-            <a 
-              href="/main"
-              className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sakura-400 to-sakura-600 flex items-center justify-center">
-                    <span className="text-xl">📋</span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-800 text-sm">行程管理</h3>
-                    <p className="text-xs text-gray-500">查看及編輯旅行行程</p>
-                  </div>
+          {/* Mobile - Profile Edit Card - Full row (for all users) */}
+          <div 
+            className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+            onClick={() => {
+              const user = getCurrentUser()
+              if (user) {
+                // Find full user data from users list
+                const fullUser = users.find(u => u.username === user.username)
+                setProfileForm({
+                  displayName: fullUser?.displayName || user.displayName || '',
+                  password: '',
+                  avatarUrl: fullUser?.avatarUrl || user.avatarUrl || ''
+                })
+                setShowProfileEdit(true)
+              }
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {/* User Avatar */}
+                <div className="w-12 h-12 rounded-xl overflow-hidden bg-gradient-to-br from-sakura-400 to-sakura-600 flex items-center justify-center">
+                  {(() => {
+                    const fullUser = users.find(u => u.username === currentUser?.username)
+                    const avatarUrl = fullUser?.avatarUrl || currentUser?.avatarUrl
+                    if (avatarUrl) {
+                      return <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    }
+                    return <span className="text-xl text-white">👤</span>
+                  })()}
                 </div>
-                <span className="text-gray-400">→</span>
+                <div>
+                  <h3 className="font-semibold text-gray-800 text-sm">
+                    {(() => {
+                      const fullUser = users.find(u => u.username === currentUser?.username)
+                      return fullUser?.displayName || currentUser?.displayName || currentUser?.username || '用戶'
+                    })()}
+                  </h3>
+                  <p className="text-xs text-gray-500">點擊編輯個人資料</p>
+                </div>
               </div>
-            </a>
-          )}
+              <div className="text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile - Trip Management Card - Full row (for all users) */}
+          <a 
+            href="/main"
+            className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sakura-400 to-sakura-600 flex items-center justify-center">
+                  <span className="text-xl">📋</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800 text-sm">管理行程</h3>
+                  <p className="text-xs text-gray-500">查看及編輯旅行行程</p>
+                </div>
+              </div>
+              <span className="text-gray-400">→</span>
+            </div>
+          </a>
 
           {/* Admin Only Content Below */}
           {isAdminUser && (
@@ -1622,13 +1674,14 @@ export default function AdminPage() {
                             alert('請填寫所有欄位')
                             return
                           }
+                          // Pass originalUsername when editing to handle username changes
                           await updateUserAsync({
                             username: userForm.username,
                             password: userForm.password,
                             displayName: userForm.displayName,
                             role: userForm.role,
                             avatarUrl: userForm.avatarUrl || undefined
-                          })
+                          }, editingUser?.username)
                           const freshUsers = await getUsersAsync()
                           setUsers(freshUsers)
                           setEditingUser(null)
@@ -1660,6 +1713,244 @@ export default function AdminPage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Profile Edit Modal (for current user) */}
+        <AnimatePresence>
+          {showProfileEdit && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setShowProfileEdit(false)
+                  setProfileForm({ displayName: '', password: '', avatarUrl: '' })
+                }
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+              >
+                <div className="p-6 border-b border-gray-100">
+                  <h3 className="text-lg font-medium text-gray-800">👤 編輯個人資料</h3>
+                </div>
+                <div className="p-6">
+                  {/* Current User Info */}
+                  <div className="mb-6 p-4 bg-gray-50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      {profileForm.avatarUrl ? (
+                        <img 
+                          src={profileForm.avatarUrl} 
+                          alt="Avatar"
+                          className="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sakura-300 to-sakura-500 flex items-center justify-center text-white text-xl font-medium shadow">
+                          {profileForm.displayName?.charAt(0).toUpperCase() || '?'}
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-medium text-gray-800">{profileForm.displayName || '用戶'}</p>
+                        <p className="text-sm text-gray-500">@{currentUser?.username}</p>
+                        {isAdminUser && (
+                          <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-600">管理員</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Edit Form */}
+                  <div className="space-y-4">
+                    {/* Display Name */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">顯示名稱</label>
+                      <input
+                        type="text"
+                        value={profileForm.displayName}
+                        onChange={(e) => setProfileForm({ ...profileForm, displayName: e.target.value })}
+                        placeholder="輸入顯示名稱"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none transition-all"
+                      />
+                    </div>
+
+                    {/* Username - Only Admin can change */}
+                    {isAdminUser && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          登入帳號
+                          <span className="text-xs text-gray-500 ml-2">（只有管理員可更改）</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={currentUser?.username || ''}
+                          disabled
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-500"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">如需更改帳號名稱，請到用戶管理</p>
+                      </div>
+                    )}
+
+                    {/* Password */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">新密碼</label>
+                      <input
+                        type="password"
+                        value={profileForm.password}
+                        onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
+                        placeholder="留空表示不更改密碼"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none transition-all"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">如不需更改密碼，請留空</p>
+                    </div>
+
+                    {/* Avatar Upload with Cropper */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">頭像圖片</label>
+                      <div className="flex items-start gap-4">
+                        {/* Avatar Preview */}
+                        <div className="flex-shrink-0">
+                          {profileForm.avatarUrl ? (
+                            <img 
+                              src={profileForm.avatarUrl} 
+                              alt="Avatar preview"
+                              className="w-20 h-20 rounded-full object-cover border-2 border-sakura-200 shadow"
+                            />
+                          ) : (
+                            <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                        {/* Upload Controls */}
+                        <div className="flex-1">
+                          <label className="block">
+                            <span className="inline-flex items-center gap-2 px-4 py-2 bg-sakura-50 hover:bg-sakura-100 text-sakura-600 rounded-lg cursor-pointer transition-colors text-sm font-medium">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              選擇圖片
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                  const reader = new FileReader()
+                                  reader.onloadend = () => {
+                                    setProfileCropImage(reader.result as string)
+                                    setShowProfileCropper(true)
+                                  }
+                                  reader.readAsDataURL(file)
+                                }
+                              }}
+                            />
+                          </label>
+                          {profileForm.avatarUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setProfileForm({ ...profileForm, avatarUrl: '' })}
+                              className="mt-2 text-sm text-red-500 hover:text-red-600"
+                            >
+                              移除頭像
+                            </button>
+                          )}
+                          <p className="text-xs text-gray-400 mt-2">支援 JPG、PNG 格式，選擇後可裁剪</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => {
+                        setShowProfileEdit(false)
+                        setProfileForm({ displayName: '', password: '', avatarUrl: '' })
+                      }}
+                      className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const user = getCurrentUser()
+                        if (!user) return
+                        
+                        if (!profileForm.displayName.trim()) {
+                          alert('請輸入顯示名稱')
+                          return
+                        }
+                        
+                        // Get current user data
+                        const currentUserData = users.find(u => u.username === user.username)
+                        if (!currentUserData) {
+                          alert('找不到用戶資料')
+                          return
+                        }
+                        
+                        // Update user data
+                        const updatedUser = {
+                          ...currentUserData,
+                          displayName: profileForm.displayName,
+                          password: profileForm.password || currentUserData.password,
+                          avatarUrl: profileForm.avatarUrl || currentUserData.avatarUrl || undefined
+                        }
+                        
+                        const result = await updateUserAsync(updatedUser, user.username)
+                        
+                        if (result.success) {
+                          // Refresh users list
+                          const freshUsers = await getUsersAsync()
+                          setUsers(freshUsers)
+                          
+                          // Update current user display
+                          setCurrentUser({
+                            ...user,
+                            displayName: updatedUser.displayName,
+                            avatarUrl: updatedUser.avatarUrl
+                          })
+                          
+                          setShowProfileEdit(false)
+                          setProfileForm({ displayName: '', password: '', avatarUrl: '' })
+                          setMessage({ type: 'success', text: '個人資料已更新！' })
+                        } else {
+                          alert(result.error || '更新失敗')
+                        }
+                      }}
+                      className="flex-1 py-2.5 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl transition-colors font-medium"
+                    >
+                      儲存
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Profile Image Cropper */}
+        {showProfileCropper && profileCropImage && (
+          <ImageCropper
+            imageSrc={profileCropImage}
+            onCropComplete={(croppedImage) => {
+              setProfileForm({ ...profileForm, avatarUrl: croppedImage })
+              setShowProfileCropper(false)
+              setProfileCropImage(null)
+            }}
+            onCancel={() => {
+              setShowProfileCropper(false)
+              setProfileCropImage(null)
+            }}
+          />
+        )}
 
         {/* Travel Notice Modal */}
         <AnimatePresence>

@@ -130,14 +130,23 @@ export function updateUser(user: User): void {
 }
 
 // Add or update user (async - syncs with Supabase)
-export async function updateUserAsync(user: User): Promise<{ success: boolean; error: string | null }> {
+// originalUsername is needed when changing a user's username to find the correct record
+export async function updateUserAsync(user: User, originalUsername?: string): Promise<{ success: boolean; error: string | null }> {
   // Update local cache first (optimistic update)
-  updateUser(user)
+  // If username changed, remove old entry and add new one
+  if (originalUsername && originalUsername !== user.username) {
+    const users = getLocalUsers()
+    const filtered = users.filter(u => u.username !== originalUsername)
+    filtered.push(user)
+    saveLocalUsers(filtered)
+  } else {
+    updateUser(user)
+  }
   
   // Then sync to Supabase
   try {
     const dbFormat = toSupabaseFormat(user)
-    const result = await saveSupabaseUser(dbFormat)
+    const result = await saveSupabaseUser(dbFormat, originalUsername)
     
     if (result.error) {
       console.error('Failed to sync user to Supabase:', result.error)

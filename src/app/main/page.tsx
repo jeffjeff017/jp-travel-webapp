@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { getTrips, createTrip, updateTrip, deleteTrip, type Trip } from '@/lib/supabase'
 import { getSettings, getSettingsAsync, saveSettings, saveSettingsAsync, type SiteSettings } from '@/lib/settings'
-import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, logout } from '@/lib/auth'
+import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, logout, getUsers, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 import DailyPopup from '@/components/DailyPopup'
@@ -184,6 +184,7 @@ export default function MainPage() {
   const [settings, setSettings] = useState<SiteSettings | null>(null)
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null)
   const [selectedDay, setSelectedDay] = useState<number>(1)
+  const [visibleStartDay, setVisibleStartDay] = useState<number>(1)
   const { t } = useLanguage()
   
   // Trip form state
@@ -195,8 +196,8 @@ export default function MainPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formMessage, setFormMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   
-  // Inline date editing state
-  const [editingDateDay, setEditingDateDay] = useState<number | null>(null)
+  // Users state (for avatar display)
+  const [users, setUsers] = useState<User[]>([])
   
   // Track pending new day (when adding a day, we need to also add a trip)
   const [pendingNewDay, setPendingNewDay] = useState<number | null>(null)
@@ -286,6 +287,9 @@ export default function MainPage() {
       // Load settings first to avoid flickering (use cached first, then async)
       let loadedSettings = getSettings() // Use cached value first for instant display
       setSettings(loadedSettings)
+      
+      // Load users for avatar display
+      setUsers(getUsers())
       
       // Then try to fetch fresh from Supabase (but don't block on failure)
       try {
@@ -666,25 +670,6 @@ export default function MainPage() {
     setSelectedDay(toDay)
   }
 
-  // Handle inline date change
-  const handleDateChange = (dayNum: number, newDate: string) => {
-    if (!settings || !newDate) return
-    
-    // Calculate new start date based on which day was changed
-    const selectedDate = new Date(newDate)
-    const newStartDate = new Date(selectedDate)
-    newStartDate.setDate(selectedDate.getDate() - (dayNum - 1))
-    
-    const updatedSettings = {
-      ...settings,
-      tripStartDate: newStartDate.toISOString().split('T')[0]
-    }
-    
-    saveSettingsAsync(updatedSettings) // Sync to Supabase
-    setSettings(updatedSettings)
-    setEditingDateDay(null)
-  }
-
   // Filter trips by selected day and sort by time
   const filteredTrips = useMemo(() => {
     if (!settings?.tripStartDate) return trips
@@ -729,6 +714,12 @@ export default function MainPage() {
   const getRandomAvatar = (username: string) => {
     // Using DiceBear avatars API with "adventurer" style for cute avatars
     return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(username)}&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede`
+  }
+  
+  // Get user's current avatar from users list (most up-to-date)
+  const getCurrentUserAvatar = (username: string, fallbackAvatarUrl?: string) => {
+    const user = users.find(u => u.username === username)
+    return user?.avatarUrl || fallbackAvatarUrl || getRandomAvatar(username)
   }
 
   // Trip detail view state (Airbnb-style)
@@ -967,19 +958,72 @@ export default function MainPage() {
               )}
             </div>
 
-            {/* Day Tabs - Show 4 days max with slide for remaining */}
+            {/* Day Tabs - Show 3 days on mobile with navigation arrows */}
             {settings && (
               <div className="relative mb-4">
-                {/* Scroll left indicator */}
-                {settings.totalDays > 4 && (
-                  <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none md:hidden" />
-                )}
-                {/* Scroll right indicator */}
-                {settings.totalDays > 4 && (
-                  <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none md:hidden" />
-                )}
-                <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory">
-                  {/* Day Tabs */}
+                {/* Mobile: Show 3 days with navigation arrows */}
+                <div className="md:hidden relative">
+                  {/* Left Arrow */}
+                  {visibleStartDay > 1 && (
+                    <button
+                      onClick={() => setVisibleStartDay(prev => Math.max(prev - 1, 1))}
+                      className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 hover:bg-white shadow-md rounded-full flex items-center justify-center text-sakura-500 -ml-1"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )}
+                  
+                  {/* Right Arrow */}
+                  {visibleStartDay + 2 < settings.totalDays && (
+                    <button
+                      onClick={() => setVisibleStartDay(prev => Math.min(prev + 1, Math.max(1, settings.totalDays - 2)))}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 hover:bg-white shadow-md rounded-full flex items-center justify-center text-sakura-500 -mr-1"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )}
+
+                  {/* Day Tabs Container - 3 days */}
+                  <div className="flex gap-2 px-6">
+                    {Array.from({ length: Math.min(3, settings.totalDays) }, (_, i) => visibleStartDay + i)
+                      .filter(day => day <= settings.totalDays)
+                      .map((day) => {
+                        const daySchedule = settings.daySchedules?.find(d => d.dayNumber === day)
+                        return (
+                          <div
+                            key={day}
+                            onClick={() => setSelectedDay(day)}
+                            className={`flex-1 py-2 px-3 text-sm font-medium transition-all rounded-lg cursor-pointer text-center ${
+                              selectedDay === day
+                                ? 'bg-sakura-500 text-white shadow-md'
+                                : 'bg-sakura-50 text-sakura-600 hover:bg-sakura-100'
+                            }`}
+                          >
+                            {/* Date + Weather Row */}
+                            <div className="flex items-center justify-center gap-1 mb-0.5">
+                              <span className="text-xs opacity-80 whitespace-nowrap">
+                                {getDayDate(day)}
+                              </span>
+                              <span className="text-sm">{getWeatherIcon(day)}</span>
+                            </div>
+                            {/* Day Number */}
+                            <div className="font-bold text-center whitespace-nowrap">Day {day}</div>
+                            {/* Theme */}
+                            {daySchedule?.theme && daySchedule.theme !== `Day ${day}` && (
+                              <div className="text-xs mt-0.5 truncate text-center">{daySchedule.theme}</div>
+                            )}
+                          </div>
+                        )
+                      })}
+                  </div>
+                </div>
+
+                {/* Desktop: Show all days */}
+                <div className="hidden md:flex gap-1.5">
                   {Array.from({ length: Math.min(settings.totalDays, 7) }, (_, i) => i + 1).map((day) => {
                     const daySchedule = settings.daySchedules?.find(d => d.dayNumber === day)
                     return (
@@ -1013,7 +1057,7 @@ export default function MainPage() {
                           }
                         }}
                         onClick={() => setSelectedDay(day)}
-                        className={`flex-shrink-0 w-[calc(25%-6px)] min-w-[70px] max-w-[90px] md:flex-1 md:max-w-none py-2 px-3 text-sm font-medium transition-all border-b-2 rounded-lg relative group cursor-pointer text-center snap-start ${
+                        className={`flex-1 py-2 px-3 text-sm font-medium transition-all border-b-2 rounded-lg relative group cursor-pointer text-center ${
                           selectedDay === day
                             ? 'bg-sakura-500 text-white border-sakura-600'
                             : 'bg-sakura-50 text-sakura-600 hover:bg-sakura-100 border-transparent'
@@ -1021,38 +1065,12 @@ export default function MainPage() {
                       >
                         {/* Date + Weather Row */}
                         <div className="flex items-center justify-center gap-1 mb-0.5">
-                          {isAdmin && editingDateDay === day ? (
-                            <input
-                              type="date"
-                              defaultValue={(() => {
-                                if (!settings?.tripStartDate) return ''
-                                const startDate = new Date(settings.tripStartDate)
-                                const targetDate = new Date(startDate)
-                                targetDate.setDate(startDate.getDate() + day - 1)
-                                return targetDate.toISOString().split('T')[0]
-                              })()}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) => handleDateChange(day, e.target.value)}
-                              onBlur={() => setEditingDateDay(null)}
-                              autoFocus
-                              className="w-24 text-xs px-1 py-0.5 rounded border border-white/50 bg-white/20 text-inherit outline-none"
-                            />
-                          ) : (
-                            <span 
-                              className={`text-xs opacity-80 whitespace-nowrap ${isAdmin ? 'hover:opacity-100 hover:underline cursor-pointer' : ''}`}
-                              onClick={(e) => {
-                                if (!isAdmin) return
-                                e.stopPropagation()
-                                setEditingDateDay(day)
-                              }}
-                              title={isAdmin ? "點擊修改日期" : undefined}
-                            >
-                              {getDayDate(day)}
-                            </span>
-                          )}
+                          <span className="text-xs opacity-80 whitespace-nowrap">
+                            {getDayDate(day)}
+                          </span>
                           <span className="text-sm">{getWeatherIcon(day)}</span>
                         </div>
-                        {/* Day Number - Centered */}
+                        {/* Day Number */}
                         <div className="font-bold text-center whitespace-nowrap">Day {day}</div>
                         {/* Theme */}
                         {daySchedule?.theme && daySchedule.theme !== `Day ${day}` && (
@@ -1709,7 +1727,7 @@ export default function MainPage() {
                                 {checkedUsers.slice(0, 3).map((user, i) => (
                                   <img 
                                     key={i}
-                                    src={user.avatarUrl || getRandomAvatar(user.username)} 
+                                    src={getCurrentUserAvatar(user.username, user.avatarUrl)} 
                                     alt={user.displayName}
                                     className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
                                     title={user.displayName}
@@ -1765,7 +1783,7 @@ export default function MainPage() {
                                 {checkedUsers.slice(0, 3).map((user, i) => (
                                   <img 
                                     key={i}
-                                    src={user.avatarUrl || getRandomAvatar(user.username)} 
+                                    src={getCurrentUserAvatar(user.username, user.avatarUrl)} 
                                     alt={user.displayName}
                                     className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
                                     title={user.displayName}

@@ -13,7 +13,7 @@ import {
   type WishlistItemDB 
 } from '@/lib/supabase'
 import { getSettings, getSettingsAsync, type SiteSettings } from '@/lib/settings'
-import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, logout } from '@/lib/auth'
+import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, logout, getUsers, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 
@@ -118,6 +118,8 @@ export default function WishlistPage() {
   // Checklist state for travel notice
   const [checkedItems, setCheckedItems] = useState<Record<string, { username: string; displayName: string; avatarUrl?: string }[]>>({})
   const [currentUser, setCurrentUser] = useState<{ username: string; role: string; displayName: string; avatarUrl?: string } | null>(null)
+  // Users state (for avatar display)
+  const [users, setUsers] = useState<User[]>([])
   
   // Add/Edit form state
   const [showAddForm, setShowAddForm] = useState(false)
@@ -135,6 +137,8 @@ export default function WishlistPage() {
   useEffect(() => {
     setIsAdmin(checkIsAdmin())
     setCurrentUser(getCurrentUser())
+    // Load users for avatar display
+    setUsers(getUsers())
     
     // Load sakura mode from localStorage
     const savedSakuraMode = localStorage.getItem('sakura_mode')
@@ -167,6 +171,12 @@ export default function WishlistPage() {
   // Generate random avatar URL based on username
   const getRandomAvatar = (username: string) => {
     return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(username)}&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede`
+  }
+  
+  // Get user's current avatar from users list (most up-to-date)
+  const getCurrentUserAvatar = (username: string, fallbackAvatarUrl?: string) => {
+    const user = users.find(u => u.username === username)
+    return user?.avatarUrl || fallbackAvatarUrl || getRandomAvatar(username)
   }
   
   // Toggle travel notice item check
@@ -825,7 +835,7 @@ export default function WishlistPage() {
                                 {itemCheckedUsers.slice(0, 3).map((user, i) => (
                                   <img 
                                     key={i}
-                                    src={user.avatarUrl || getRandomAvatar(user.username)} 
+                                    src={getCurrentUserAvatar(user.username, user.avatarUrl)} 
                                     alt={user.displayName}
                                     className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
                                     title={user.displayName}
@@ -881,7 +891,7 @@ export default function WishlistPage() {
                                 {itemCheckedUsers.slice(0, 3).map((user, i) => (
                                   <img 
                                     key={i}
-                                    src={user.avatarUrl || getRandomAvatar(user.username)} 
+                                    src={getCurrentUserAvatar(user.username, user.avatarUrl)} 
                                     alt={user.displayName}
                                     className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
                                     title={user.displayName}
