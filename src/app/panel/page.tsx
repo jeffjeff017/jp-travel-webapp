@@ -774,6 +774,43 @@ export default function AdminPage() {
         {/* Bento Grid Layout */}
         <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-8">
           
+          {/* Mobile Destination Switcher - Full row at top */}
+          {isAdminUser && (
+            <div 
+              className="md:hidden col-span-2 bg-gradient-to-br rounded-2xl p-4 text-white relative overflow-hidden"
+              style={{ background: `linear-gradient(135deg, ${themeColor} 0%, ${adjustColor(themeColor, -30)} 100%)` }}
+            >
+              <div className="absolute top-0 right-0 text-[80px] opacity-20 -mr-2 -mt-2">
+                {currentDestination?.theme?.emoji || '✈️'}
+              </div>
+              <div className="relative z-10">
+                <h3 className="text-base font-medium mb-1 flex items-center gap-2">
+                  <span>🌏</span> 旅行目的地
+                </h3>
+                <p className="text-white/80 text-xs mb-3">
+                  選擇目的地以切換主題顏色和行程資料
+                </p>
+                <select
+                  value={currentDestinationId}
+                  onChange={(e) => handleDestinationSwitch(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl font-medium bg-white text-gray-800 shadow-lg outline-none cursor-pointer text-sm"
+                >
+                  {destinations.filter(d => d.is_active).map((dest) => (
+                    <option key={dest.id} value={dest.id}>
+                      {dest.flag} {dest.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setShowDestinationModal(true)}
+                  className="mt-2 text-xs text-white/70 hover:text-white underline"
+                >
+                  管理目的地 →
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Mobile Logout Card - Full row */}
           <div className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between">
@@ -872,6 +909,85 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Mobile Site Settings Card */}
+              <div 
+                className="md:hidden col-span-1 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setShowSettings(true)}
+              >
+                <div className="flex flex-col items-center text-center gap-2">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center">
+                    <span className="text-xl">🎨</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800 text-sm">網站設定</h3>
+                    <p className="text-xs text-gray-500">{siteSettings?.title || '日本旅遊'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile User Management Card */}
+              <div 
+                className="md:hidden col-span-1 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={async () => {
+                  const freshUsers = await getUsersAsync()
+                  setUsers(freshUsers)
+                  setShowUserManagement(true)
+                }}
+              >
+                <div className="flex flex-col items-center text-center gap-2">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+                    <span className="text-xl">👥</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800 text-sm">用戶管理</h3>
+                    <p className="text-xs text-gray-500">{users.length > 0 ? `${users.length} 位用戶` : '載入中...'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile Travel Notice Card */}
+              <div 
+                className="md:hidden col-span-1 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={async () => {
+                  let settings = getSettings()
+                  try {
+                    const freshSettings = await getSettingsAsync()
+                    if (freshSettings) settings = freshSettings
+                  } catch (err) {
+                    console.warn('Failed to fetch settings:', err)
+                  }
+                  setTravelEssentials(settings.travelEssentials || defaultTravelEssentials)
+                  setTravelPreparations(settings.travelPreparations || defaultTravelPreparations)
+                  setShowTravelNotice(true)
+                }}
+              >
+                <div className="flex flex-col items-center text-center gap-2">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center">
+                    <span className="text-xl">📋</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800 text-sm">旅遊須知</h3>
+                    <p className="text-xs text-gray-500">必備物品、出發前準備</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile Trash Bin Card */}
+              <div 
+                className="md:hidden col-span-1 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setShowTrashBin(true)}
+              >
+                <div className="flex flex-col items-center text-center gap-2">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center">
+                    <span className="text-xl">🗑️</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800 text-sm">垃圾桶</h3>
+                    <p className="text-xs text-gray-500">{trashItems.trips.length + trashItems.users.length + trashItems.destinations.length} 個項目</p>
+                  </div>
+                </div>
+              </div>
             </>
           )}
           
@@ -899,9 +1015,9 @@ export default function AdminPage() {
           {/* Admin Only Content Below */}
           {isAdminUser && (
             <>
-          {/* Destination Switcher - Large Card (Full row on all screens) */}
+          {/* Destination Switcher - Large Card (Desktop only - mobile version above) */}
           <div 
-            className="col-span-2 lg:col-span-2 bg-gradient-to-br rounded-2xl p-4 md:p-6 text-white relative overflow-hidden"
+            className="hidden md:block col-span-2 lg:col-span-2 bg-gradient-to-br rounded-2xl p-4 md:p-6 text-white relative overflow-hidden"
             style={{ background: `linear-gradient(135deg, ${themeColor} 0%, ${adjustColor(themeColor, -30)} 100%)` }}
           >
             <div className="absolute top-0 right-0 text-[120px] opacity-20 -mr-4 -mt-4">
@@ -958,8 +1074,8 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Site Settings Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+          {/* Site Settings Card - Desktop only */}
+          <div className="hidden md:block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center mb-3">
@@ -985,8 +1101,8 @@ export default function AdminPage() {
             </button>
           </div>
 
-          {/* User Management Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+          {/* User Management Card - Desktop only */}
+          <div className="hidden md:block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center mb-3">
@@ -1013,8 +1129,8 @@ export default function AdminPage() {
             </button>
           </div>
 
-          {/* Travel Notice Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+          {/* Travel Notice Card - Desktop only */}
+          <div className="hidden md:block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center mb-3">
@@ -1111,8 +1227,8 @@ export default function AdminPage() {
             </div>
           </div> */}
 
-          {/* Trash Bin Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+          {/* Trash Bin Card - Desktop only */}
+          <div className="hidden md:block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center mb-3">
