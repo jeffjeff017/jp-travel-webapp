@@ -194,6 +194,7 @@ export default function AdminPage() {
   const [wishlistSearchQuery, setWishlistSearchQuery] = useState('')
   // Chiikawa widget dialogue state
   const [showChiikawaEdit, setShowChiikawaEdit] = useState(false)
+  const [showChiikawaEditDesktop, setShowChiikawaEditDesktop] = useState(false)
   const [chiikawaMessages, setChiikawaMessages] = useState<{
     chiikawa: string[]
     hachiware: string[]
@@ -1213,27 +1214,36 @@ export default function AdminPage() {
             </button>
           </div>
 
-          {/* Quick Stats Card - Hidden for now */}
-          {/* <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+          {/* Chiikawa Dialogue Edit Card - Desktop only */}
+          <div className="hidden md:block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center mb-3">
-                  <span className="text-xl">📊</span>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ backgroundColor: '#fcdbde' }}>
+                  <img src="/images/chii-widgetlogo.ico" alt="Chiikawa" className="w-7 h-7 object-contain" />
                 </div>
-                <h3 className="font-semibold text-gray-800 mb-1">行程統計</h3>
-                <div className="grid grid-cols-2 gap-2 mt-3">
-                  <div className="text-center p-2 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-gray-800">{trips.length}</p>
-                    <p className="text-xs text-gray-500">總行程</p>
-                  </div>
-                  <div className="text-center p-2 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-gray-800">{siteSettings?.totalDays || 0}</p>
-                    <p className="text-xs text-gray-500">天數</p>
-                  </div>
-                </div>
+                <h3 className="font-semibold text-gray-800 mb-1">Chiikawa 對白</h3>
+                <p className="text-xs text-gray-500">
+                  編輯小精靈對話
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {chiikawaMessages.chiikawa.length + chiikawaMessages.hachiware.length + chiikawaMessages.usagi.length} 句對白
+                </p>
               </div>
             </div>
-          </div> */}
+            <button
+              onClick={() => {
+                // Set initial random dialogue for default character
+                const messages = chiikawaMessages[editingCharacter]
+                if (messages.length > 0) {
+                  setRandomDialogue(messages[Math.floor(Math.random() * messages.length)])
+                }
+                setShowChiikawaEditDesktop(true)
+              }}
+              className="mt-4 w-full py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
+            >
+              編輯對白
+            </button>
+          </div>
 
           {/* Trash Bin Card - Desktop only */}
           <div className="hidden md:block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
@@ -3747,6 +3757,207 @@ export default function AdminPage() {
                     await saveSettingsAsync({ chiikawaMessages })
                     setMessage({ type: 'success', text: 'Chiikawa 對白已儲存' })
                     setShowChiikawaEdit(false)
+                  }}
+                  className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
+                >
+                  儲存設定
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Desktop: Chiikawa Dialogue Edit Modal (Admin only) */}
+      <AnimatePresence>
+        {showChiikawaEditDesktop && isAdminUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="hidden md:flex fixed inset-0 bg-black/50 items-center justify-center z-50 p-4"
+            onClick={() => setShowChiikawaEditDesktop(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-gray-100">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
+                    <img src="/images/chii-widgetlogo.ico" alt="Chiikawa" className="w-6 h-6" />
+                    Chiikawa 對白設定
+                  </h3>
+                  <button
+                    onClick={() => setShowChiikawaEditDesktop(false)}
+                    className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+                {/* Random Dialogue Display */}
+                {randomDialogue && (
+                  <div className="flex items-center gap-2 p-3 bg-sakura-50 rounded-xl">
+                    <span className="text-xl">
+                      {editingCharacter === 'usagi' ? '🐰' : editingCharacter === 'hachiware' ? '🐱' : '🐹'}
+                    </span>
+                    <span className="text-sm text-sakura-700 font-medium flex-1">{randomDialogue}</span>
+                    <button
+                      onClick={() => {
+                        const messages = chiikawaMessages[editingCharacter]
+                        if (messages.length > 0) {
+                          setRandomDialogue(messages[Math.floor(Math.random() * messages.length)])
+                        }
+                      }}
+                      className="text-sakura-500 hover:text-sakura-600"
+                    >
+                      🔄
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              {/* Character Tabs */}
+              <div className="flex border-b border-gray-100">
+                <button
+                  onClick={() => {
+                    setEditingCharacter('usagi')
+                    const messages = chiikawaMessages.usagi
+                    if (messages.length > 0) {
+                      setRandomDialogue(messages[Math.floor(Math.random() * messages.length)])
+                    }
+                  }}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                    editingCharacter === 'usagi' 
+                      ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
+                      : 'text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="block text-xl mb-1">🐰</span>
+                  兔兔
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingCharacter('hachiware')
+                    const messages = chiikawaMessages.hachiware
+                    if (messages.length > 0) {
+                      setRandomDialogue(messages[Math.floor(Math.random() * messages.length)])
+                    }
+                  }}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                    editingCharacter === 'hachiware' 
+                      ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
+                      : 'text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="block text-xl mb-1">🐱</span>
+                  小八
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingCharacter('chiikawa')
+                    const messages = chiikawaMessages.chiikawa
+                    if (messages.length > 0) {
+                      setRandomDialogue(messages[Math.floor(Math.random() * messages.length)])
+                    }
+                  }}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                    editingCharacter === 'chiikawa' 
+                      ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
+                      : 'text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="block text-xl mb-1">🐹</span>
+                  Chii
+                </button>
+              </div>
+              
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-5">
+                {/* Add new message */}
+                <div className="flex gap-2 mb-4">
+                  <input
+                    type="text"
+                    value={newChiikawaMessage}
+                    onChange={(e) => setNewChiikawaMessage(e.target.value)}
+                    placeholder="輸入新對白..."
+                    className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newChiikawaMessage.trim()) {
+                        setChiikawaMessages(prev => ({
+                          ...prev,
+                          [editingCharacter]: [...prev[editingCharacter], newChiikawaMessage.trim()]
+                        }))
+                        setNewChiikawaMessage('')
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      if (newChiikawaMessage.trim()) {
+                        setChiikawaMessages(prev => ({
+                          ...prev,
+                          [editingCharacter]: [...prev[editingCharacter], newChiikawaMessage.trim()]
+                        }))
+                        setNewChiikawaMessage('')
+                      }
+                    }}
+                    className="px-5 py-2.5 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl text-sm font-medium transition-colors"
+                  >
+                    新增
+                  </button>
+                </div>
+                
+                {/* Messages list */}
+                <div className="space-y-2">
+                  {chiikawaMessages[editingCharacter].map((msg, idx) => (
+                    <div 
+                      key={idx} 
+                      className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                    >
+                      <span className="text-lg">💬</span>
+                      <span className="flex-1 text-sm text-gray-700">{msg}</span>
+                      <button
+                        onClick={() => {
+                          setChiikawaMessages(prev => ({
+                            ...prev,
+                            [editingCharacter]: prev[editingCharacter].filter((_, i) => i !== idx)
+                          }))
+                        }}
+                        className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  ))}
+                  
+                  {chiikawaMessages[editingCharacter].length === 0 && (
+                    <div className="text-center py-12">
+                      <span className="text-5xl mb-3 block">
+                        {editingCharacter === 'chiikawa' ? '🐹' : editingCharacter === 'hachiware' ? '🐱' : '🐰'}
+                      </span>
+                      <p className="text-sm text-gray-400">尚未設定對白</p>
+                      <p className="text-xs text-gray-400 mt-1">請新增對白讓小精靈可以說話！</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Footer */}
+              <div className="p-4 border-t border-gray-100 bg-gray-50">
+                <button
+                  onClick={async () => {
+                    // Save to settings
+                    const settings = getSettings()
+                    const updatedSettings = { ...settings, chiikawaMessages }
+                    saveSettings(updatedSettings)
+                    await saveSettingsAsync({ chiikawaMessages })
+                    setMessage({ type: 'success', text: 'Chiikawa 對白已儲存' })
+                    setShowChiikawaEditDesktop(false)
                   }}
                   className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
                 >
