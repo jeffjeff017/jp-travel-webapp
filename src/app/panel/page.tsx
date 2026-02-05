@@ -204,7 +204,7 @@ export default function AdminPage() {
     usagi: ['ウンッ！嗯！', 'ワッ！ワッ！哇！哇！'],
   })
   const [newChiikawaMessage, setNewChiikawaMessage] = useState('')
-  const [editingCharacter, setEditingCharacter] = useState<'chiikawa' | 'hachiware' | 'usagi'>('chiikawa')
+  const [editingCharacter, setEditingCharacter] = useState<'chiikawa' | 'hachiware' | 'usagi'>('usagi')
   // Sakura mode state (synced with localStorage)
   const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [isAdminUser, setIsAdminUser] = useState(false)
@@ -3443,15 +3443,15 @@ export default function AdminPage() {
               {/* Character Tabs */}
               <div className="flex border-b border-gray-100">
                 <button
-                  onClick={() => setEditingCharacter('chiikawa')}
+                  onClick={() => setEditingCharacter('usagi')}
                   className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                    editingCharacter === 'chiikawa' 
+                    editingCharacter === 'usagi' 
                       ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
                       : 'text-gray-500'
                   }`}
                 >
-                  <span className="block text-xl mb-1">🐹</span>
-                  ちいかわ
+                  <span className="block text-xl mb-1">🐰</span>
+                  兔兔
                 </button>
                 <button
                   onClick={() => setEditingCharacter('hachiware')}
@@ -3462,18 +3462,18 @@ export default function AdminPage() {
                   }`}
                 >
                   <span className="block text-xl mb-1">🐱</span>
-                  八ちゃん
+                  小八
                 </button>
                 <button
-                  onClick={() => setEditingCharacter('usagi')}
+                  onClick={() => setEditingCharacter('chiikawa')}
                   className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                    editingCharacter === 'usagi' 
+                    editingCharacter === 'chiikawa' 
                       ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
                       : 'text-gray-500'
                   }`}
                 >
-                  <span className="block text-xl mb-1">🐰</span>
-                  うさぎ
+                  <span className="block text-xl mb-1">🐹</span>
+                  Chii
                 </button>
               </div>
               
