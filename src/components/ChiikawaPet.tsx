@@ -25,18 +25,18 @@ const CHARACTER_KEYS: Record<string, 'chiikawa' | 'hachiware' | 'usagi'> = {
 // Default character-specific messages
 const DEFAULT_MESSAGES_BY_CHARACTER: Record<string, string[]> = {
   '/images/chii-pet.png': [
-    'ウンッ！嗯！',
-    'ワッ！ワッ！哇！哇！',
+    '呀哈！ヤハ！',
+    '噗嚕嚕嚕嚕！プルルルル！',
+    '嗚拉！ウラ！',
+    '哈？ハァ？',
   ],
   '/images/hachiware-pet.png': [
     'チャリメラ〜 查露麵拉～',
     'わははは！おかしいね！哇哈哈哈！太有趣了吧！',
   ],
   '/images/chiikawa-pet.png': [
-    '呀哈！ヤハ！',
-    '噗嚕嚕嚕嚕！プルルルル！',
-    '嗚拉！ウラ！',
-    '哈？ハァ？',
+    'ウンッ！嗯！',
+    'ワッ！ワッ！哇！哇！',
   ],
 }
 
