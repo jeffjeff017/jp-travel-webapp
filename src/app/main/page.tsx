@@ -710,16 +710,11 @@ export default function MainPage() {
     }
   }
 
-  // Generate random avatar URL based on username
-  const getRandomAvatar = (username: string) => {
-    // Using DiceBear avatars API with "adventurer" style for cute avatars
-    return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(username)}&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede`
-  }
-  
   // Get user's current avatar from users list (most up-to-date)
-  const getCurrentUserAvatar = (username: string, fallbackAvatarUrl?: string) => {
+  // Returns undefined if no avatar, so UI can show initials fallback
+  const getUserAvatar = (username: string, fallbackAvatarUrl?: string): string | undefined => {
     const user = users.find(u => u.username === username)
-    return user?.avatarUrl || fallbackAvatarUrl || getRandomAvatar(username)
+    return user?.avatarUrl || fallbackAvatarUrl || undefined
   }
 
   // Trip detail view state (Airbnb-style)
@@ -1656,7 +1651,26 @@ export default function MainPage() {
       
       {/* Mobile: Travel Notice Popup (旅遊須知) */}
       <AnimatePresence>
-        {showInfoPopup && (
+        {showInfoPopup && (() => {
+          // Calculate counts for travel notice
+          const essentialsTotal = settings?.travelEssentials?.length || 0
+          const preparationsTotal = settings?.travelPreparations?.length || 0
+          const totalItems = essentialsTotal + preparationsTotal
+          
+          const essentialsCheckedCount = settings?.travelEssentials?.filter(item => {
+            const itemKey = `essential_${item.icon}_${item.text}`
+            return (checkedItems[itemKey] || []).length > 0
+          }).length || 0
+          
+          const preparationsCheckedCount = settings?.travelPreparations?.filter(item => {
+            const itemKey = `prep_${item.icon}_${item.text}`
+            return (checkedItems[itemKey] || []).length > 0
+          }).length || 0
+          
+          const totalChecked = essentialsCheckedCount + preparationsCheckedCount
+          const allCompleted = totalItems > 0 && totalChecked === totalItems
+          
+          return (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1672,74 +1686,125 @@ export default function MainPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute bottom-0 left-0 right-0 h-[70vh] bg-white rounded-t-3xl overflow-hidden"
+              className="absolute bottom-0 left-0 right-0 h-[75vh] bg-white rounded-t-3xl overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Popup Header */}
-              <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                <h3 className="font-medium text-gray-800">📖 旅遊須知</h3>
+              {/* Popup Header - Pink gradient style */}
+              <div className="bg-gradient-to-r from-sakura-400 to-sakura-500 px-4 py-3 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🌸</span>
+                  <h3 className="text-white font-medium">旅遊須知</h3>
+                  <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full text-white">
+                    {totalChecked}/{totalItems}
+                  </span>
+                </div>
                 <button
                   onClick={() => {
                     setShowInfoPopup(false)
                     setActiveBottomTab('home')
                   }}
-                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                  className="text-white/80 hover:text-white transition-colors"
                 >
-                  ✕
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
                 </button>
               </div>
               
               {/* Travel Notice Content - Checklist Style */}
-              <div className="overflow-y-auto h-[calc(70vh-60px)]">
+              <div className="overflow-y-auto flex-1 p-4">
+                {/* All Completed Celebration */}
+                {allCompleted && (
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="mb-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200"
+                  >
+                    <div className="text-center">
+                      <span className="text-4xl block mb-2">🎉</span>
+                      <p className="text-green-700 font-medium">準備完成！</p>
+                      <p className="text-green-600 text-sm mt-1">旅途愉快！Have a nice trip!</p>
+                    </div>
+                  </motion.div>
+                )}
+                
                 {/* Travel Essentials */}
                 {settings?.travelEssentials && settings.travelEssentials.length > 0 && (
                   <div className="mb-4">
-                    <h4 className="font-medium text-gray-700 px-4 py-3 flex items-center gap-2 bg-gray-50">
-                      <span>🎒</span>
-                      <span>旅遊必備</span>
+                    <h4 className="font-medium text-gray-700 px-2 py-2 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <span>🎒</span>
+                        <span>必備物品</span>
+                      </span>
+                      <span className="text-xs text-sakura-500 bg-sakura-50 px-2 py-0.5 rounded-full">
+                        {essentialsCheckedCount}/{essentialsTotal}
+                      </span>
                     </h4>
-                    <div className="divide-y divide-gray-100">
+                    <div className="space-y-1">
                       {settings.travelEssentials.map((item, idx) => {
                         const itemKey = `essential_${item.icon}_${item.text}`
                         const isChecked = isItemCheckedByUser(itemKey)
                         const checkedUsers = checkedItems[itemKey] || []
+                        const anyoneChecked = checkedUsers.length > 0
                         return (
                           <div 
                             key={idx} 
-                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                            className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer transition-all ${
+                              anyoneChecked 
+                                ? 'bg-green-50 text-green-600' 
+                                : 'text-gray-600 hover:bg-gray-50'
+                            }`}
                             onClick={() => toggleCheckItem(itemKey)}
                           >
-                            {/* Checkbox */}
-                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isChecked 
-                                ? 'bg-green-500 border-green-500 text-white' 
-                                : 'border-gray-300'
-                            }`}>
-                              {isChecked && <span className="text-xs">✓</span>}
-                            </div>
-                            <span className="text-lg">{item.icon}</span>
-                            <span className={`text-sm flex-1 ${isChecked ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                              {item.text}
+                            <span className="flex items-center gap-2 min-w-0">
+                              <span className="flex-shrink-0">{item.icon}</span>
+                              <span className="truncate text-sm">{item.text}</span>
                             </span>
-                            {/* Checked users avatars */}
-                            {checkedUsers.length > 0 && (
-                              <div className="flex -space-x-2">
-                                {checkedUsers.slice(0, 3).map((user, i) => (
-                                  <img 
-                                    key={i}
-                                    src={getCurrentUserAvatar(user.username, user.avatarUrl)} 
-                                    alt={user.displayName}
-                                    className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
-                                    title={user.displayName}
-                                  />
-                                ))}
-                                {checkedUsers.length > 3 && (
-                                  <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">
-                                    +{checkedUsers.length - 3}
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {/* Checked users avatars */}
+                              {checkedUsers.length > 0 && (
+                                <div className="flex -space-x-1 mr-0.5">
+                                  {checkedUsers.slice(0, 3).map((user, i) => {
+                                    const userObj = users.find(u => u.username === user.username)
+                                    const avatarUrl = userObj?.avatarUrl || user.avatarUrl
+                                    return avatarUrl ? (
+                                      <img 
+                                        key={i}
+                                        src={avatarUrl} 
+                                        alt={user.displayName}
+                                        className="w-5 h-5 rounded-full border border-white object-cover shadow-sm"
+                                        style={{ zIndex: checkedUsers.length - i }}
+                                        title={user.displayName}
+                                      />
+                                    ) : (
+                                      <div 
+                                        key={i}
+                                        className="w-5 h-5 rounded-full bg-green-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-green-700 font-medium"
+                                        style={{ zIndex: checkedUsers.length - i }}
+                                        title={user.displayName}
+                                      >
+                                        {user.displayName?.charAt(0).toUpperCase() || user.username.charAt(0).toUpperCase()}
+                                      </div>
+                                    )
+                                  })}
+                                  {checkedUsers.length > 3 && (
+                                    <div className="w-5 h-5 rounded-full bg-gray-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-gray-600 font-medium">
+                                      +{checkedUsers.length - 3}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {/* Checkbox */}
+                              <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
+                                isChecked 
+                                  ? 'bg-green-500 border-green-500 text-white' 
+                                  : anyoneChecked
+                                    ? 'bg-green-200 border-green-300 text-green-600'
+                                    : 'border-gray-300'
+                              }`}>
+                                {anyoneChecked && '✓'}
+                              </span>
+                            </div>
                           </div>
                         )
                       })}
@@ -1750,52 +1815,80 @@ export default function MainPage() {
                 {/* Travel Preparations */}
                 {settings?.travelPreparations && settings.travelPreparations.length > 0 && (
                   <div className="mb-4">
-                    <h4 className="font-medium text-gray-700 px-4 py-3 flex items-center gap-2 bg-gray-50">
-                      <span>📝</span>
-                      <span>出發前準備</span>
+                    <h4 className="font-medium text-gray-700 px-2 py-2 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <span>📝</span>
+                        <span>出發前準備</span>
+                      </span>
+                      <span className="text-xs text-sakura-500 bg-sakura-50 px-2 py-0.5 rounded-full">
+                        {preparationsCheckedCount}/{preparationsTotal}
+                      </span>
                     </h4>
-                    <div className="divide-y divide-gray-100">
+                    <div className="space-y-1">
                       {settings.travelPreparations.map((item, idx) => {
                         const itemKey = `prep_${item.icon}_${item.text}`
                         const isChecked = isItemCheckedByUser(itemKey)
                         const checkedUsers = checkedItems[itemKey] || []
+                        const anyoneChecked = checkedUsers.length > 0
                         return (
                           <div 
                             key={idx} 
-                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                            className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer transition-all ${
+                              anyoneChecked 
+                                ? 'bg-green-50 text-green-600' 
+                                : 'text-gray-600 hover:bg-gray-50'
+                            }`}
                             onClick={() => toggleCheckItem(itemKey)}
                           >
-                            {/* Checkbox */}
-                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isChecked 
-                                ? 'bg-green-500 border-green-500 text-white' 
-                                : 'border-gray-300'
-                            }`}>
-                              {isChecked && <span className="text-xs">✓</span>}
-                            </div>
-                            <span className="text-lg">{item.icon}</span>
-                            <span className={`text-sm flex-1 ${isChecked ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                              {item.text}
+                            <span className="flex items-center gap-2 min-w-0">
+                              <span className="flex-shrink-0">{item.icon}</span>
+                              <span className="truncate text-sm">{item.text}</span>
                             </span>
-                            {/* Checked users avatars */}
-                            {checkedUsers.length > 0 && (
-                              <div className="flex -space-x-2">
-                                {checkedUsers.slice(0, 3).map((user, i) => (
-                                  <img 
-                                    key={i}
-                                    src={getCurrentUserAvatar(user.username, user.avatarUrl)} 
-                                    alt={user.displayName}
-                                    className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
-                                    title={user.displayName}
-                                  />
-                                ))}
-                                {checkedUsers.length > 3 && (
-                                  <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">
-                                    +{checkedUsers.length - 3}
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {/* Checked users avatars */}
+                              {checkedUsers.length > 0 && (
+                                <div className="flex -space-x-1 mr-0.5">
+                                  {checkedUsers.slice(0, 3).map((user, i) => {
+                                    const userObj = users.find(u => u.username === user.username)
+                                    const avatarUrl = userObj?.avatarUrl || user.avatarUrl
+                                    return avatarUrl ? (
+                                      <img 
+                                        key={i}
+                                        src={avatarUrl} 
+                                        alt={user.displayName}
+                                        className="w-5 h-5 rounded-full border border-white object-cover shadow-sm"
+                                        style={{ zIndex: checkedUsers.length - i }}
+                                        title={user.displayName}
+                                      />
+                                    ) : (
+                                      <div 
+                                        key={i}
+                                        className="w-5 h-5 rounded-full bg-green-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-green-700 font-medium"
+                                        style={{ zIndex: checkedUsers.length - i }}
+                                        title={user.displayName}
+                                      >
+                                        {user.displayName?.charAt(0).toUpperCase() || user.username.charAt(0).toUpperCase()}
+                                      </div>
+                                    )
+                                  })}
+                                  {checkedUsers.length > 3 && (
+                                    <div className="w-5 h-5 rounded-full bg-gray-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-gray-600 font-medium">
+                                      +{checkedUsers.length - 3}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {/* Checkbox */}
+                              <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
+                                isChecked 
+                                  ? 'bg-green-500 border-green-500 text-white' 
+                                  : anyoneChecked
+                                    ? 'bg-green-200 border-green-300 text-green-600'
+                                    : 'border-gray-300'
+                              }`}>
+                                {anyoneChecked && '✓'}
+                              </span>
+                            </div>
                           </div>
                         )
                       })}
@@ -1814,8 +1907,8 @@ export default function MainPage() {
                 
                 {/* User Info & Logout */}
                 {currentUser && (
-                  <div className="mt-6 pt-6 border-t border-gray-100">
-                    <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <div className="bg-gray-50 rounded-lg p-3">
                       <p className="text-sm text-gray-600">
                         目前登入：<span className="font-medium">{currentUser.displayName}</span>
                       </p>
@@ -1824,7 +1917,7 @@ export default function MainPage() {
                           logout()
                           window.location.href = '/login'
                         }}
-                        className="mt-3 w-full py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
+                        className="mt-2 w-full py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
                       >
                         登出
                       </button>
@@ -1832,9 +1925,22 @@ export default function MainPage() {
                   </div>
                 )}
               </div>
+              
+              {/* Action Button */}
+              <div className="px-4 pb-4 pt-2 flex-shrink-0 border-t border-gray-100 bg-white">
+                <button
+                  onClick={() => {
+                    setShowInfoPopup(false)
+                    setActiveBottomTab('home')
+                  }}
+                  className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
+                >
+                  知道了！
+                </button>
+              </div>
             </motion.div>
           </motion.div>
-        )}
+        )})()}
       </AnimatePresence>
 
       {/* Trip Form Modal */}
@@ -1844,18 +1950,20 @@ export default function MainPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 p-0 md:p-4"
             onClick={(e) => {
               if (e.target === e.currentTarget) closeForm()
             }}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden"
+              initial={{ opacity: 0, y: 100 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 100 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="bg-white rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-lg max-h-[80vh] md:max-h-[85vh] overflow-hidden flex flex-col"
             >
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              {/* Fixed Header */}
+              <div className="p-4 md:p-6 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                 <div>
                   <h3 className="text-lg font-medium text-gray-800">
                     {editingTrip ? '編輯行程' : pendingNewDay ? `Day ${pendingNewDay} 新增行程` : '新增行程'}
@@ -1866,15 +1974,15 @@ export default function MainPage() {
                 </div>
                 <button
                   onClick={closeForm}
-                  className="text-gray-400 hover:text-gray-600 text-xl"
+                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
                 >
-                  ×
+                  ✕
                 </button>
               </div>
 
               {/* Form Message */}
               {formMessage && (
-                <div className={`mx-6 mt-4 px-4 py-2 rounded-lg text-sm ${
+                <div className={`mx-4 md:mx-6 mt-4 px-4 py-2 rounded-lg text-sm flex-shrink-0 ${
                   formMessage.type === 'success' 
                     ? 'bg-green-50 text-green-700 border border-green-200' 
                     : 'bg-red-50 text-red-700 border border-red-200'
@@ -1884,7 +1992,7 @@ export default function MainPage() {
               )}
 
               {showPlacePicker ? (
-                <div className="p-6">
+                <div className="flex-1 overflow-y-auto p-4 md:p-6">
                   <PlacePicker
                     value={{
                       location: formData.location,
@@ -1896,169 +2004,175 @@ export default function MainPage() {
                   />
                 </div>
               ) : (
-                <form onSubmit={handleFormSubmit} className="p-6 space-y-4">
-                  {/* Title */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      標題 *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.title}
-                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
-                      required
-                    />
-                  </div>
-
-                  {/* Date */}
-                  <div className="overflow-hidden">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      日期 *
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.date}
-                      onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                      className="w-full max-w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none box-border"
-                      required
-                    />
-                  </div>
-
-                  {/* Location */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      地點 *
-                    </label>
-                    <div className="flex gap-2">
+                <>
+                  {/* Scrollable Form Content */}
+                  <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+                    {/* Title */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        標題 *
+                      </label>
                       <input
                         type="text"
-                        value={formData.location}
-                        readOnly
-                        placeholder="點擊選擇地點..."
-                        className="flex-1 px-4 py-2 rounded-lg border border-gray-200 bg-gray-50 cursor-pointer"
-                        onClick={() => setShowPlacePicker(true)}
+                        value={formData.title}
+                        onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                        required
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowPlacePicker(true)}
-                        className="px-4 py-2 bg-sakura-100 hover:bg-sakura-200 text-sakura-700 rounded-lg transition-colors"
-                      >
-                        📍
-                      </button>
                     </div>
-                  </div>
 
-                  {/* Images */}
-                  <MultiMediaUpload
-                    label="圖片（選填）"
-                    value={formData.images}
-                    onChange={(urls) => setFormData(prev => ({ ...prev, images: urls }))}
-                    maxImages={5}
-                  />
+                    {/* Date */}
+                    <div className="overflow-hidden">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        日期 *
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.date}
+                        onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                        className="w-full max-w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none box-border"
+                        required
+                      />
+                    </div>
 
-                  {/* Schedule Items - Point Form List */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      行程明細
-                    </label>
-                    <div className="space-y-3">
-                      {scheduleItems.map((item, index) => (
-                        <div key={item.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs font-medium text-gray-500 bg-white px-2 py-0.5 rounded">
-                              #{index + 1}
-                            </span>
-                            {/* Time Range for this item */}
-                            <input
-                              type="time"
-                              value={item.time_start}
-                              onChange={(e) => {
-                                const newItems = [...scheduleItems]
-                                newItems[index].time_start = e.target.value
-                                setScheduleItems(newItems)
-                              }}
-                              className="px-2 py-1 text-sm rounded border border-gray-200 focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none w-24"
-                              placeholder="開始"
-                            />
-                            <span className="text-gray-400 text-sm">至</span>
-                            <input
-                              type="time"
-                              value={item.time_end}
-                              onChange={(e) => {
-                                const newItems = [...scheduleItems]
-                                newItems[index].time_end = e.target.value
-                                setScheduleItems(newItems)
-                              }}
-                              className="px-2 py-1 text-sm rounded border border-gray-200 focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none w-24"
-                              placeholder="結束"
-                            />
-                            {/* Delete button (only show if more than 1 item) */}
-                            {scheduleItems.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setScheduleItems(scheduleItems.filter((_, i) => i !== index))
+                    {/* Location */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        地點 *
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={formData.location}
+                          readOnly
+                          placeholder="點擊選擇地點..."
+                          className="flex-1 px-4 py-2 rounded-lg border border-gray-200 bg-gray-50 cursor-pointer"
+                          onClick={() => setShowPlacePicker(true)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPlacePicker(true)}
+                          className="px-4 py-2 bg-sakura-100 hover:bg-sakura-200 text-sakura-700 rounded-lg transition-colors"
+                        >
+                          📍
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Images */}
+                    <MultiMediaUpload
+                      label="圖片（選填）"
+                      value={formData.images}
+                      onChange={(urls) => setFormData(prev => ({ ...prev, images: urls }))}
+                      maxImages={5}
+                    />
+
+                    {/* Schedule Items - Point Form List */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        行程明細
+                      </label>
+                      <div className="space-y-3">
+                        {scheduleItems.map((item, index) => (
+                          <div key={item.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              <span className="text-xs font-medium text-gray-500 bg-white px-2 py-0.5 rounded">
+                                #{index + 1}
+                              </span>
+                              {/* Time Range for this item */}
+                              <input
+                                type="time"
+                                value={item.time_start}
+                                onChange={(e) => {
+                                  const newItems = [...scheduleItems]
+                                  newItems[index].time_start = e.target.value
+                                  setScheduleItems(newItems)
                                 }}
-                                className="ml-auto text-red-400 hover:text-red-600 transition-colors p-1"
-                              >
-                                ✕
-                              </button>
-                            )}
+                                className="px-2 py-1 text-sm rounded border border-gray-200 focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none w-[90px]"
+                                placeholder="開始"
+                              />
+                              <span className="text-gray-400 text-sm">至</span>
+                              <input
+                                type="time"
+                                value={item.time_end}
+                                onChange={(e) => {
+                                  const newItems = [...scheduleItems]
+                                  newItems[index].time_end = e.target.value
+                                  setScheduleItems(newItems)
+                                }}
+                                className="px-2 py-1 text-sm rounded border border-gray-200 focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none w-[90px]"
+                                placeholder="結束"
+                              />
+                              {/* Delete button (only show if more than 1 item) */}
+                              {scheduleItems.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setScheduleItems(scheduleItems.filter((_, i) => i !== index))
+                                  }}
+                                  className="ml-auto text-red-400 hover:text-red-600 transition-colors p-1"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+                            {/* Content */}
+                            <input
+                              type="text"
+                              value={item.content}
+                              onChange={(e) => {
+                                const newItems = [...scheduleItems]
+                                newItems[index].content = e.target.value
+                                setScheduleItems(newItems)
+                              }}
+                              placeholder="輸入內容..."
+                              className="w-full px-3 py-2 rounded border border-gray-200 focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none text-sm"
+                            />
                           </div>
-                          {/* Content */}
-                          <input
-                            type="text"
-                            value={item.content}
-                            onChange={(e) => {
-                              const newItems = [...scheduleItems]
-                              newItems[index].content = e.target.value
-                              setScheduleItems(newItems)
-                            }}
-                            placeholder="輸入內容..."
-                            className="w-full px-3 py-2 rounded border border-gray-200 focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none text-sm"
-                          />
-                        </div>
-                      ))}
-                      {/* Add Item Button */}
-                      <button
-                        type="button"
-                        onClick={() => setScheduleItems([...scheduleItems, createEmptyScheduleItem()])}
-                        className="w-full py-2 border-2 border-dashed border-gray-300 hover:border-sakura-400 text-gray-500 hover:text-sakura-600 rounded-lg transition-colors flex items-center justify-center gap-2"
-                      >
-                        <span className="text-lg">+</span>
-                        <span className="text-sm">新增項目</span>
-                      </button>
+                        ))}
+                        {/* Add Item Button */}
+                        <button
+                          type="button"
+                          onClick={() => setScheduleItems([...scheduleItems, createEmptyScheduleItem()])}
+                          className="w-full py-2 border-2 border-dashed border-gray-300 hover:border-sakura-400 text-gray-500 hover:text-sakura-600 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <span className="text-lg">+</span>
+                          <span className="text-sm">新增項目</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Submit Buttons */}
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={closeForm}
-                      className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      取消
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting || !formData.location}
-                      className="flex-1 py-2 bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          處理中...
-                        </>
-                      ) : editingTrip ? (
-                        '更新'
-                      ) : (
-                        '新增'
-                      )}
-                    </button>
+                  {/* Fixed Footer with Submit Buttons */}
+                  <div className="p-4 md:p-6 border-t border-gray-100 flex-shrink-0 bg-white safe-area-bottom">
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={closeForm}
+                        className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleFormSubmit}
+                        disabled={isSubmitting || !formData.location}
+                        className="flex-1 py-2.5 bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            處理中...
+                          </>
+                        ) : editingTrip ? (
+                          '更新'
+                        ) : (
+                          '新增'
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </form>
+                </>
               )}
             </motion.div>
           </motion.div>

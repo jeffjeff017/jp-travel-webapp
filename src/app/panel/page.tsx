@@ -269,9 +269,10 @@ export default function AdminPage() {
     }
   }, [])
   
-  // Generate random avatar URL based on username
-  const getRandomAvatar = (username: string) => {
-    return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(username)}&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede`
+  // Get user's avatar - returns undefined if no avatar for initials fallback
+  const getUserAvatarUrl = (username: string, fallbackAvatarUrl?: string): string | undefined => {
+    const userObj = users.find(u => u.username === username)
+    return userObj?.avatarUrl || fallbackAvatarUrl || undefined
   }
   
   // Toggle travel notice item check
@@ -381,6 +382,15 @@ export default function AdminPage() {
           hachiware: settings.chiikawaMessages.hachiware || defaultMessages.hachiware,
           usagi: settings.chiikawaMessages.usagi || defaultMessages.usagi,
         })
+      }
+      
+      // Load users on mount (fix for "載入中..." showing until clicked)
+      try {
+        const freshUsers = await getUsersAsync()
+        setUsers(freshUsers)
+      } catch (err) {
+        console.warn('Failed to fetch users:', err)
+        setUsers(getUsers())
       }
     }
     
@@ -1338,21 +1348,33 @@ export default function AdminPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 p-0 md:p-4"
               onClick={(e) => {
                 if (e.target === e.currentTarget) setShowSettings(false)
               }}
             >
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                initial={{ opacity: 0, y: 100 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 100 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                className="bg-white rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-lg max-h-[80vh] md:max-h-[85vh] flex flex-col"
               >
-                <div className="p-6 border-b border-gray-100">
-                  <h3 className="text-lg font-medium text-gray-800">網站設定</h3>
+                {/* Fixed Header */}
+                <div className="p-4 md:p-6 border-b border-gray-100 flex-shrink-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-800">網站設定</h3>
+                    <button
+                      onClick={() => setShowSettings(false)}
+                      className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
-                <div className="p-6 space-y-6">
+                
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
                   {/* Site Title */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1450,18 +1472,57 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-3 pt-4">
+                  {/* Cache Management */}
+                  <div className="border-t border-gray-100 pt-6">
+                    <h4 className="text-sm font-medium text-gray-800 mb-4 flex items-center gap-2">
+                      🗑️ 快取管理
+                    </h4>
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-600 mb-3">
+                        如果資料顯示不正確或需要同步最新資料，可以清除本機快取。清除後將重新從伺服器載入所有資料。
+                      </p>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (confirm('確定要清除所有本機快取資料嗎？\n\n這將清除：\n• 願望清單快取\n• 設定快取\n• 其他本機資料\n\n清除後需要重新登入。')) {
+                            // Clear all localStorage except login state
+                            const keysToRemove = [
+                              'japan_travel_wishlist',
+                              'japan_travel_wishlist_cache_time',
+                              'site_settings',
+                              'travel_info_cache',
+                            ]
+                            keysToRemove.forEach(key => localStorage.removeItem(key))
+                            
+                            // Force reload to re-fetch everything
+                            setMessage({ type: 'success', text: '快取已清除！正在重新載入...' })
+                            setTimeout(() => {
+                              window.location.reload()
+                            }, 1000)
+                          }
+                        }}
+                        className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-medium transition-colors text-sm"
+                      >
+                        🗑️ 清除本機快取
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fixed Footer */}
+                <div className="p-4 md:p-6 border-t border-gray-100 flex-shrink-0 bg-white safe-area-bottom">
+                  <div className="flex gap-3">
                     <button
                       type="button"
                       onClick={() => setShowSettings(false)}
-                      className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                      className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
                     >
                       取消
                     </button>
                     <button
                       type="button"
                       onClick={handleSaveSettings}
-                      className="flex-1 py-2 bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg font-medium transition-colors"
+                      className="flex-1 py-2.5 bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg font-medium transition-colors"
                     >
                       儲存設定
                     </button>
@@ -1474,244 +1535,266 @@ export default function AdminPage() {
 
         {/* User Management Modal */}
         <AnimatePresence>
-          {showUserManagement && (
+        {showUserManagement && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 p-0 md:p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowUserManagement(false)
+                setEditingUser(null)
+                setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
+              }
+            }}
+          >
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-              onClick={(e) => {
-                if (e.target === e.currentTarget) {
-                  setShowUserManagement(false)
-                  setEditingUser(null)
-                  setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
-                }
-              }}
+              initial={{ opacity: 0, y: 100 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 100 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="bg-white rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-lg max-h-[80vh] md:max-h-[85vh] flex flex-col"
             >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
-              >
-                <div className="p-6 border-b border-gray-100">
+              {/* Fixed Header */}
+              <div className="p-4 md:p-6 border-b border-gray-100 flex-shrink-0">
+                <div className="flex items-center justify-between">
                   <h3 className="text-lg font-medium text-gray-800">👥 用戶管理</h3>
+                  <button
+                    onClick={() => {
+                      setShowUserManagement(false)
+                      setEditingUser(null)
+                      setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
+                    }}
+                    className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    ✕
+                  </button>
                 </div>
-                <div className="p-6">
-                  {/* User List */}
-                  <div className="space-y-3 mb-6">
-                    {users.map(user => (
-                      <div key={user.username} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          {/* Avatar */}
-                          {user.avatarUrl ? (
-                            <img 
-                              src={user.avatarUrl} 
-                              alt={user.displayName}
-                              className="w-10 h-10 rounded-full object-cover border-2 border-white shadow"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sakura-300 to-sakura-500 flex items-center justify-center text-white font-medium shadow">
-                              {user.displayName.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-gray-800">{user.displayName}</span>
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                user.role === 'admin' 
-                                  ? 'bg-purple-100 text-purple-600' 
-                                  : 'bg-blue-100 text-blue-600'
-                              }`}>
-                                {user.role === 'admin' ? '管理員' : '用戶'}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              帳號：{user.username} / 密碼：{user.password}
-                            </p>
+              </div>
+              
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-4 md:p-6">
+                {/* User List */}
+                <div className="space-y-3 mb-6">
+                  {users.map(user => (
+                    <div key={user.username} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {/* Avatar */}
+                        {user.avatarUrl ? (
+                          <img 
+                            src={user.avatarUrl} 
+                            alt={user.displayName}
+                            className="w-10 h-10 rounded-full object-cover border-2 border-white shadow"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sakura-300 to-sakura-500 flex items-center justify-center text-white font-medium shadow">
+                            {user.displayName.charAt(0).toUpperCase()}
                           </div>
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-800">{user.displayName}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              user.role === 'admin' 
+                                ? 'bg-purple-100 text-purple-600' 
+                                : 'bg-blue-100 text-blue-600'
+                            }`}>
+                              {user.role === 'admin' ? '管理員' : '用戶'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            帳號：{user.username} / 密碼：{user.password}
+                          </p>
                         </div>
-                        <div className="flex gap-2">
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => {
+                            setEditingUser(user)
+                            setUserForm({
+                              username: user.username,
+                              password: user.password,
+                              displayName: user.displayName,
+                              role: user.role,
+                              avatarUrl: user.avatarUrl || ''
+                            })
+                          }}
+                          className="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg transition-colors"
+                        >
+                          編輯
+                        </button>
+                        {user.username !== 'admin' && (
                           <button
-                            onClick={() => {
-                              setEditingUser(user)
-                              setUserForm({
-                                username: user.username,
-                                password: user.password,
-                                displayName: user.displayName,
-                                role: user.role,
-                                avatarUrl: user.avatarUrl || ''
-                              })
-                            }}
-                            className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg transition-colors"
-                          >
-                            編輯
-                          </button>
-                          {user.username !== 'admin' && (
-                            <button
-                              onClick={async () => {
-                                if (confirm(`確定要將用戶 ${user.displayName} 移至垃圾桶嗎？`)) {
-                                  // Move to trash
-                                  const newTrash = {
-                                    ...trashItems,
-                                    users: [...trashItems.users, { ...user, deletedAt: new Date().toISOString() }]
-                                  }
-                                  saveTrash(newTrash)
-                                  
-                                  await deleteUserAsync(user.username)
-                                  const freshUsers = await getUsersAsync()
-                                  setUsers(freshUsers)
-                                  setMessage({ type: 'success', text: '用戶已移至垃圾桶！' })
+                            onClick={async () => {
+                              if (confirm(`確定要將用戶 ${user.displayName} 移至垃圾桶嗎？`)) {
+                                // Move to trash
+                                const newTrash = {
+                                  ...trashItems,
+                                  users: [...trashItems.users, { ...user, deletedAt: new Date().toISOString() }]
                                 }
-                              }}
-                              className="px-3 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-colors"
+                                saveTrash(newTrash)
+                                
+                                await deleteUserAsync(user.username)
+                                const freshUsers = await getUsersAsync()
+                                setUsers(freshUsers)
+                                setMessage({ type: 'success', text: '用戶已移至垃圾桶！' })
+                              }
+                            }}
+                            className="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-colors"
+                          >
+                            刪除
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Add/Edit User Form */}
+                <div className="border-t border-gray-100 pt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">
+                    {editingUser ? '編輯用戶' : '新增用戶'}
+                  </h4>
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      value={userForm.displayName}
+                      onChange={(e) => setUserForm({ ...userForm, displayName: e.target.value })}
+                      placeholder="顯示名稱"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                    />
+                    <input
+                      type="text"
+                      value={userForm.username}
+                      onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+                      placeholder="帳號"
+                      disabled={editingUser?.username === 'admin'}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none disabled:bg-gray-100"
+                    />
+                    <input
+                      type="text"
+                      value={userForm.password}
+                      onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                      placeholder="密碼"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                    />
+                    <select
+                      value={userForm.role}
+                      onChange={(e) => setUserForm({ ...userForm, role: e.target.value as UserRole })}
+                      disabled={editingUser?.username === 'admin'}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none disabled:bg-gray-100"
+                    >
+                      <option value="user">用戶（可編輯行程、心願清單）</option>
+                      <option value="admin">管理員（可存取後台）</option>
+                    </select>
+                    
+                    {/* Avatar Upload */}
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">頭像圖片</label>
+                      <div className="flex items-center gap-3">
+                        {userForm.avatarUrl ? (
+                          <img 
+                            src={userForm.avatarUrl} 
+                            alt="Avatar preview"
+                            className="w-12 h-12 rounded-full object-cover border-2 border-sakura-200"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
+                            無頭像
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) {
+                                const reader = new FileReader()
+                                reader.onloadend = () => {
+                                  setUserForm({ ...userForm, avatarUrl: reader.result as string })
+                                }
+                                reader.readAsDataURL(file)
+                              }
+                            }}
+                            className="w-full text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-sakura-50 file:text-sakura-600 hover:file:bg-sakura-100"
+                          />
+                          {userForm.avatarUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setUserForm({ ...userForm, avatarUrl: '' })}
+                              className="text-xs text-red-500 hover:text-red-600 mt-1"
                             >
-                              刪除
+                              移除頭像
                             </button>
                           )}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                  
-                  {/* Add/Edit User Form */}
-                  <div className="border-t border-gray-100 pt-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-3">
-                      {editingUser ? '編輯用戶' : '新增用戶'}
-                    </h4>
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        value={userForm.displayName}
-                        onChange={(e) => setUserForm({ ...userForm, displayName: e.target.value })}
-                        placeholder="顯示名稱"
-                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
-                      />
-                      <input
-                        type="text"
-                        value={userForm.username}
-                        onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-                        placeholder="帳號"
-                        disabled={editingUser?.username === 'admin'}
-                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none disabled:bg-gray-100"
-                      />
-                      <input
-                        type="text"
-                        value={userForm.password}
-                        onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                        placeholder="密碼"
-                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
-                      />
-                      <select
-                        value={userForm.role}
-                        onChange={(e) => setUserForm({ ...userForm, role: e.target.value as UserRole })}
-                        disabled={editingUser?.username === 'admin'}
-                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none disabled:bg-gray-100"
-                      >
-                        <option value="user">用戶（可編輯行程、心願清單）</option>
-                        <option value="admin">管理員（可存取後台）</option>
-                      </select>
-                      
-                      {/* Avatar Upload */}
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">頭像圖片</label>
-                        <div className="flex items-center gap-3">
-                          {userForm.avatarUrl ? (
-                            <img 
-                              src={userForm.avatarUrl} 
-                              alt="Avatar preview"
-                              className="w-12 h-12 rounded-full object-cover border-2 border-sakura-200"
-                            />
-                          ) : (
-                            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
-                              無頭像
-                            </div>
-                          )}
-                          <div className="flex-1">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                if (file) {
-                                  const reader = new FileReader()
-                                  reader.onloadend = () => {
-                                    setUserForm({ ...userForm, avatarUrl: reader.result as string })
-                                  }
-                                  reader.readAsDataURL(file)
-                                }
-                              }}
-                              className="w-full text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-sakura-50 file:text-sakura-600 hover:file:bg-sakura-100"
-                            />
-                            {userForm.avatarUrl && (
-                              <button
-                                type="button"
-                                onClick={() => setUserForm({ ...userForm, avatarUrl: '' })}
-                                className="text-xs text-red-500 hover:text-red-600 mt-1"
-                              >
-                                移除頭像
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 mt-4">
-                      {editingUser && (
-                        <button
-                          onClick={() => {
-                            setEditingUser(null)
-                            setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
-                          }}
-                          className="flex-1 py-2 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                          取消
-                        </button>
-                      )}
-                      <button
-                        onClick={async () => {
-                          if (!userForm.username || !userForm.password || !userForm.displayName) {
-                            alert('請填寫所有欄位')
-                            return
-                          }
-                          // Pass originalUsername when editing to handle username changes
-                          await updateUserAsync({
-                            username: userForm.username,
-                            password: userForm.password,
-                            displayName: userForm.displayName,
-                            role: userForm.role,
-                            avatarUrl: userForm.avatarUrl || undefined
-                          }, editingUser?.username)
-                          const freshUsers = await getUsersAsync()
-                          setUsers(freshUsers)
-                          setEditingUser(null)
-                          setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
-                          setMessage({ type: 'success', text: editingUser ? '用戶已更新！' : '用戶已新增！' })
-                        }}
-                        className="flex-1 py-2 text-sm bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg transition-colors"
-                      >
-                        {editingUser ? '更新' : '新增'}
-                      </button>
                     </div>
                   </div>
-                  
-                  {/* Close Button */}
-                  <div className="mt-6 pt-4 border-t border-gray-100">
+                </div>
+              </div>
+              
+              {/* Fixed Footer with buttons */}
+              <div className="p-4 md:p-6 border-t border-gray-100 flex-shrink-0 bg-white safe-area-bottom">
+                <div className="flex gap-2">
+                  {editingUser && (
                     <button
                       onClick={() => {
-                        setShowUserManagement(false)
                         setEditingUser(null)
                         setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
                       }}
-                      className="w-full py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                      className="flex-1 py-2.5 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
                     >
-                      關閉
+                      取消
                     </button>
-                  </div>
+                  )}
+                  <button
+                    onClick={async () => {
+                      if (!userForm.username || !userForm.password || !userForm.displayName) {
+                        alert('請填寫所有欄位')
+                        return
+                      }
+                      // Store editingUser reference before async operations
+                      const isEditing = editingUser !== null
+                      const originalUsername = editingUser?.username
+                      
+                      // Pass originalUsername when editing to handle username changes
+                      await updateUserAsync({
+                        username: userForm.username,
+                        password: userForm.password,
+                        displayName: userForm.displayName,
+                        role: userForm.role,
+                        avatarUrl: userForm.avatarUrl || undefined
+                      }, originalUsername)
+                      const freshUsers = await getUsersAsync()
+                      setUsers(freshUsers)
+                      setEditingUser(null)
+                      setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
+                      setMessage({ type: 'success', text: isEditing ? '用戶已更新！' : '用戶已新增！' })
+                    }}
+                    className="flex-1 py-2.5 text-sm bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg transition-colors font-medium"
+                  >
+                    {editingUser ? '更新' : '新增'}
+                  </button>
                 </div>
-              </motion.div>
+                {!editingUser && (
+                  <button
+                    onClick={() => {
+                      setShowUserManagement(false)
+                      setEditingUser(null)
+                      setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
+                    }}
+                    className="w-full mt-2 py-2.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    關閉
+                  </button>
+                )}
+              </div>
             </motion.div>
-          )}
+          </motion.div>
+        )}
         </AnimatePresence>
 
         {/* Profile Edit Modal (for current user) */}
@@ -1721,7 +1804,7 @@ export default function AdminPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 p-0 md:p-4"
               onClick={(e) => {
                 if (e.target === e.currentTarget) {
                   setShowProfileEdit(false)
@@ -1730,15 +1813,30 @@ export default function AdminPage() {
               }}
             >
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+                initial={{ opacity: 0, y: 100 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 100 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                className="bg-white rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-md max-h-[80vh] md:max-h-[85vh] flex flex-col"
               >
-                <div className="p-6 border-b border-gray-100">
-                  <h3 className="text-lg font-medium text-gray-800">👤 編輯個人資料</h3>
+                {/* Fixed Header */}
+                <div className="p-4 md:p-6 border-b border-gray-100 flex-shrink-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-800">👤 編輯個人資料</h3>
+                    <button
+                      onClick={() => {
+                        setShowProfileEdit(false)
+                        setProfileForm({ displayName: '', password: '', avatarUrl: '' })
+                      }}
+                      className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
-                <div className="p-6">
+                
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto p-4 md:p-6">
                   {/* Current User Info */}
                   <div className="mb-6 p-4 bg-gray-50 rounded-xl">
                     <div className="flex items-center gap-3">
@@ -1868,8 +1966,11 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
+                </div>
+                
+                {/* Fixed Footer */}
+                <div className="p-4 md:p-6 border-t border-gray-100 flex-shrink-0 bg-white safe-area-bottom">
+                  <div className="flex gap-3">
                     <button
                       onClick={() => {
                         setShowProfileEdit(false)
@@ -3724,7 +3825,26 @@ export default function AdminPage() {
       
       {/* Mobile: Travel Notice Popup (Read-only) */}
       <AnimatePresence>
-        {showTravelNoticePopup && (
+        {showTravelNoticePopup && (() => {
+          // Calculate counts for travel notice
+          const essentialsTotal = travelEssentials?.length || 0
+          const preparationsTotal = travelPreparations?.length || 0
+          const totalItems = essentialsTotal + preparationsTotal
+          
+          const essentialsCheckedCount = travelEssentials?.filter(item => {
+            const itemKey = `essential_${item.icon}_${item.text}`
+            return (checkedItems[itemKey] || []).length > 0
+          }).length || 0
+          
+          const preparationsCheckedCount = travelPreparations?.filter(item => {
+            const itemKey = `prep_${item.icon}_${item.text}`
+            return (checkedItems[itemKey] || []).length > 0
+          }).length || 0
+          
+          const totalChecked = essentialsCheckedCount + preparationsCheckedCount
+          const allCompleted = totalItems > 0 && totalChecked === totalItems
+          
+          return (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -3737,71 +3857,122 @@ export default function AdminPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute bottom-0 left-0 right-0 h-[70vh] bg-white rounded-t-3xl overflow-hidden"
+              className="absolute bottom-0 left-0 right-0 h-[75vh] bg-white rounded-t-3xl overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Popup Header */}
-              <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                <h3 className="font-medium text-gray-800">📖 旅遊須知</h3>
+              {/* Popup Header - Pink gradient style */}
+              <div className="bg-gradient-to-r from-sakura-400 to-sakura-500 px-4 py-3 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🌸</span>
+                  <h3 className="text-white font-medium">旅遊須知</h3>
+                  <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full text-white">
+                    {totalChecked}/{totalItems}
+                  </span>
+                </div>
                 <button
                   onClick={() => setShowTravelNoticePopup(false)}
-                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                  className="text-white/80 hover:text-white transition-colors"
                 >
-                  ✕
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
                 </button>
               </div>
               
               {/* Travel Notice Content - Checklist Style */}
-              <div className="overflow-y-auto h-[calc(70vh-60px)]">
+              <div className="overflow-y-auto flex-1 p-4">
+                {/* All Completed Celebration */}
+                {allCompleted && (
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="mb-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200"
+                  >
+                    <div className="text-center">
+                      <span className="text-4xl block mb-2">🎉</span>
+                      <p className="text-green-700 font-medium">準備完成！</p>
+                      <p className="text-green-600 text-sm mt-1">旅途愉快！Have a nice trip!</p>
+                    </div>
+                  </motion.div>
+                )}
+                
                 {/* Travel Essentials */}
                 {travelEssentials && travelEssentials.length > 0 && (
                   <div className="mb-4">
-                    <h4 className="font-medium text-gray-700 px-4 py-3 flex items-center gap-2 bg-gray-50">
-                      <span>🎒</span>
-                      <span>旅遊必備</span>
+                    <h4 className="font-medium text-gray-700 px-2 py-2 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <span>🎒</span>
+                        <span>必備物品</span>
+                      </span>
+                      <span className="text-xs text-sakura-500 bg-sakura-50 px-2 py-0.5 rounded-full">
+                        {essentialsCheckedCount}/{essentialsTotal}
+                      </span>
                     </h4>
-                    <div className="divide-y divide-gray-100">
+                    <div className="space-y-1">
                       {travelEssentials.map((item, idx) => {
                         const itemKey = `essential_${item.icon}_${item.text}`
                         const isChecked = isItemCheckedByUser(itemKey)
                         const checkedUsers = checkedItems[itemKey] || []
+                        const anyoneChecked = checkedUsers.length > 0
                         return (
                           <div 
                             key={idx} 
-                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                            className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer transition-all ${
+                              anyoneChecked 
+                                ? 'bg-green-50 text-green-600' 
+                                : 'text-gray-600 hover:bg-gray-50'
+                            }`}
                             onClick={() => toggleCheckItem(itemKey)}
                           >
-                            {/* Checkbox */}
-                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isChecked 
-                                ? 'bg-green-500 border-green-500 text-white' 
-                                : 'border-gray-300'
-                            }`}>
-                              {isChecked && <span className="text-xs">✓</span>}
-                            </div>
-                            <span className="text-lg">{item.icon}</span>
-                            <span className={`text-sm flex-1 ${isChecked ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                              {item.text}
+                            <span className="flex items-center gap-2 min-w-0">
+                              <span className="flex-shrink-0">{item.icon}</span>
+                              <span className="truncate text-sm">{item.text}</span>
                             </span>
-                            {/* Checked users avatars */}
-                            {checkedUsers.length > 0 && (
-                              <div className="flex -space-x-2">
-                                {checkedUsers.slice(0, 3).map((user, i) => (
-                                  <img 
-                                    key={i}
-                                    src={user.avatarUrl || getRandomAvatar(user.username)} 
-                                    alt={user.displayName}
-                                    className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
-                                    title={user.displayName}
-                                  />
-                                ))}
-                                {checkedUsers.length > 3 && (
-                                  <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">
-                                    +{checkedUsers.length - 3}
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {/* Checked users avatars */}
+                              {checkedUsers.length > 0 && (
+                                <div className="flex -space-x-1 mr-0.5">
+                                  {checkedUsers.slice(0, 3).map((user, i) => {
+                                    const userObj = users.find(u => u.username === user.username)
+                                    const avatarUrl = userObj?.avatarUrl || user.avatarUrl
+                                    return avatarUrl ? (
+                                      <img 
+                                        key={i}
+                                        src={avatarUrl} 
+                                        alt={user.displayName}
+                                        className="w-5 h-5 rounded-full border border-white object-cover shadow-sm"
+                                        style={{ zIndex: checkedUsers.length - i }}
+                                        title={user.displayName}
+                                      />
+                                    ) : (
+                                      <div 
+                                        key={i}
+                                        className="w-5 h-5 rounded-full bg-green-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-green-700 font-medium"
+                                        style={{ zIndex: checkedUsers.length - i }}
+                                        title={user.displayName}
+                                      >
+                                        {user.displayName?.charAt(0).toUpperCase() || user.username.charAt(0).toUpperCase()}
+                                      </div>
+                                    )
+                                  })}
+                                  {checkedUsers.length > 3 && (
+                                    <div className="w-5 h-5 rounded-full bg-gray-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-gray-600 font-medium">
+                                      +{checkedUsers.length - 3}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {/* Checkbox */}
+                              <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
+                                isChecked 
+                                  ? 'bg-green-500 border-green-500 text-white' 
+                                  : anyoneChecked
+                                    ? 'bg-green-200 border-green-300 text-green-600'
+                                    : 'border-gray-300'
+                              }`}>
+                                {anyoneChecked && '✓'}
+                              </span>
+                            </div>
                           </div>
                         )
                       })}
@@ -3812,52 +3983,80 @@ export default function AdminPage() {
                 {/* Travel Preparations */}
                 {travelPreparations && travelPreparations.length > 0 && (
                   <div className="mb-4">
-                    <h4 className="font-medium text-gray-700 px-4 py-3 flex items-center gap-2 bg-gray-50">
-                      <span>📝</span>
-                      <span>出發前準備</span>
+                    <h4 className="font-medium text-gray-700 px-2 py-2 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <span>📝</span>
+                        <span>出發前準備</span>
+                      </span>
+                      <span className="text-xs text-sakura-500 bg-sakura-50 px-2 py-0.5 rounded-full">
+                        {preparationsCheckedCount}/{preparationsTotal}
+                      </span>
                     </h4>
-                    <div className="divide-y divide-gray-100">
+                    <div className="space-y-1">
                       {travelPreparations.map((item, idx) => {
                         const itemKey = `prep_${item.icon}_${item.text}`
                         const isChecked = isItemCheckedByUser(itemKey)
                         const checkedUsers = checkedItems[itemKey] || []
+                        const anyoneChecked = checkedUsers.length > 0
                         return (
                           <div 
                             key={idx} 
-                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                            className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer transition-all ${
+                              anyoneChecked 
+                                ? 'bg-green-50 text-green-600' 
+                                : 'text-gray-600 hover:bg-gray-50'
+                            }`}
                             onClick={() => toggleCheckItem(itemKey)}
                           >
-                            {/* Checkbox */}
-                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isChecked 
-                                ? 'bg-green-500 border-green-500 text-white' 
-                                : 'border-gray-300'
-                            }`}>
-                              {isChecked && <span className="text-xs">✓</span>}
-                            </div>
-                            <span className="text-lg">{item.icon}</span>
-                            <span className={`text-sm flex-1 ${isChecked ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                              {item.text}
+                            <span className="flex items-center gap-2 min-w-0">
+                              <span className="flex-shrink-0">{item.icon}</span>
+                              <span className="truncate text-sm">{item.text}</span>
                             </span>
-                            {/* Checked users avatars */}
-                            {checkedUsers.length > 0 && (
-                              <div className="flex -space-x-2">
-                                {checkedUsers.slice(0, 3).map((user, i) => (
-                                  <img 
-                                    key={i}
-                                    src={user.avatarUrl || getRandomAvatar(user.username)} 
-                                    alt={user.displayName}
-                                    className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
-                                    title={user.displayName}
-                                  />
-                                ))}
-                                {checkedUsers.length > 3 && (
-                                  <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">
-                                    +{checkedUsers.length - 3}
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {/* Checked users avatars */}
+                              {checkedUsers.length > 0 && (
+                                <div className="flex -space-x-1 mr-0.5">
+                                  {checkedUsers.slice(0, 3).map((user, i) => {
+                                    const userObj = users.find(u => u.username === user.username)
+                                    const avatarUrl = userObj?.avatarUrl || user.avatarUrl
+                                    return avatarUrl ? (
+                                      <img 
+                                        key={i}
+                                        src={avatarUrl} 
+                                        alt={user.displayName}
+                                        className="w-5 h-5 rounded-full border border-white object-cover shadow-sm"
+                                        style={{ zIndex: checkedUsers.length - i }}
+                                        title={user.displayName}
+                                      />
+                                    ) : (
+                                      <div 
+                                        key={i}
+                                        className="w-5 h-5 rounded-full bg-green-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-green-700 font-medium"
+                                        style={{ zIndex: checkedUsers.length - i }}
+                                        title={user.displayName}
+                                      >
+                                        {user.displayName?.charAt(0).toUpperCase() || user.username.charAt(0).toUpperCase()}
+                                      </div>
+                                    )
+                                  })}
+                                  {checkedUsers.length > 3 && (
+                                    <div className="w-5 h-5 rounded-full bg-gray-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-gray-600 font-medium">
+                                      +{checkedUsers.length - 3}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {/* Checkbox */}
+                              <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
+                                isChecked 
+                                  ? 'bg-green-500 border-green-500 text-white' 
+                                  : anyoneChecked
+                                    ? 'bg-green-200 border-green-300 text-green-600'
+                                    : 'border-gray-300'
+                              }`}>
+                                {anyoneChecked && '✓'}
+                              </span>
+                            </div>
                           </div>
                         )
                       })}
@@ -3873,9 +4072,19 @@ export default function AdminPage() {
                   </div>
                 )}
               </div>
+              
+              {/* Action Button */}
+              <div className="px-4 pb-4 pt-2 flex-shrink-0 border-t border-gray-100 bg-white">
+                <button
+                  onClick={() => setShowTravelNoticePopup(false)}
+                  className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
+                >
+                  知道了！
+                </button>
+              </div>
             </motion.div>
           </motion.div>
-        )}
+        )})()}
       </AnimatePresence>
       
       {/* Mobile: Chiikawa Dialogue Edit Popup (Admin only) */}
@@ -3893,11 +4102,11 @@ export default function AdminPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute bottom-0 left-0 right-0 h-[85vh] bg-white rounded-t-3xl overflow-hidden"
+              className="absolute bottom-0 left-0 right-0 max-h-[80vh] bg-white rounded-t-3xl overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Popup Header */}
-              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <div className="flex items-center justify-between p-4 border-b border-gray-100 flex-shrink-0">
                 <h3 className="font-medium text-gray-800">🐹 Chiikawa 對白設定</h3>
                 <button
                   onClick={() => setShowChiikawaEdit(false)}
@@ -3908,7 +4117,7 @@ export default function AdminPage() {
               </div>
               
               {/* Character Tabs */}
-              <div className="flex border-b border-gray-100">
+              <div className="flex border-b border-gray-100 flex-shrink-0">
                 <button
                   onClick={() => setEditingCharacter('usagi')}
                   className={`flex-1 py-3 text-sm font-medium transition-colors ${
@@ -3945,7 +4154,7 @@ export default function AdminPage() {
               </div>
               
               {/* Dialogue Edit Content */}
-              <div className="overflow-y-auto h-[calc(85vh-220px)] p-4">
+              <div className="flex-1 overflow-y-auto p-4">
                 {/* Add new message */}
                 <div className="flex gap-2 mb-4">
                   <input
@@ -4017,7 +4226,7 @@ export default function AdminPage() {
               </div>
               
               {/* Save Button */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100">
+              <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0 safe-area-bottom">
                 <button
                   onClick={async () => {
                     // Save to settings

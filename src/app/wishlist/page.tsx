@@ -168,15 +168,11 @@ export default function WishlistPage() {
     loadSettings()
   }, [])
   
-  // Generate random avatar URL based on username
-  const getRandomAvatar = (username: string) => {
-    return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(username)}&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede`
-  }
-  
   // Get user's current avatar from users list (most up-to-date)
-  const getCurrentUserAvatar = (username: string, fallbackAvatarUrl?: string) => {
+  // Returns undefined if no avatar, so UI can show initials fallback
+  const getUserAvatar = (username: string, fallbackAvatarUrl?: string): string | undefined => {
     const user = users.find(u => u.username === username)
-    return user?.avatarUrl || fallbackAvatarUrl || getRandomAvatar(username)
+    return user?.avatarUrl || fallbackAvatarUrl || undefined
   }
   
   // Toggle travel notice item check
@@ -652,10 +648,11 @@ export default function WishlistPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full md:max-w-md bg-white rounded-t-3xl md:rounded-2xl p-6 pb-24 md:pb-6 max-h-[85vh] overflow-y-auto"
+              className="w-full md:max-w-md bg-white rounded-t-3xl md:rounded-2xl max-h-[80vh] md:max-h-[85vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between mb-6">
+              {/* Fixed Header */}
+              <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-100 flex-shrink-0">
                 <h3 className="text-lg font-semibold text-gray-800">新增心願</h3>
                 <button
                   onClick={() => setShowAddForm(false)}
@@ -665,107 +662,112 @@ export default function WishlistPage() {
                 </button>
               </div>
               
-              <div className="space-y-4">
-                {/* Category Selector */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">分類</label>
-                  <select
-                    value={newItemCategory}
-                    onChange={(e) => setNewItemCategory(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none bg-white"
-                  >
-                    <option value="cafe">☕ Cafe</option>
-                    <option value="restaurant">🍽️ 餐廳</option>
-                    <option value="bakery">🥐 麵包店</option>
-                    <option value="shopping">🛍️ Shopping</option>
-                    <option value="park">🌳 Park</option>
-                    <option value="threads">🔗 Threads</option>
-                  </select>
-                </div>
-                
-                {/* Image */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">圖片</label>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleImageUpload}
-                    accept="image/*"
-                    className="hidden"
-                  />
-                  {newItemImage ? (
-                    <div className="relative w-full h-32 rounded-xl overflow-hidden">
-                      <img src={newItemImage} alt="" className="w-full h-full object-cover" />
-                      <button
-                        onClick={() => setNewItemImage('')}
-                        className="absolute top-2 right-2 w-6 h-6 bg-black/50 text-white rounded-full text-xs"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full h-24 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:border-sakura-300 hover:text-sakura-500 transition-colors flex flex-col items-center justify-center"
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-4 md:p-6">
+                <div className="space-y-4">
+                  {/* Category Selector */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">分類</label>
+                    <select
+                      value={newItemCategory}
+                      onChange={(e) => setNewItemCategory(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none bg-white"
                     >
-                      <span className="text-2xl mb-1">📷</span>
-                      <span className="text-sm">上傳圖片</span>
-                    </button>
-                  )}
-                </div>
-                
-                {/* Name */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">名稱 *</label>
-                  <input
-                    type="text"
-                    value={newItemName}
-                    onChange={(e) => setNewItemName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
-                    placeholder="輸入名稱..."
-                  />
-                </div>
-                
-                {/* Note */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
-                  <textarea
-                    value={newItemNote}
-                    onChange={(e) => setNewItemNote(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none resize-none"
-                    placeholder="輸入備註..."
-                    rows={2}
-                  />
-                </div>
-                
-                {/* URL */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">網址</label>
-                  <input
-                    type="url"
-                    value={newItemUrl}
-                    onChange={(e) => setNewItemUrl(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
-                    placeholder="https://..."
-                  />
+                      <option value="cafe">☕ Cafe</option>
+                      <option value="restaurant">🍽️ 餐廳</option>
+                      <option value="bakery">🥐 麵包店</option>
+                      <option value="shopping">🛍️ Shopping</option>
+                      <option value="park">🌳 Park</option>
+                      <option value="threads">🔗 Threads</option>
+                    </select>
+                  </div>
+                  
+                  {/* Image */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">圖片</label>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleImageUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    {newItemImage ? (
+                      <div className="relative w-full h-32 rounded-xl overflow-hidden">
+                        <img src={newItemImage} alt="" className="w-full h-full object-cover" />
+                        <button
+                          onClick={() => setNewItemImage('')}
+                          className="absolute top-2 right-2 w-6 h-6 bg-black/50 text-white rounded-full text-xs"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full h-24 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:border-sakura-300 hover:text-sakura-500 transition-colors flex flex-col items-center justify-center"
+                      >
+                        <span className="text-2xl mb-1">📷</span>
+                        <span className="text-sm">上傳圖片</span>
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Name */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">名稱 *</label>
+                    <input
+                      type="text"
+                      value={newItemName}
+                      onChange={(e) => setNewItemName(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                      placeholder="輸入名稱..."
+                    />
+                  </div>
+                  
+                  {/* Note */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
+                    <textarea
+                      value={newItemNote}
+                      onChange={(e) => setNewItemNote(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none resize-none"
+                      placeholder="輸入備註..."
+                      rows={2}
+                    />
+                  </div>
+                  
+                  {/* URL */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">網址</label>
+                    <input
+                      type="url"
+                      value={newItemUrl}
+                      onChange={(e) => setNewItemUrl(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                      placeholder="https://..."
+                    />
+                  </div>
                 </div>
               </div>
               
-              {/* Submit */}
-              <button
-                onClick={handleAddItem}
-                disabled={!newItemName.trim() || isSubmitting}
-                className="w-full mt-6 py-3 bg-sakura-500 hover:bg-sakura-600 disabled:bg-gray-300 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    處理中...
-                  </>
-                ) : (
-                  '新增'
-                )}
-              </button>
+              {/* Fixed Footer */}
+              <div className="p-4 md:p-6 border-t border-gray-100 flex-shrink-0 bg-white safe-area-bottom">
+                <button
+                  onClick={handleAddItem}
+                  disabled={!newItemName.trim() || isSubmitting}
+                  className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 disabled:bg-gray-300 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      處理中...
+                    </>
+                  ) : (
+                    '新增'
+                  )}
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -773,7 +775,26 @@ export default function WishlistPage() {
       
       {/* Travel Notice Popup - Checklist Style */}
       <AnimatePresence>
-        {showTravelNotice && (
+        {showTravelNotice && (() => {
+          // Calculate counts for travel notice
+          const essentialsTotal = settings?.travelEssentials?.length || 0
+          const preparationsTotal = settings?.travelPreparations?.length || 0
+          const totalItems = essentialsTotal + preparationsTotal
+          
+          const essentialsCheckedCount = settings?.travelEssentials?.filter(item => {
+            const itemKey = `essential_${item.icon}_${item.text}`
+            return (checkedItems[itemKey] || []).length > 0
+          }).length || 0
+          
+          const preparationsCheckedCount = settings?.travelPreparations?.filter(item => {
+            const itemKey = `prep_${item.icon}_${item.text}`
+            return (checkedItems[itemKey] || []).length > 0
+          }).length || 0
+          
+          const totalChecked = essentialsCheckedCount + preparationsCheckedCount
+          const allCompleted = totalItems > 0 && totalChecked === totalItems
+          
+          return (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -786,68 +807,122 @@ export default function WishlistPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute bottom-0 left-0 right-0 h-[70vh] bg-white rounded-t-3xl overflow-hidden"
+              className="absolute bottom-0 left-0 right-0 h-[75vh] bg-white rounded-t-3xl overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                <h3 className="font-medium text-gray-800">📖 旅遊須知</h3>
+              {/* Popup Header - Pink gradient style */}
+              <div className="bg-gradient-to-r from-sakura-400 to-sakura-500 px-4 py-3 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🌸</span>
+                  <h3 className="text-white font-medium">旅遊須知</h3>
+                  <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full text-white">
+                    {totalChecked}/{totalItems}
+                  </span>
+                </div>
                 <button
                   onClick={() => setShowTravelNotice(false)}
-                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                  className="text-white/80 hover:text-white transition-colors"
                 >
-                  ✕
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
                 </button>
               </div>
-              <div className="overflow-y-auto h-[calc(70vh-60px)]">
+              
+              {/* Travel Notice Content - Checklist Style */}
+              <div className="overflow-y-auto flex-1 p-4">
+                {/* All Completed Celebration */}
+                {allCompleted && (
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="mb-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200"
+                  >
+                    <div className="text-center">
+                      <span className="text-4xl block mb-2">🎉</span>
+                      <p className="text-green-700 font-medium">準備完成！</p>
+                      <p className="text-green-600 text-sm mt-1">旅途愉快！Have a nice trip!</p>
+                    </div>
+                  </motion.div>
+                )}
+                
                 {/* Travel Essentials */}
                 {settings?.travelEssentials && settings.travelEssentials.length > 0 && (
                   <div className="mb-4">
-                    <h4 className="font-medium text-gray-700 px-4 py-3 flex items-center gap-2 bg-gray-50">
-                      <span>🎒</span>
-                      <span>旅遊必備</span>
+                    <h4 className="font-medium text-gray-700 px-2 py-2 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <span>🎒</span>
+                        <span>必備物品</span>
+                      </span>
+                      <span className="text-xs text-sakura-500 bg-sakura-50 px-2 py-0.5 rounded-full">
+                        {essentialsCheckedCount}/{essentialsTotal}
+                      </span>
                     </h4>
-                    <div className="divide-y divide-gray-100">
+                    <div className="space-y-1">
                       {settings.travelEssentials.map((item, idx) => {
                         const itemKey = `essential_${item.icon}_${item.text}`
                         const isChecked = isItemCheckedByUser(itemKey)
                         const itemCheckedUsers = checkedItems[itemKey] || []
+                        const anyoneChecked = itemCheckedUsers.length > 0
                         return (
                           <div 
                             key={idx} 
-                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                            className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer transition-all ${
+                              anyoneChecked 
+                                ? 'bg-green-50 text-green-600' 
+                                : 'text-gray-600 hover:bg-gray-50'
+                            }`}
                             onClick={() => toggleCheckItem(itemKey)}
                           >
-                            {/* Checkbox */}
-                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isChecked 
-                                ? 'bg-green-500 border-green-500 text-white' 
-                                : 'border-gray-300'
-                            }`}>
-                              {isChecked && <span className="text-xs">✓</span>}
-                            </div>
-                            <span className="text-lg">{item.icon}</span>
-                            <span className={`text-sm flex-1 ${isChecked ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                              {item.text}
+                            <span className="flex items-center gap-2 min-w-0">
+                              <span className="flex-shrink-0">{item.icon}</span>
+                              <span className="truncate text-sm">{item.text}</span>
                             </span>
-                            {/* Checked users avatars */}
-                            {itemCheckedUsers.length > 0 && (
-                              <div className="flex -space-x-2">
-                                {itemCheckedUsers.slice(0, 3).map((user, i) => (
-                                  <img 
-                                    key={i}
-                                    src={getCurrentUserAvatar(user.username, user.avatarUrl)} 
-                                    alt={user.displayName}
-                                    className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
-                                    title={user.displayName}
-                                  />
-                                ))}
-                                {itemCheckedUsers.length > 3 && (
-                                  <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">
-                                    +{itemCheckedUsers.length - 3}
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {/* Checked users avatars */}
+                              {itemCheckedUsers.length > 0 && (
+                                <div className="flex -space-x-1 mr-0.5">
+                                  {itemCheckedUsers.slice(0, 3).map((user, i) => {
+                                    const userObj = users.find(u => u.username === user.username)
+                                    const avatarUrl = userObj?.avatarUrl || user.avatarUrl
+                                    return avatarUrl ? (
+                                      <img 
+                                        key={i}
+                                        src={avatarUrl} 
+                                        alt={user.displayName}
+                                        className="w-5 h-5 rounded-full border border-white object-cover shadow-sm"
+                                        style={{ zIndex: itemCheckedUsers.length - i }}
+                                        title={user.displayName}
+                                      />
+                                    ) : (
+                                      <div 
+                                        key={i}
+                                        className="w-5 h-5 rounded-full bg-green-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-green-700 font-medium"
+                                        style={{ zIndex: itemCheckedUsers.length - i }}
+                                        title={user.displayName}
+                                      >
+                                        {user.displayName?.charAt(0).toUpperCase() || user.username.charAt(0).toUpperCase()}
+                                      </div>
+                                    )
+                                  })}
+                                  {itemCheckedUsers.length > 3 && (
+                                    <div className="w-5 h-5 rounded-full bg-gray-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-gray-600 font-medium">
+                                      +{itemCheckedUsers.length - 3}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {/* Checkbox */}
+                              <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
+                                isChecked 
+                                  ? 'bg-green-500 border-green-500 text-white' 
+                                  : anyoneChecked
+                                    ? 'bg-green-200 border-green-300 text-green-600'
+                                    : 'border-gray-300'
+                              }`}>
+                                {anyoneChecked && '✓'}
+                              </span>
+                            </div>
                           </div>
                         )
                       })}
@@ -858,52 +933,80 @@ export default function WishlistPage() {
                 {/* Travel Preparations */}
                 {settings?.travelPreparations && settings.travelPreparations.length > 0 && (
                   <div className="mb-4">
-                    <h4 className="font-medium text-gray-700 px-4 py-3 flex items-center gap-2 bg-gray-50">
-                      <span>📝</span>
-                      <span>出發前準備</span>
+                    <h4 className="font-medium text-gray-700 px-2 py-2 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <span>📝</span>
+                        <span>出發前準備</span>
+                      </span>
+                      <span className="text-xs text-sakura-500 bg-sakura-50 px-2 py-0.5 rounded-full">
+                        {preparationsCheckedCount}/{preparationsTotal}
+                      </span>
                     </h4>
-                    <div className="divide-y divide-gray-100">
+                    <div className="space-y-1">
                       {settings.travelPreparations.map((item, idx) => {
                         const itemKey = `prep_${item.icon}_${item.text}`
                         const isChecked = isItemCheckedByUser(itemKey)
                         const itemCheckedUsers = checkedItems[itemKey] || []
+                        const anyoneChecked = itemCheckedUsers.length > 0
                         return (
                           <div 
                             key={idx} 
-                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                            className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer transition-all ${
+                              anyoneChecked 
+                                ? 'bg-green-50 text-green-600' 
+                                : 'text-gray-600 hover:bg-gray-50'
+                            }`}
                             onClick={() => toggleCheckItem(itemKey)}
                           >
-                            {/* Checkbox */}
-                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isChecked 
-                                ? 'bg-green-500 border-green-500 text-white' 
-                                : 'border-gray-300'
-                            }`}>
-                              {isChecked && <span className="text-xs">✓</span>}
-                            </div>
-                            <span className="text-lg">{item.icon}</span>
-                            <span className={`text-sm flex-1 ${isChecked ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                              {item.text}
+                            <span className="flex items-center gap-2 min-w-0">
+                              <span className="flex-shrink-0">{item.icon}</span>
+                              <span className="truncate text-sm">{item.text}</span>
                             </span>
-                            {/* Checked users avatars */}
-                            {itemCheckedUsers.length > 0 && (
-                              <div className="flex -space-x-2">
-                                {itemCheckedUsers.slice(0, 3).map((user, i) => (
-                                  <img 
-                                    key={i}
-                                    src={getCurrentUserAvatar(user.username, user.avatarUrl)} 
-                                    alt={user.displayName}
-                                    className="w-6 h-6 rounded-full border-2 border-white object-cover bg-gray-100"
-                                    title={user.displayName}
-                                  />
-                                ))}
-                                {itemCheckedUsers.length > 3 && (
-                                  <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center border-2 border-white">
-                                    +{itemCheckedUsers.length - 3}
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {/* Checked users avatars */}
+                              {itemCheckedUsers.length > 0 && (
+                                <div className="flex -space-x-1 mr-0.5">
+                                  {itemCheckedUsers.slice(0, 3).map((user, i) => {
+                                    const userObj = users.find(u => u.username === user.username)
+                                    const avatarUrl = userObj?.avatarUrl || user.avatarUrl
+                                    return avatarUrl ? (
+                                      <img 
+                                        key={i}
+                                        src={avatarUrl} 
+                                        alt={user.displayName}
+                                        className="w-5 h-5 rounded-full border border-white object-cover shadow-sm"
+                                        style={{ zIndex: itemCheckedUsers.length - i }}
+                                        title={user.displayName}
+                                      />
+                                    ) : (
+                                      <div 
+                                        key={i}
+                                        className="w-5 h-5 rounded-full bg-green-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-green-700 font-medium"
+                                        style={{ zIndex: itemCheckedUsers.length - i }}
+                                        title={user.displayName}
+                                      >
+                                        {user.displayName?.charAt(0).toUpperCase() || user.username.charAt(0).toUpperCase()}
+                                      </div>
+                                    )
+                                  })}
+                                  {itemCheckedUsers.length > 3 && (
+                                    <div className="w-5 h-5 rounded-full bg-gray-200 border border-white shadow-sm flex items-center justify-center text-[8px] text-gray-600 font-medium">
+                                      +{itemCheckedUsers.length - 3}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {/* Checkbox */}
+                              <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
+                                isChecked 
+                                  ? 'bg-green-500 border-green-500 text-white' 
+                                  : anyoneChecked
+                                    ? 'bg-green-200 border-green-300 text-green-600'
+                                    : 'border-gray-300'
+                              }`}>
+                                {anyoneChecked && '✓'}
+                              </span>
+                            </div>
                           </div>
                         )
                       })}
@@ -919,9 +1022,19 @@ export default function WishlistPage() {
                   </div>
                 )}
               </div>
+              
+              {/* Action Button */}
+              <div className="px-4 pb-4 pt-2 flex-shrink-0 border-t border-gray-100 bg-white">
+                <button
+                  onClick={() => setShowTravelNotice(false)}
+                  className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
+                >
+                  知道了！
+                </button>
+              </div>
             </motion.div>
           </motion.div>
-        )}
+        )})()}
       </AnimatePresence>
       
       {/* Item Detail Popup */}
