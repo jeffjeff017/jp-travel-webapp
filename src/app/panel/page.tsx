@@ -2459,44 +2459,63 @@ export default function AdminPage() {
                         <div className="flex-shrink-0 p-4 border-t border-gray-100 bg-white">
                           <button
                             onClick={async () => {
-                              if (!expenseForm.amount) return
+                              if (!expenseForm.amount) {
+                                setMessage({ type: 'error', text: '請輸入金額' })
+                                return
+                              }
                               
                               const user = getCurrentUser()
-                              if (!user) return
-                              
-                              if (editingExpense) {
-                                // Update existing
-                                await updateSupabaseExpense(editingExpense.id, {
-                                  amount: parseFloat(expenseForm.amount),
-                                  category: expenseForm.category,
-                                  note: expenseForm.note || null,
-                                })
-                              } else {
-                                // Create new
-                                await createSupabaseExpense({
-                                  type: walletTab,
-                                  username: user.username,
-                                  display_name: user.displayName,
-                                  avatar_url: user.avatarUrl || null,
-                                  amount: parseFloat(expenseForm.amount),
-                                  category: expenseForm.category,
-                                  note: expenseForm.note || null,
-                                })
+                              if (!user) {
+                                setMessage({ type: 'error', text: '請先登入' })
+                                return
                               }
                               
-                              // Refresh data
-                              if (walletTab === 'shared') {
-                                const fresh = await getSupabaseExpenses('shared')
-                                setSharedExpenses(fresh)
-                              } else {
-                                const fresh = await getSupabaseExpenses('personal', user.username)
-                                setPersonalExpenses(fresh)
+                              try {
+                                if (editingExpense) {
+                                  // Update existing
+                                  const { error } = await updateSupabaseExpense(editingExpense.id, {
+                                    amount: parseFloat(expenseForm.amount),
+                                    category: expenseForm.category,
+                                    note: expenseForm.note || null,
+                                  })
+                                  if (error) {
+                                    setMessage({ type: 'error', text: `更新失敗：${error}` })
+                                    return
+                                  }
+                                } else {
+                                  // Create new
+                                  const { error } = await createSupabaseExpense({
+                                    type: walletTab,
+                                    username: user.username,
+                                    display_name: user.displayName,
+                                    avatar_url: user.avatarUrl || null,
+                                    amount: parseFloat(expenseForm.amount),
+                                    category: expenseForm.category,
+                                    note: expenseForm.note || null,
+                                  })
+                                  if (error) {
+                                    setMessage({ type: 'error', text: `新增失敗：${error}` })
+                                    return
+                                  }
+                                }
+                                
+                                // Refresh data
+                                if (walletTab === 'shared') {
+                                  const fresh = await getSupabaseExpenses('shared')
+                                  setSharedExpenses(fresh)
+                                } else {
+                                  const fresh = await getSupabaseExpenses('personal', user.username)
+                                  setPersonalExpenses(fresh)
+                                }
+                                
+                                setShowExpenseForm(false)
+                                setEditingExpense(null)
+                                setExpenseForm({ amount: '', category: 'food', note: '' })
+                                setMessage({ type: 'success', text: editingExpense ? '支出已更新！' : '支出已新增！' })
+                              } catch (err: any) {
+                                console.error('Expense operation failed:', err)
+                                setMessage({ type: 'error', text: `操作失敗：${err.message || '未知錯誤'}` })
                               }
-                              
-                              setShowExpenseForm(false)
-                              setEditingExpense(null)
-                              setExpenseForm({ amount: '', category: 'food', note: '' })
-                              setMessage({ type: 'success', text: editingExpense ? '支出已更新！' : '支出已新增！' })
                             }}
                             className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-medium rounded-xl transition-colors"
                           >
