@@ -26,7 +26,6 @@ import {
   type ExpenseCategory,
   type WalletSettingsDB,
   EXPENSE_CATEGORIES,
-  USER_COLORS,
   getSupabaseExpenses,
   createSupabaseExpense,
   updateSupabaseExpense,
@@ -889,6 +888,115 @@ export default function AdminPage() {
             </div>
           </div>
 
+          {/* Mobile - Profile Edit Card - Full row (for all users) */}
+          <div 
+            className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+            onClick={async () => {
+              // Use currentUser state or try getCurrentUser() as fallback
+              let user = currentUser || getCurrentUser()
+              
+              // If still no user, try to find admin user from users list (as fallback)
+              if (!user && isAdminUser && users.length > 0) {
+                const adminUser = users.find(u => u.role === 'admin')
+                if (adminUser) {
+                  user = {
+                    username: adminUser.username,
+                    role: adminUser.role,
+                    displayName: adminUser.displayName,
+                    avatarUrl: adminUser.avatarUrl
+                  }
+                  setCurrentUser(user)
+                }
+              }
+              
+              if (user) {
+                // Find full user data from users list
+                const fullUser = users.find(u => u.username === user!.username)
+                setProfileForm({
+                  displayName: fullUser?.displayName || user.displayName || '',
+                  password: '',
+                  avatarUrl: fullUser?.avatarUrl || user.avatarUrl || ''
+                })
+                setShowProfileEdit(true)
+              } else {
+                // If still no user, try to refresh users and use the first admin
+                const freshUsers = await getUsersAsync()
+                setUsers(freshUsers)
+                const adminUser = freshUsers.find(u => u.role === 'admin')
+                if (adminUser) {
+                  const newUser = {
+                    username: adminUser.username,
+                    role: adminUser.role as 'admin' | 'user',
+                    displayName: adminUser.displayName,
+                    avatarUrl: adminUser.avatarUrl
+                  }
+                  setCurrentUser(newUser)
+                  setProfileForm({
+                    displayName: adminUser.displayName || '',
+                    password: '',
+                    avatarUrl: adminUser.avatarUrl || ''
+                  })
+                } else {
+                  setProfileForm({
+                    displayName: '',
+                    password: '',
+                    avatarUrl: ''
+                  })
+                }
+                setShowProfileEdit(true)
+              }
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {/* User Avatar */}
+                <div className="w-12 h-12 rounded-xl overflow-hidden bg-gradient-to-br from-sakura-400 to-sakura-600 flex items-center justify-center">
+                  {(() => {
+                    const fullUser = users.find(u => u.username === currentUser?.username)
+                    const avatarUrl = fullUser?.avatarUrl || currentUser?.avatarUrl
+                    if (avatarUrl) {
+                      return <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    }
+                    return <span className="text-xl text-white">👤</span>
+                  })()}
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800 text-sm">
+                    {(() => {
+                      const fullUser = users.find(u => u.username === currentUser?.username)
+                      return fullUser?.displayName || currentUser?.displayName || currentUser?.username || '用戶'
+                    })()}
+                  </h3>
+                  <p className="text-xs text-gray-500">點擊編輯個人資料</p>
+                </div>
+              </div>
+              <div className="text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile - Trip Management Card - Full row (for all users) */}
+          <a 
+            href="/main"
+            className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sakura-400 to-sakura-600 flex items-center justify-center">
+                  <span className="text-xl">📋</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800 text-sm">管理行程</h3>
+                  <p className="text-xs text-gray-500">查看及編輯旅行行程</p>
+                </div>
+              </div>
+              <span className="text-gray-400">→</span>
+            </div>
+          </a>
+
           {/* Mobile Admin Cards Row - Wishlist Management + Chiikawa Dialogue (Admin only) */}
           {isAdminUser && (
             <>
@@ -1007,73 +1115,6 @@ export default function AdminPage() {
               </div>
             </>
           )}
-          
-          {/* Mobile - Profile Edit Card - Full row (for all users) */}
-          <div 
-            className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
-            onClick={() => {
-              const user = getCurrentUser()
-              if (user) {
-                // Find full user data from users list
-                const fullUser = users.find(u => u.username === user.username)
-                setProfileForm({
-                  displayName: fullUser?.displayName || user.displayName || '',
-                  password: '',
-                  avatarUrl: fullUser?.avatarUrl || user.avatarUrl || ''
-                })
-                setShowProfileEdit(true)
-              }
-            }}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {/* User Avatar */}
-                <div className="w-12 h-12 rounded-xl overflow-hidden bg-gradient-to-br from-sakura-400 to-sakura-600 flex items-center justify-center">
-                  {(() => {
-                    const fullUser = users.find(u => u.username === currentUser?.username)
-                    const avatarUrl = fullUser?.avatarUrl || currentUser?.avatarUrl
-                    if (avatarUrl) {
-                      return <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                    }
-                    return <span className="text-xl text-white">👤</span>
-                  })()}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-800 text-sm">
-                    {(() => {
-                      const fullUser = users.find(u => u.username === currentUser?.username)
-                      return fullUser?.displayName || currentUser?.displayName || currentUser?.username || '用戶'
-                    })()}
-                  </h3>
-                  <p className="text-xs text-gray-500">點擊編輯個人資料</p>
-                </div>
-              </div>
-              <div className="text-gray-400">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* Mobile - Trip Management Card - Full row (for all users) */}
-          <a 
-            href="/main"
-            className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sakura-400 to-sakura-600 flex items-center justify-center">
-                  <span className="text-xl">📋</span>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-800 text-sm">管理行程</h3>
-                  <p className="text-xs text-gray-500">查看及編輯旅行行程</p>
-                </div>
-              </div>
-              <span className="text-gray-400">→</span>
-            </div>
-          </a>
 
           {/* Admin Only Content Below */}
           {isAdminUser && (
@@ -1348,22 +1389,21 @@ export default function AdminPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 p-0 md:p-4"
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
               onClick={(e) => {
                 if (e.target === e.currentTarget) setShowSettings(false)
               }}
             >
               <motion.div
-                initial={{ opacity: 0, y: 100 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 100 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="bg-white rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-lg max-h-[80vh] md:max-h-[85vh] flex flex-col"
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[70vh] flex flex-col overflow-hidden"
               >
                 {/* Fixed Header */}
-                <div className="p-4 md:p-6 border-b border-gray-100 flex-shrink-0">
+                <div className="p-4 border-b border-gray-100 flex-shrink-0">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-medium text-gray-800">網站設定</h3>
+                    <h3 className="font-medium text-gray-800">網站設定</h3>
                     <button
                       onClick={() => setShowSettings(false)}
                       className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
@@ -1374,7 +1414,7 @@ export default function AdminPage() {
                 </div>
                 
                 {/* Scrollable Content */}
-                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+                <div className="flex-1 overflow-y-auto p-4 space-y-6">
                   {/* Site Title */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1385,7 +1425,7 @@ export default function AdminPage() {
                       value={settingsForm.title}
                       onChange={(e) => setSettingsForm({ ...settingsForm, title: e.target.value })}
                       placeholder="例如：日本旅遊"
-                      className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400"
                     />
                   </div>
 
@@ -1416,7 +1456,8 @@ export default function AdminPage() {
                         type="date"
                         value={settingsForm.tripStartDate}
                         onChange={(e) => setSettingsForm({ ...settingsForm, tripStartDate: e.target.value })}
-                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400 appearance-none"
+                        style={{ minWidth: 0 }}
                       />
                     </div>
 
@@ -1428,7 +1469,7 @@ export default function AdminPage() {
                       <select
                         value={settingsForm.totalDays}
                         onChange={(e) => setSettingsForm({ ...settingsForm, totalDays: Number(e.target.value) })}
-                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400"
                       >
                         {Array.from({ length: 14 }, (_, i) => i + 1).map(n => (
                           <option key={n} value={n}>{n} 天</option>
@@ -1510,19 +1551,19 @@ export default function AdminPage() {
                 </div>
 
                 {/* Fixed Footer */}
-                <div className="p-4 md:p-6 border-t border-gray-100 flex-shrink-0 bg-white safe-area-bottom">
+                <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
                   <div className="flex gap-3">
                     <button
                       type="button"
                       onClick={() => setShowSettings(false)}
-                      className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                      className="flex-1 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-medium"
                     >
                       取消
                     </button>
                     <button
                       type="button"
                       onClick={handleSaveSettings}
-                      className="flex-1 py-2.5 bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg font-medium transition-colors"
+                      className="flex-1 py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
                     >
                       儲存設定
                     </button>
@@ -1540,7 +1581,7 @@ export default function AdminPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 p-0 md:p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setShowUserManagement(false)
@@ -1550,16 +1591,15 @@ export default function AdminPage() {
             }}
           >
             <motion.div
-              initial={{ opacity: 0, y: 100 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 100 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-white rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-lg max-h-[80vh] md:max-h-[85vh] flex flex-col"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[70vh] flex flex-col overflow-hidden"
             >
               {/* Fixed Header */}
-              <div className="p-4 md:p-6 border-b border-gray-100 flex-shrink-0">
+              <div className="p-4 border-b border-gray-100 flex-shrink-0">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium text-gray-800">👥 用戶管理</h3>
+                  <h3 className="font-medium text-gray-800">👥 用戶管理</h3>
                   <button
                     onClick={() => {
                       setShowUserManagement(false)
@@ -1574,11 +1614,11 @@ export default function AdminPage() {
               </div>
               
               {/* Scrollable Content */}
-              <div className="flex-1 overflow-y-auto p-4 md:p-6">
+              <div className="flex-1 overflow-y-auto p-4">
                 {/* User List */}
-                <div className="space-y-3 mb-6">
+                <div className="space-y-2 mb-6">
                   {users.map(user => (
-                    <div key={user.username} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div key={user.username} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                       <div className="flex items-center gap-3">
                         {/* Avatar */}
                         {user.avatarUrl ? (
@@ -1620,7 +1660,7 @@ export default function AdminPage() {
                               avatarUrl: user.avatarUrl || ''
                             })
                           }}
-                          className="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg transition-colors"
+                          className="px-3 py-1.5 text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg transition-colors font-medium"
                         >
                           編輯
                         </button>
@@ -1641,7 +1681,7 @@ export default function AdminPage() {
                                 setMessage({ type: 'success', text: '用戶已移至垃圾桶！' })
                               }
                             }}
-                            className="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-colors"
+                            className="px-3 py-1.5 text-xs bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-colors font-medium"
                           >
                             刪除
                           </button>
@@ -1662,7 +1702,7 @@ export default function AdminPage() {
                       value={userForm.displayName}
                       onChange={(e) => setUserForm({ ...userForm, displayName: e.target.value })}
                       placeholder="顯示名稱"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400"
                     />
                     <input
                       type="text"
@@ -1670,20 +1710,20 @@ export default function AdminPage() {
                       onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
                       placeholder="帳號"
                       disabled={editingUser?.username === 'admin'}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none disabled:bg-gray-100"
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400 disabled:bg-gray-100"
                     />
                     <input
                       type="text"
                       value={userForm.password}
                       onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
                       placeholder="密碼"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400"
                     />
                     <select
                       value={userForm.role}
                       onChange={(e) => setUserForm({ ...userForm, role: e.target.value as UserRole })}
                       disabled={editingUser?.username === 'admin'}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none disabled:bg-gray-100"
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400 disabled:bg-gray-100"
                     >
                       <option value="user">用戶（可編輯行程、心願清單）</option>
                       <option value="admin">管理員（可存取後台）</option>
@@ -1737,7 +1777,7 @@ export default function AdminPage() {
               </div>
               
               {/* Fixed Footer with buttons */}
-              <div className="p-4 md:p-6 border-t border-gray-100 flex-shrink-0 bg-white safe-area-bottom">
+              <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
                 <div className="flex gap-2">
                   {editingUser && (
                     <button
@@ -1745,9 +1785,9 @@ export default function AdminPage() {
                         setEditingUser(null)
                         setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
                       }}
-                      className="flex-1 py-2.5 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                      className="flex-1 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-medium"
                     >
-                      取消
+                      取消編輯
                     </button>
                   )}
                   <button
@@ -1756,9 +1796,19 @@ export default function AdminPage() {
                         alert('請填寫所有欄位')
                         return
                       }
+                      
                       // Store editingUser reference before async operations
                       const isEditing = editingUser !== null
                       const originalUsername = editingUser?.username
+                      
+                      // Show confirmation alert
+                      const confirmMessage = isEditing 
+                        ? `確定要更新用戶「${userForm.displayName}」的資料嗎？`
+                        : `確定要新增用戶「${userForm.displayName}」嗎？`
+                      
+                      if (!confirm(confirmMessage)) {
+                        return
+                      }
                       
                       // Pass originalUsername when editing to handle username changes
                       await updateUserAsync({
@@ -1768,29 +1818,19 @@ export default function AdminPage() {
                         role: userForm.role,
                         avatarUrl: userForm.avatarUrl || undefined
                       }, originalUsername)
-                      const freshUsers = await getUsersAsync()
-                      setUsers(freshUsers)
-                      setEditingUser(null)
-                      setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
+                      
                       setMessage({ type: 'success', text: isEditing ? '用戶已更新！' : '用戶已新增！' })
+                      
+                      // Refresh page after short delay
+                      setTimeout(() => {
+                        window.location.reload()
+                      }, 500)
                     }}
-                    className="flex-1 py-2.5 text-sm bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg transition-colors font-medium"
+                    className={`${editingUser ? 'flex-1' : 'w-full'} py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors`}
                   >
                     {editingUser ? '更新' : '新增'}
                   </button>
                 </div>
-                {!editingUser && (
-                  <button
-                    onClick={() => {
-                      setShowUserManagement(false)
-                      setEditingUser(null)
-                      setUserForm({ username: '', password: '', displayName: '', role: 'user', avatarUrl: '' })
-                    }}
-                    className="w-full mt-2 py-2.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    關閉
-                  </button>
-                )}
               </div>
             </motion.div>
           </motion.div>
@@ -1804,7 +1844,7 @@ export default function AdminPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 p-0 md:p-4"
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
               onClick={(e) => {
                 if (e.target === e.currentTarget) {
                   setShowProfileEdit(false)
@@ -1813,16 +1853,15 @@ export default function AdminPage() {
               }}
             >
               <motion.div
-                initial={{ opacity: 0, y: 100 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 100 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="bg-white rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-md max-h-[80vh] md:max-h-[85vh] flex flex-col"
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[70vh] flex flex-col overflow-hidden"
               >
                 {/* Fixed Header */}
-                <div className="p-4 md:p-6 border-b border-gray-100 flex-shrink-0">
+                <div className="p-4 border-b border-gray-100 flex-shrink-0">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-medium text-gray-800">👤 編輯個人資料</h3>
+                    <h3 className="font-medium text-gray-800">👤 編輯個人資料</h3>
                     <button
                       onClick={() => {
                         setShowProfileEdit(false)
@@ -1836,7 +1875,7 @@ export default function AdminPage() {
                 </div>
                 
                 {/* Scrollable Content */}
-                <div className="flex-1 overflow-y-auto p-4 md:p-6">
+                <div className="flex-1 overflow-y-auto p-4">
                   {/* Current User Info */}
                   <div className="mb-6 p-4 bg-gray-50 rounded-xl">
                     <div className="flex items-center gap-3">
@@ -1853,7 +1892,9 @@ export default function AdminPage() {
                       )}
                       <div>
                         <p className="font-medium text-gray-800">{profileForm.displayName || '用戶'}</p>
-                        <p className="text-sm text-gray-500">@{currentUser?.username}</p>
+                        <p className="text-sm text-gray-500">
+                          @{currentUser?.username || (isAdminUser ? users.find(u => u.role === 'admin')?.username : '') || ''}
+                        </p>
                         {isAdminUser && (
                           <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-600">管理員</span>
                         )}
@@ -1871,7 +1912,7 @@ export default function AdminPage() {
                         value={profileForm.displayName}
                         onChange={(e) => setProfileForm({ ...profileForm, displayName: e.target.value })}
                         placeholder="輸入顯示名稱"
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none transition-all"
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400"
                       />
                     </div>
 
@@ -1884,9 +1925,9 @@ export default function AdminPage() {
                         </label>
                         <input
                           type="text"
-                          value={currentUser?.username || ''}
+                          value={currentUser?.username || (isAdminUser ? users.find(u => u.role === 'admin')?.username : '') || ''}
                           disabled
-                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-500"
+                          className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm text-gray-500"
                         />
                         <p className="text-xs text-gray-400 mt-1">如需更改帳號名稱，請到用戶管理</p>
                       </div>
@@ -1900,7 +1941,7 @@ export default function AdminPage() {
                         value={profileForm.password}
                         onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
                         placeholder="留空表示不更改密碼"
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none transition-all"
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400"
                       />
                       <p className="text-xs text-gray-400 mt-1">如不需更改密碼，請留空</p>
                     </div>
@@ -1969,21 +2010,39 @@ export default function AdminPage() {
                 </div>
                 
                 {/* Fixed Footer */}
-                <div className="p-4 md:p-6 border-t border-gray-100 flex-shrink-0 bg-white safe-area-bottom">
-                  <div className="flex gap-3">
+                <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
+                  <div className="flex gap-2">
                     <button
                       onClick={() => {
                         setShowProfileEdit(false)
                         setProfileForm({ displayName: '', password: '', avatarUrl: '' })
                       }}
-                      className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-medium"
+                      className="flex-1 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-medium"
                     >
                       取消
                     </button>
                     <button
                       onClick={async () => {
-                        const user = getCurrentUser()
-                        if (!user) return
+                        // Use currentUser state or try getCurrentUser() as fallback
+                        let user = currentUser || getCurrentUser()
+                        
+                        // If still no user but is admin, try to find admin user from users list
+                        if (!user && isAdminUser) {
+                          const adminUser = users.find(u => u.role === 'admin')
+                          if (adminUser) {
+                            user = {
+                              username: adminUser.username,
+                              role: adminUser.role,
+                              displayName: adminUser.displayName,
+                              avatarUrl: adminUser.avatarUrl
+                            }
+                          }
+                        }
+                        
+                        if (!user) {
+                          alert('請先登入')
+                          return
+                        }
                         
                         if (!profileForm.displayName.trim()) {
                           alert('請輸入顯示名稱')
@@ -1991,9 +2050,14 @@ export default function AdminPage() {
                         }
                         
                         // Get current user data
-                        const currentUserData = users.find(u => u.username === user.username)
+                        const currentUserData = users.find(u => u.username === user!.username)
                         if (!currentUserData) {
                           alert('找不到用戶資料')
+                          return
+                        }
+                        
+                        // Show confirmation alert
+                        if (!confirm('確定要更新個人資料嗎？')) {
                           return
                         }
                         
@@ -2008,27 +2072,19 @@ export default function AdminPage() {
                         const result = await updateUserAsync(updatedUser, user.username)
                         
                         if (result.success) {
-                          // Refresh users list
-                          const freshUsers = await getUsersAsync()
-                          setUsers(freshUsers)
-                          
-                          // Update current user display
-                          setCurrentUser({
-                            ...user,
-                            displayName: updatedUser.displayName,
-                            avatarUrl: updatedUser.avatarUrl
-                          })
-                          
-                          setShowProfileEdit(false)
-                          setProfileForm({ displayName: '', password: '', avatarUrl: '' })
                           setMessage({ type: 'success', text: '個人資料已更新！' })
+                          
+                          // Refresh page after short delay
+                          setTimeout(() => {
+                            window.location.reload()
+                          }, 500)
                         } else {
                           alert(result.error || '更新失敗')
                         }
                       }}
-                      className="flex-1 py-2.5 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl transition-colors font-medium"
+                      className="flex-1 py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
                     >
-                      儲存
+                      儲存設定
                     </button>
                   </div>
                 </div>
@@ -2073,12 +2129,24 @@ export default function AdminPage() {
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[70vh] flex flex-col overflow-hidden"
               >
-                <div className="p-4 sm:p-6 border-b border-gray-100">
-                  <h3 className="text-base sm:text-lg font-medium text-gray-800">📋 旅遊須知設定</h3>
+                <div className="p-4 border-b border-gray-100 flex-shrink-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base sm:text-lg font-medium text-gray-800">📋 旅遊須知設定</h3>
+                    <button
+                      onClick={() => {
+                        setShowTravelNotice(false)
+                        setNewItemText('')
+                        setNewItemIcon('📌')
+                      }}
+                      className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
-                <div className="p-4 sm:p-6">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                   {/* Category Tabs */}
                   <div className="flex gap-2 mb-4">
                     <button
@@ -2207,15 +2275,18 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 mt-6 pt-4 border-t border-gray-100">
+                </div>
+                
+                {/* Fixed Footer */}
+                <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
+                  <div className="flex gap-2">
                     <button
                       onClick={() => {
                         setShowTravelNotice(false)
                         setNewItemText('')
                         setNewItemIcon('📌')
                       }}
-                      className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                      className="flex-1 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-medium"
                     >
                       取消
                     </button>
@@ -2231,7 +2302,7 @@ export default function AdminPage() {
                         setNewItemText('')
                         setNewItemIcon('📌')
                       }}
-                      className="flex-1 py-2 bg-sakura-500 hover:bg-sakura-600 text-white rounded-lg font-medium transition-colors"
+                      className="flex-1 py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
                     >
                       儲存
                     </button>
@@ -2262,12 +2333,12 @@ export default function AdminPage() {
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[70vh] overflow-hidden flex flex-col"
               >
-                <div className="p-6 border-b border-gray-100">
+                <div className="p-4 border-b border-gray-100 flex-shrink-0">
                   <h3 className="text-lg font-medium text-gray-800">🌏 目的地管理</h3>
                 </div>
-                <div className="p-6">
+                <div className="flex-1 overflow-y-auto p-4">
                   {/* Destinations List */}
                   <div className="space-y-3 mb-6">
                     {destinations.map((dest) => (
@@ -2486,10 +2557,10 @@ export default function AdminPage() {
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[70vh] overflow-hidden flex flex-col"
               >
                 {/* Header */}
-                <div className="p-5 border-b border-gray-100">
+                <div className="p-4 md:p-5 border-b border-gray-100 flex-shrink-0">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-medium text-gray-800">💰 旅行錢包</h3>
                     <button
@@ -2498,9 +2569,9 @@ export default function AdminPage() {
                         setShowExpenseForm(false)
                         setEditingExpense(null)
                       }}
-                      className="text-gray-400 hover:text-gray-600 text-xl"
+                      className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
                     >
-                      ×
+                      ✕
                     </button>
                   </div>
                   
@@ -2596,22 +2667,21 @@ export default function AdminPage() {
                         {sharedExpenses.length === 0 ? (
                           <p className="text-center text-gray-400 text-sm py-8">尚無共同支出記錄</p>
                         ) : (
-                          sharedExpenses.map((expense, index) => {
-                            const userColor = USER_COLORS[index % USER_COLORS.length]
+                          sharedExpenses.map((expense) => {
                             const category = EXPENSE_CATEGORIES.find(c => c.id === expense.category)
                             return (
                               <div
                                 key={expense.id}
                                 className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100 shadow-sm"
-                                style={{ borderLeftColor: userColor, borderLeftWidth: '3px' }}
+                                style={{ borderLeftColor: themeColor, borderLeftWidth: '3px' }}
                               >
                                 {/* Avatar */}
                                 {expense.avatar_url ? (
-                                  <img src={expense.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                                  <img src={expense.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover border-2 border-white shadow" />
                                 ) : (
                                   <div 
-                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium"
-                                    style={{ backgroundColor: userColor }}
+                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium shadow"
+                                    style={{ backgroundColor: themeColor }}
                                   >
                                     {expense.display_name.charAt(0)}
                                   </div>
@@ -2916,7 +2986,7 @@ export default function AdminPage() {
 
                 {/* Footer - Add Button */}
                 {!showExpenseForm && (
-                  <div className="p-4 border-t border-gray-100">
+                  <div className="p-4 border-t border-gray-100 flex-shrink-0">
                     <button
                       onClick={() => setShowExpenseForm(true)}
                       className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -2947,9 +3017,9 @@ export default function AdminPage() {
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[70vh] overflow-hidden flex flex-col"
               >
-                <div className="p-6 border-b border-gray-100">
+                <div className="p-4 border-b border-gray-100 flex-shrink-0">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium text-gray-800">🗑️ 垃圾桶</h3>
                     {(trashItems.trips.length + trashItems.users.length + trashItems.destinations.length) > 0 && (
@@ -2962,7 +3032,7 @@ export default function AdminPage() {
                     )}
                   </div>
                 </div>
-                <div className="p-6">
+                <div className="flex-1 overflow-y-auto p-4">
                   {/* Category Tabs */}
                   <div className="flex gap-2 mb-4">
                     <button
@@ -3118,16 +3188,16 @@ export default function AdminPage() {
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[70vh] overflow-hidden flex flex-col"
               >
-                <div className="p-6 border-b border-gray-100">
+                <div className="p-4 border-b border-gray-100 flex-shrink-0">
                   <h3 className="text-lg font-medium text-gray-800">
                     {editingTrip ? t.admin.editTrip : t.admin.addTrip}
                   </h3>
                 </div>
 
                 {showPlacePicker ? (
-                  <div className="p-6">
+                  <div className="flex-1 overflow-y-auto p-4">
                     <PlacePicker
                       value={{
                         location: formData.location,
@@ -3139,7 +3209,7 @@ export default function AdminPage() {
                     />
                   </div>
                 ) : (
-                  <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                  <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         {t.admin.title} *
@@ -3652,22 +3722,21 @@ export default function AdminPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="md:hidden fixed inset-0 bg-black/50 z-[60]"
+            className="md:hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
             onClick={() => {
               setShowWishlistManagement(false)
               setEditingWishlistItem(null)
             }}
           >
             <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute bottom-0 left-0 right-0 h-[85vh] bg-white rounded-t-3xl overflow-hidden"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[70vh] overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Popup Header */}
-              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <div className="flex items-center justify-between p-4 border-b border-gray-100 flex-shrink-0">
                 <h3 className="font-medium text-gray-800 flex items-center gap-2">
                   <span>💝</span>
                   <span>心願清單管理</span>
@@ -3684,7 +3753,7 @@ export default function AdminPage() {
               </div>
               
               {/* Search */}
-              <div className="px-4 py-3 border-b border-gray-100">
+              <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
                   <input
@@ -3698,7 +3767,7 @@ export default function AdminPage() {
               </div>
               
               {/* Wishlist Items */}
-              <div className="overflow-y-auto h-[calc(85vh-130px)] p-4">
+              <div className="flex-1 overflow-y-auto p-4">
                 {wishlistItems.length === 0 ? (
                   <div className="text-center py-12">
                     <span className="text-5xl mb-4 block">💝</span>
@@ -3849,15 +3918,14 @@ export default function AdminPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="md:hidden fixed inset-0 bg-black/50 z-[60]"
+            className="md:hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
             onClick={() => setShowTravelNoticePopup(false)}
           >
             <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute bottom-0 left-0 right-0 h-[75vh] bg-white rounded-t-3xl overflow-hidden flex flex-col"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[70vh] overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Popup Header - Pink gradient style */}
@@ -4094,15 +4162,14 @@ export default function AdminPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="md:hidden fixed inset-0 bg-black/50 z-[60]"
+            className="md:hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
             onClick={() => setShowChiikawaEdit(false)}
           >
             <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute bottom-0 left-0 right-0 max-h-[80vh] bg-white rounded-t-3xl overflow-hidden flex flex-col"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[70vh] overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Popup Header */}
@@ -4263,7 +4330,7 @@ export default function AdminPage() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
+              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[70vh] overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}

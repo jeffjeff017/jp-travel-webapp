@@ -953,67 +953,40 @@ export default function MainPage() {
               )}
             </div>
 
-            {/* Day Tabs - Show 3 days on mobile with navigation arrows */}
+            {/* Day Tabs - Swipeable slider on mobile */}
             {settings && (
               <div className="relative mb-4">
-                {/* Mobile: Show 3 days with navigation arrows */}
-                <div className="md:hidden relative">
-                  {/* Left Arrow */}
-                  {visibleStartDay > 1 && (
-                    <button
-                      onClick={() => setVisibleStartDay(prev => Math.max(prev - 1, 1))}
-                      className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 hover:bg-white shadow-md rounded-full flex items-center justify-center text-sakura-500 -ml-1"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  )}
-                  
-                  {/* Right Arrow */}
-                  {visibleStartDay + 2 < settings.totalDays && (
-                    <button
-                      onClick={() => setVisibleStartDay(prev => Math.min(prev + 1, Math.max(1, settings.totalDays - 2)))}
-                      className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 hover:bg-white shadow-md rounded-full flex items-center justify-center text-sakura-500 -mr-1"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  )}
-
-                  {/* Day Tabs Container - 3 days */}
-                  <div className="flex gap-2 px-6">
-                    {Array.from({ length: Math.min(3, settings.totalDays) }, (_, i) => visibleStartDay + i)
-                      .filter(day => day <= settings.totalDays)
-                      .map((day) => {
-                        const daySchedule = settings.daySchedules?.find(d => d.dayNumber === day)
-                        return (
-                          <div
-                            key={day}
-                            onClick={() => setSelectedDay(day)}
-                            className={`flex-1 py-2 px-3 text-sm font-medium transition-all rounded-lg cursor-pointer text-center ${
-                              selectedDay === day
-                                ? 'bg-sakura-500 text-white shadow-md'
-                                : 'bg-sakura-50 text-sakura-600 hover:bg-sakura-100'
-                            }`}
-                          >
-                            {/* Date + Weather Row */}
-                            <div className="flex items-center justify-center gap-1 mb-0.5">
-                              <span className="text-xs opacity-80 whitespace-nowrap">
-                                {getDayDate(day)}
-                              </span>
-                              <span className="text-sm">{getWeatherIcon(day)}</span>
-                            </div>
-                            {/* Day Number */}
-                            <div className="font-bold text-center whitespace-nowrap">Day {day}</div>
-                            {/* Theme */}
-                            {daySchedule?.theme && daySchedule.theme !== `Day ${day}` && (
-                              <div className="text-xs mt-0.5 truncate text-center">{daySchedule.theme}</div>
-                            )}
+                {/* Mobile: Horizontal swipeable slider */}
+                <div className="md:hidden overflow-x-auto scrollbar-hide -mx-4 px-4">
+                  <div className="flex gap-2 pb-1" style={{ minWidth: 'max-content' }}>
+                    {Array.from({ length: settings.totalDays }, (_, i) => i + 1).map((day) => {
+                      const daySchedule = settings.daySchedules?.find(d => d.dayNumber === day)
+                      return (
+                        <div
+                          key={day}
+                          onClick={() => setSelectedDay(day)}
+                          className={`flex-shrink-0 w-[100px] py-2 px-3 text-sm font-medium transition-all rounded-lg cursor-pointer text-center ${
+                            selectedDay === day
+                              ? 'bg-sakura-500 text-white shadow-md'
+                              : 'bg-sakura-50 text-sakura-600 hover:bg-sakura-100'
+                          }`}
+                        >
+                          {/* Date + Weather Row */}
+                          <div className="flex items-center justify-center gap-1 mb-0.5">
+                            <span className="text-xs opacity-80 whitespace-nowrap">
+                              {getDayDate(day)}
+                            </span>
+                            <span className="text-sm">{getWeatherIcon(day)}</span>
                           </div>
-                        )
-                      })}
+                          {/* Day Number */}
+                          <div className="font-bold text-center whitespace-nowrap">Day {day}</div>
+                          {/* Theme */}
+                          {daySchedule?.theme && daySchedule.theme !== `Day ${day}` && (
+                            <div className="text-xs mt-0.5 truncate text-center">{daySchedule.theme}</div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
 
