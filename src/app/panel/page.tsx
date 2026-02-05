@@ -863,8 +863,8 @@ export default function AdminPage() {
                 onClick={() => setShowChiikawaEdit(true)}
               >
                 <div className="flex flex-col items-center text-center gap-2">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-300 to-pink-400 flex items-center justify-center">
-                    <span className="text-xl">🐹</span>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#fcdbde' }}>
+                    <img src="/images/chii-widgetlogo.ico" alt="Chiikawa" className="w-7 h-7 object-contain" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-800 text-sm">Chiikawa 對白</h3>
@@ -2261,10 +2261,11 @@ export default function AdminPage() {
                         initial={{ opacity: 0, y: 100 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 100 }}
-                        className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-xl max-h-[85vh] overflow-y-auto"
+                        className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-xl max-h-[70vh] sm:max-h-[85vh] flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <div className="sticky top-0 bg-white border-b border-gray-100 p-4 flex items-center justify-between">
+                        {/* Header - Fixed */}
+                        <div className="flex-shrink-0 bg-white border-b border-gray-100 p-4 flex items-center justify-between rounded-t-2xl">
                           <h4 className="font-medium text-gray-800 text-lg">
                             {editingExpense ? '編輯支出' : '新增支出'}
                           </h4>
@@ -2280,30 +2281,31 @@ export default function AdminPage() {
                           </button>
                         </div>
                         
-                        <div className="p-5 space-y-4">
+                        {/* Content - Scrollable */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
                           {/* Amount */}
                           <div>
-                            <label className="block text-sm text-gray-600 mb-2">金額 (JPY)</label>
+                            <label className="block text-sm text-gray-600 mb-1">金額 (JPY)</label>
                             <input
                               type="number"
                               inputMode="numeric"
                               value={expenseForm.amount}
                               onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
                               placeholder="0"
-                              className="w-full px-4 py-4 text-xl font-semibold border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
+                              className="w-full px-4 py-3 text-lg font-semibold border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
                               autoFocus
                             />
                           </div>
                           
                           {/* Category */}
                           <div>
-                            <label className="block text-sm text-gray-600 mb-2">類別</label>
+                            <label className="block text-sm text-gray-600 mb-1">類別</label>
                             <div className="grid grid-cols-3 gap-2">
                               {EXPENSE_CATEGORIES.map((cat) => (
                                 <button
                                   key={cat.id}
                                   onClick={() => setExpenseForm({ ...expenseForm, category: cat.id })}
-                                  className={`py-3 px-3 text-sm rounded-xl border transition-colors flex items-center justify-center gap-1 ${
+                                  className={`py-2 px-2 text-sm rounded-xl border transition-colors flex items-center justify-center gap-1 ${
                                     expenseForm.category === cat.id
                                       ? 'border-amber-400 bg-amber-50 text-amber-700'
                                       : 'border-gray-200 hover:border-gray-300'
@@ -2318,17 +2320,19 @@ export default function AdminPage() {
                           
                           {/* Note */}
                           <div>
-                            <label className="block text-sm text-gray-600 mb-2">備註（選填）</label>
+                            <label className="block text-sm text-gray-600 mb-1">備註（選填）</label>
                             <input
                               type="text"
                               value={expenseForm.note}
                               onChange={(e) => setExpenseForm({ ...expenseForm, note: e.target.value })}
                               placeholder="例如：午餐拉麵"
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
+                              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
                             />
                           </div>
-                          
-                          {/* Submit */}
+                        </div>
+                        
+                        {/* Submit - Fixed at bottom */}
+                        <div className="flex-shrink-0 p-4 border-t border-gray-100 bg-white">
                           <button
                             onClick={async () => {
                               if (!expenseForm.amount) return
@@ -2370,7 +2374,7 @@ export default function AdminPage() {
                               setExpenseForm({ amount: '', category: 'food', note: '' })
                               setMessage({ type: 'success', text: editingExpense ? '支出已更新！' : '支出已新增！' })
                             }}
-                            className="w-full py-4 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-medium rounded-xl transition-colors text-lg"
+                            className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-medium rounded-xl transition-colors"
                           >
                             {editingExpense ? '更新' : '新增'}
                           </button>
