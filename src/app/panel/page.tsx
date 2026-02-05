@@ -3057,7 +3057,7 @@ export default function AdminPage() {
                   const dayNumber = getDayNumber(trip)
                   
                   return (
-                    <React.Fragment key={trip.id}>
+                    <div key={trip.id} className="contents">
                       {/* Mobile Card - Compact for 2-column grid */}
                       <div 
                         className={`md:hidden bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-200 ${isMultiple ? 'hidden' : ''}`}
@@ -3154,7 +3154,7 @@ export default function AdminPage() {
                           </div>
                         </div>
                       </div>
-                    </React.Fragment>
+                    </div>
                   )
                 })
               })}
