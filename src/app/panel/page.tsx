@@ -216,6 +216,7 @@ export default function AdminPage() {
   const [isAdminUser, setIsAdminUser] = useState(false)
   // Travel Wallet state
   const [showWallet, setShowWallet] = useState(false)
+  const [walletDirty, setWalletDirty] = useState(false)
   const [walletTab, setWalletTab] = useState<'personal' | 'shared'>('shared')
   const [personalExpenses, setPersonalExpenses] = useState<ExpenseDB[]>([])
   const [sharedExpenses, setSharedExpenses] = useState<ExpenseDB[]>([])
@@ -256,7 +257,23 @@ export default function AdminPage() {
     // Check if user is admin
     setIsAdminUser(isAdmin())
     // Load current user
-    setCurrentUser(getCurrentUser())
+    const user = getCurrentUser()
+    setCurrentUser(user)
+    // Pre-load wallet data so budget persists after refresh
+    // Always load shared data (budget + shared expenses) regardless of login
+    // Personal expenses need username so only load if logged in
+    Promise.all([
+      user ? getSupabaseExpenses('personal', user.username) : Promise.resolve([] as ExpenseDB[]),
+      getSupabaseExpenses('shared'),
+      getSupabaseWalletSettings(),
+    ]).then(([personal, shared, settings]) => {
+      setPersonalExpenses(personal)
+      setSharedExpenses(shared)
+      setWalletSettings(settings)
+      if (settings) {
+        setBudgetForm({ amount: settings.shared_budget.toString() })
+      }
+    }).catch(err => console.error('Failed to pre-load wallet data:', err))
     // Load checked travel notice items from localStorage
     const savedCheckedItems = localStorage.getItem('travel_notice_checked')
     if (savedCheckedItems) {
@@ -384,12 +401,32 @@ export default function AdminPage() {
       }
       
       // Load users on mount (fix for "載入中..." showing until clicked)
+      let loadedUsers: User[] = []
       try {
-        const freshUsers = await getUsersAsync()
-        setUsers(freshUsers)
+        loadedUsers = await getUsersAsync()
+        setUsers(loadedUsers)
       } catch (err) {
         console.warn('Failed to fetch users:', err)
-        setUsers(getUsers())
+        loadedUsers = getUsers()
+        setUsers(loadedUsers)
+      }
+      
+      // If user is authenticated but getCurrentUser() returned null (user_info cookie missing),
+      // reconstruct currentUser from the users list to prevent "請先登入" errors
+      if (!getCurrentUser() && loadedUsers.length > 0) {
+        const isAdm = isAdmin()
+        const fallbackUser = isAdm 
+          ? loadedUsers.find(u => u.role === 'admin') 
+          : loadedUsers[0]
+        if (fallbackUser) {
+          const reconstructed = {
+            username: fallbackUser.username,
+            role: fallbackUser.role as string,
+            displayName: fallbackUser.displayName,
+            avatarUrl: fallbackUser.avatarUrl
+          }
+          setCurrentUser(reconstructed)
+        }
       }
     }
     
@@ -852,20 +889,18 @@ export default function AdminPage() {
           <div 
             className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
             onClick={async () => {
-              // Load wallet data
-              const user = getCurrentUser()
-              if (user) {
-                const [personal, shared, settings] = await Promise.all([
-                  getSupabaseExpenses('personal', user.username),
-                  getSupabaseExpenses('shared'),
-                  getSupabaseWalletSettings(),
-                ])
-                setPersonalExpenses(personal)
-                setSharedExpenses(shared)
-                setWalletSettings(settings)
-                if (settings) {
-                  setBudgetForm({ amount: settings.shared_budget.toString() })
-                }
+              // Load wallet data - always load shared data, personal only if logged in
+              const user = currentUser || getCurrentUser()
+              const [personal, shared, settings] = await Promise.all([
+                user ? getSupabaseExpenses('personal', user.username) : Promise.resolve([] as ExpenseDB[]),
+                getSupabaseExpenses('shared'),
+                getSupabaseWalletSettings(),
+              ])
+              setPersonalExpenses(personal)
+              setSharedExpenses(shared)
+              setWalletSettings(settings)
+              if (settings) {
+                setBudgetForm({ amount: settings.shared_budget.toString() })
               }
               setShowWallet(true)
             }}
@@ -1286,20 +1321,18 @@ export default function AdminPage() {
             </div>
             <button
               onClick={async () => {
-                // Load wallet data
-                const user = getCurrentUser()
-                if (user) {
-                  const [personal, shared, settings] = await Promise.all([
-                    getSupabaseExpenses('personal', user.username),
-                    getSupabaseExpenses('shared'),
-                    getSupabaseWalletSettings(),
-                  ])
-                  setPersonalExpenses(personal)
-                  setSharedExpenses(shared)
-                  setWalletSettings(settings)
-                  if (settings) {
-                    setBudgetForm({ amount: settings.shared_budget.toString() })
-                  }
+                // Load wallet data - always load shared data, personal only if logged in
+                const user = currentUser || getCurrentUser()
+                const [personal, shared, settings] = await Promise.all([
+                  user ? getSupabaseExpenses('personal', user.username) : Promise.resolve([] as ExpenseDB[]),
+                  getSupabaseExpenses('shared'),
+                  getSupabaseWalletSettings(),
+                ])
+                setPersonalExpenses(personal)
+                setSharedExpenses(shared)
+                setWalletSettings(settings)
+                if (settings) {
+                  setBudgetForm({ amount: settings.shared_budget.toString() })
                 }
                 setShowWallet(true)
               }}
@@ -2550,6 +2583,7 @@ export default function AdminPage() {
                   setShowExpenseForm(false)
                   setEditingExpense(null)
                   setExpenseForm({ amount: '', category: 'food', note: '' })
+                  if (walletDirty) window.location.reload()
                 }
               }}
             >
@@ -2568,6 +2602,7 @@ export default function AdminPage() {
                         setShowWallet(false)
                         setShowExpenseForm(false)
                         setEditingExpense(null)
+                        if (walletDirty) window.location.reload()
                       }}
                       className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
                     >
@@ -2629,10 +2664,15 @@ export default function AdminPage() {
                             <button
                               onClick={async () => {
                                 const amount = parseFloat(budgetForm.amount) || 0
-                                await saveSupabaseWalletSettings({ shared_budget: amount, currency: 'JPY' })
+                                const result = await saveSupabaseWalletSettings({ shared_budget: amount, currency: 'JPY' })
+                                if (!result.success) {
+                                  setMessage({ type: 'error', text: `預算儲存失敗：${result.error || '未知錯誤'}` })
+                                  return
+                                }
                                 setWalletSettings(prev => prev ? { ...prev, shared_budget: amount } : { id: 1, shared_budget: amount, currency: 'JPY', updated_at: new Date().toISOString() })
                                 setShowBudgetForm(false)
                                 setMessage({ type: 'success', text: '預算已更新！' })
+                                setWalletDirty(true)
                               }}
                               className="px-4 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
                             >
@@ -2669,6 +2709,7 @@ export default function AdminPage() {
                         ) : (
                           sharedExpenses.map((expense) => {
                             const category = EXPENSE_CATEGORIES.find(c => c.id === expense.category)
+                            const avatarUrl = getUserAvatarUrl(expense.username, expense.avatar_url || undefined)
                             return (
                               <div
                                 key={expense.id}
@@ -2676,8 +2717,8 @@ export default function AdminPage() {
                                 style={{ borderLeftColor: themeColor, borderLeftWidth: '3px' }}
                               >
                                 {/* Avatar */}
-                                {expense.avatar_url ? (
-                                  <img src={expense.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover border-2 border-white shadow" />
+                                {avatarUrl ? (
+                                  <img src={avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover border-2 border-white shadow" />
                                 ) : (
                                   <div 
                                     className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium shadow"
@@ -2726,6 +2767,7 @@ export default function AdminPage() {
                                           await deleteSupabaseExpense(expense.id)
                                           const fresh = await getSupabaseExpenses('shared')
                                           setSharedExpenses(fresh)
+                                          setWalletDirty(true)
                                         }
                                       }}
                                       className="p-1.5 text-xs text-red-500 hover:bg-red-50 rounded"
@@ -2806,6 +2848,7 @@ export default function AdminPage() {
                                         await deleteSupabaseExpense(expense.id)
                                         const fresh = await getSupabaseExpenses('personal', currentUser?.username)
                                         setPersonalExpenses(fresh)
+                                        setWalletDirty(true)
                                       }
                                     }}
                                     className="p-1.5 text-xs text-red-500 hover:bg-red-50 rounded"
@@ -2822,168 +2865,6 @@ export default function AdminPage() {
                   )}
                 </div>
 
-                {/* Add Expense Form (Centered Modal) */}
-                <AnimatePresence>
-                  {showExpenseForm && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
-                      onClick={(e) => {
-                        if (e.target === e.currentTarget) {
-                          setShowExpenseForm(false)
-                          setEditingExpense(null)
-                          setExpenseForm({ amount: '', category: 'food', note: '' })
-                        }
-                      }}
-                    >
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        className="bg-white w-full max-w-md rounded-2xl shadow-xl max-h-[80vh] flex flex-col"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {/* Header - Fixed */}
-                        <div className="flex-shrink-0 bg-white border-b border-gray-100 p-4 flex items-center justify-between rounded-t-2xl">
-                          <h4 className="font-medium text-gray-800 text-lg">
-                            {editingExpense ? '編輯支出' : '新增支出'}
-                          </h4>
-                          <button
-                            onClick={() => {
-                              setShowExpenseForm(false)
-                              setEditingExpense(null)
-                              setExpenseForm({ amount: '', category: 'food', note: '' })
-                            }}
-                            className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center"
-                          >
-                            ×
-                          </button>
-                        </div>
-                        
-                        {/* Content - Scrollable */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                          {/* Amount */}
-                          <div>
-                            <label className="block text-sm text-gray-600 mb-1">金額 (JPY)</label>
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              value={expenseForm.amount}
-                              onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                              placeholder="0"
-                              className="w-full px-4 py-3 text-lg font-semibold border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
-                              autoFocus
-                            />
-                          </div>
-                          
-                          {/* Category */}
-                          <div>
-                            <label className="block text-sm text-gray-600 mb-1">類別</label>
-                            <div className="grid grid-cols-3 gap-2">
-                              {EXPENSE_CATEGORIES.map((cat) => (
-                                <button
-                                  key={cat.id}
-                                  onClick={() => setExpenseForm({ ...expenseForm, category: cat.id })}
-                                  className={`py-2 px-2 text-sm rounded-xl border transition-colors flex items-center justify-center gap-1 ${
-                                    expenseForm.category === cat.id
-                                      ? 'border-amber-400 bg-amber-50 text-amber-700'
-                                      : 'border-gray-200 hover:border-gray-300'
-                                  }`}
-                                >
-                                  <span>{cat.icon}</span>
-                                  <span>{cat.label}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          
-                          {/* Note */}
-                          <div>
-                            <label className="block text-sm text-gray-600 mb-1">備註（選填）</label>
-                            <input
-                              type="text"
-                              value={expenseForm.note}
-                              onChange={(e) => setExpenseForm({ ...expenseForm, note: e.target.value })}
-                              placeholder="例如：午餐拉麵"
-                              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
-                            />
-                          </div>
-                        </div>
-                        
-                        {/* Submit - Fixed at bottom */}
-                        <div className="flex-shrink-0 p-4 border-t border-gray-100 bg-white">
-                          <button
-                            onClick={async () => {
-                              if (!expenseForm.amount) {
-                                setMessage({ type: 'error', text: '請輸入金額' })
-                                return
-                              }
-                              
-                              const user = getCurrentUser()
-                              if (!user) {
-                                setMessage({ type: 'error', text: '請先登入' })
-                                return
-                              }
-                              
-                              try {
-                                if (editingExpense) {
-                                  // Update existing
-                                  const { error } = await updateSupabaseExpense(editingExpense.id, {
-                                    amount: parseFloat(expenseForm.amount),
-                                    category: expenseForm.category,
-                                    note: expenseForm.note || null,
-                                  })
-                                  if (error) {
-                                    setMessage({ type: 'error', text: `更新失敗：${error}` })
-                                    return
-                                  }
-                                } else {
-                                  // Create new
-                                  const { error } = await createSupabaseExpense({
-                                    type: walletTab,
-                                    username: user.username,
-                                    display_name: user.displayName,
-                                    avatar_url: user.avatarUrl || null,
-                                    amount: parseFloat(expenseForm.amount),
-                                    category: expenseForm.category,
-                                    note: expenseForm.note || null,
-                                  })
-                                  if (error) {
-                                    setMessage({ type: 'error', text: `新增失敗：${error}` })
-                                    return
-                                  }
-                                }
-                                
-                                // Refresh data
-                                if (walletTab === 'shared') {
-                                  const fresh = await getSupabaseExpenses('shared')
-                                  setSharedExpenses(fresh)
-                                } else {
-                                  const fresh = await getSupabaseExpenses('personal', user.username)
-                                  setPersonalExpenses(fresh)
-                                }
-                                
-                                setShowExpenseForm(false)
-                                setEditingExpense(null)
-                                setExpenseForm({ amount: '', category: 'food', note: '' })
-                                setMessage({ type: 'success', text: editingExpense ? '支出已更新！' : '支出已新增！' })
-                              } catch (err: any) {
-                                console.error('Expense operation failed:', err)
-                                setMessage({ type: 'error', text: `操作失敗：${err.message || '未知錯誤'}` })
-                              }
-                            }}
-                            className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-medium rounded-xl transition-colors"
-                          >
-                            {editingExpense ? '更新' : '新增'}
-                          </button>
-                        </div>
-                      </motion.div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
                 {/* Footer - Add Button */}
                 {!showExpenseForm && (
                   <div className="p-4 border-t border-gray-100 flex-shrink-0">
@@ -2996,6 +2877,188 @@ export default function AdminPage() {
                     </button>
                   </div>
                 )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Add/Edit Expense Form Modal (Outside of Travel Wallet for proper z-index) */}
+        <AnimatePresence>
+          {showExpenseForm && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setShowExpenseForm(false)
+                  setEditingExpense(null)
+                  setExpenseForm({ amount: '', category: 'food', note: '' })
+                }
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white w-full max-w-md rounded-2xl shadow-xl max-h-[70vh] overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header - Fixed */}
+                <div className="flex-shrink-0 bg-white border-b border-gray-100 p-4 flex items-center justify-between">
+                  <h4 className="font-medium text-gray-800 text-lg">
+                    {editingExpense ? '編輯支出' : '新增支出'}
+                  </h4>
+                  <button
+                    onClick={() => {
+                      setShowExpenseForm(false)
+                      setEditingExpense(null)
+                      setExpenseForm({ amount: '', category: 'food', note: '' })
+                    }}
+                    className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center"
+                  >
+                    ×
+                  </button>
+                </div>
+                
+                {/* Content - Scrollable */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {/* Amount */}
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">金額 (JPY)</label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={expenseForm.amount}
+                      onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                      placeholder="0"
+                      className="w-full px-4 py-3 text-lg font-semibold border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
+                      autoFocus
+                    />
+                  </div>
+                  
+                  {/* Category */}
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">類別</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {EXPENSE_CATEGORIES.map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setExpenseForm({ ...expenseForm, category: cat.id })}
+                          className={`py-2 px-2 text-sm rounded-xl border transition-colors flex items-center justify-center gap-1 ${
+                            expenseForm.category === cat.id
+                              ? 'border-amber-400 bg-amber-50 text-amber-700'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <span>{cat.icon}</span>
+                          <span>{cat.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Note */}
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">備註（選填）</label>
+                    <input
+                      type="text"
+                      value={expenseForm.note}
+                      onChange={(e) => setExpenseForm({ ...expenseForm, note: e.target.value })}
+                      placeholder="例如：午餐拉麵"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-amber-400 outline-none"
+                    />
+                  </div>
+                </div>
+                
+                {/* Submit - Fixed at bottom */}
+                <div className="flex-shrink-0 p-4 border-t border-gray-100 bg-white">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!expenseForm.amount) {
+                        setMessage({ type: 'error', text: '請輸入金額' })
+                        return
+                      }
+                      
+                      // Use currentUser state, fallback to getCurrentUser(), then try users list
+                      let user = currentUser || getCurrentUser()
+                      
+                      // If still no user, try to find from users list (admin or first user)
+                      if (!user && users.length > 0) {
+                        const adminUser = users.find(u => u.role === 'admin')
+                        const fallbackUser = adminUser || users[0]
+                        if (fallbackUser) {
+                          user = {
+                            username: fallbackUser.username,
+                            role: fallbackUser.role,
+                            displayName: fallbackUser.displayName,
+                            avatarUrl: fallbackUser.avatarUrl
+                          }
+                          setCurrentUser(user)
+                        }
+                      }
+                      
+                      if (!user) {
+                        setMessage({ type: 'error', text: '請先登入' })
+                        return
+                      }
+                      
+                      try {
+                        if (editingExpense) {
+                          // Update existing
+                          const { error } = await updateSupabaseExpense(editingExpense.id, {
+                            amount: parseFloat(expenseForm.amount),
+                            category: expenseForm.category,
+                            note: expenseForm.note || null,
+                          })
+                          if (error) {
+                            setMessage({ type: 'error', text: `更新失敗：${error}` })
+                            return
+                          }
+                        } else {
+                          // Create new
+                          const { error } = await createSupabaseExpense({
+                            type: walletTab,
+                            username: user.username,
+                            display_name: user.displayName,
+                            avatar_url: user.avatarUrl || null,
+                            amount: parseFloat(expenseForm.amount),
+                            category: expenseForm.category,
+                            note: expenseForm.note || null,
+                          })
+                          if (error) {
+                            setMessage({ type: 'error', text: `新增失敗：${error}` })
+                            return
+                          }
+                        }
+                        
+                        // Refresh data
+                        if (walletTab === 'shared') {
+                          const fresh = await getSupabaseExpenses('shared')
+                          setSharedExpenses(fresh)
+                        } else {
+                          const fresh = await getSupabaseExpenses('personal', user.username)
+                          setPersonalExpenses(fresh)
+                        }
+                        
+                        setShowExpenseForm(false)
+                        setEditingExpense(null)
+                        setExpenseForm({ amount: '', category: 'food', note: '' })
+                        setMessage({ type: 'success', text: editingExpense ? '支出已更新！' : '支出已新增！' })
+                        setWalletDirty(true)
+                      } catch (err: any) {
+                        console.error('Expense operation failed:', err)
+                        setMessage({ type: 'error', text: `操作失敗：${err.message || '未知錯誤'}` })
+                      }
+                    }}
+                    className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-medium rounded-xl transition-colors"
+                  >
+                    {editingExpense ? '更新' : '新增'}
+                  </button>
+                </div>
               </motion.div>
             </motion.div>
           )}
