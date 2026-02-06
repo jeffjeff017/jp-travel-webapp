@@ -234,11 +234,11 @@ export default function WishlistPage() {
     const loadWishlist = async () => {
       setIsLoading(true)
       
-      // Check cache first
-      const cacheTime = localStorage.getItem(CACHE_KEY)
+      // Show cached data immediately for fast UX
       const saved = localStorage.getItem(STORAGE_KEY)
+      let hasCachedData = false
       
-      if (cacheTime && saved && Date.now() - parseInt(cacheTime) < CACHE_DURATION) {
+      if (saved) {
         try {
           const parsed = JSON.parse(saved)
           setWishlist({
@@ -249,14 +249,14 @@ export default function WishlistPage() {
             park: parsed.park || [],
             threads: parsed.threads || [],
           })
+          hasCachedData = true
           setIsLoading(false)
-          return
         } catch (e) {
           console.error('Failed to parse cached wishlist:', e)
         }
       }
       
-      // Load from Supabase
+      // Always fetch fresh data from Supabase (stale-while-revalidate)
       try {
         const dbItems = await getSupabaseWishlistItems()
         if (dbItems.length > 0) {
@@ -265,30 +265,9 @@ export default function WishlistPage() {
           setWishlist(grouped)
           localStorage.setItem(STORAGE_KEY, JSON.stringify(grouped))
           localStorage.setItem(CACHE_KEY, Date.now().toString())
-        } else if (saved) {
-          const parsed = JSON.parse(saved)
-          setWishlist({
-            cafe: parsed.cafe || [],
-            restaurant: parsed.restaurant || [],
-            bakery: parsed.bakery || [],
-            shopping: parsed.shopping || [],
-            park: parsed.park || [],
-            threads: parsed.threads || [],
-          })
         }
       } catch (err) {
         console.error('Error loading wishlist:', err)
-        if (saved) {
-          const parsed = JSON.parse(saved)
-          setWishlist({
-            cafe: parsed.cafe || [],
-            restaurant: parsed.restaurant || [],
-            bakery: parsed.bakery || [],
-            shopping: parsed.shopping || [],
-            park: parsed.park || [],
-            threads: parsed.threads || [],
-          })
-        }
       }
       
       setIsLoading(false)
@@ -640,15 +619,15 @@ export default function WishlistPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center"
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
             onClick={() => setShowAddForm(false)}
           >
             <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full md:max-w-md bg-white rounded-t-3xl md:rounded-2xl max-h-[80vh] md:max-h-[85vh] flex flex-col"
+              className="w-full max-w-md bg-white rounded-2xl max-h-[85vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Fixed Header */}
@@ -752,7 +731,7 @@ export default function WishlistPage() {
               </div>
               
               {/* Fixed Footer */}
-              <div className="p-4 md:p-6 border-t border-gray-100 flex-shrink-0 bg-white safe-area-bottom">
+              <div className="p-4 md:p-6 border-t border-gray-100 flex-shrink-0 bg-white rounded-b-2xl">
                 <button
                   onClick={handleAddItem}
                   disabled={!newItemName.trim() || isSubmitting}
