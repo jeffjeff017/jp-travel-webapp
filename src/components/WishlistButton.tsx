@@ -151,6 +151,18 @@ export default function WishlistButton({
   const [isLoading, setIsLoading] = useState(true)
   const [tripStartDate, setTripStartDate] = useState<string>('')
 
+  // Disable background scrolling when popup is active
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isOpen])
+
   // Get settings to retrieve trip start date
   useEffect(() => {
     const loadTripStartDate = async () => {

@@ -223,9 +223,26 @@ export default function MainPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchLocation, setSearchLocation] = useState<{ lat: number; lng: number; name: string } | null>(null)
   
+  // Trip detail view state (Airbnb-style)
+  const [showTripDetail, setShowTripDetail] = useState(false)
+  const [detailTrip, setDetailTrip] = useState<Trip | null>(null)
+  
   // Travel notice checklist state
   const [checkedItems, setCheckedItems] = useState<Record<string, { username: string; displayName: string; avatarUrl?: string }[]>>({})
   
+  // Disable background scrolling when any popup/modal is active
+  useEffect(() => {
+    const anyPopupOpen = showTripForm || showMapPopup || showWishlistPopup || showInfoPopup || showSearch || showTripDetail
+    if (anyPopupOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [showTripForm, showMapPopup, showWishlistPopup, showInfoPopup, showSearch, showTripDetail])
+
   useEffect(() => {
     setIsAdmin(canEdit())
     setIsActualAdmin(checkIsAdmin())
@@ -717,10 +734,6 @@ export default function MainPage() {
     return user?.avatarUrl || fallbackAvatarUrl || undefined
   }
 
-  // Trip detail view state (Airbnb-style)
-  const [showTripDetail, setShowTripDetail] = useState(false)
-  const [detailTrip, setDetailTrip] = useState<Trip | null>(null)
-  
   const handleTripClick = (tripId: number) => {
     setSelectedTripId(tripId)
     // On mobile, show Airbnb-style detail view when clicking a trip

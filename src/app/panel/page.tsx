@@ -239,6 +239,19 @@ export default function AdminPage() {
   const router = useRouter()
   const { t } = useLanguage()
   
+  // Disable background scrolling when any popup/modal is active
+  useEffect(() => {
+    const anyPopupOpen = showForm || showSettings || showUserManagement || showProfileEdit || showProfileCropper || showTravelNoticePopup || showDestinationModal || showTrashBin || showWishlistManagement || showChiikawaEdit || showChiikawaEditDesktop || showWallet || showExpenseForm || showBudgetForm
+    if (anyPopupOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showExpenseForm, showBudgetForm])
+
   // Load trash from localStorage
   useEffect(() => {
     const savedTrash = localStorage.getItem('admin_trash_bin')

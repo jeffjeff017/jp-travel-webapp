@@ -133,6 +133,19 @@ export default function WishlistPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedItemPopup, setSelectedItemPopup] = useState<WishlistItem | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Disable background scrolling when any popup/modal is active
+  useEffect(() => {
+    const anyPopupOpen = showTravelNotice || showAddForm || !!selectedItemPopup
+    if (anyPopupOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [showTravelNotice, showAddForm, selectedItemPopup])
   
   useEffect(() => {
     setIsAdmin(checkIsAdmin())
