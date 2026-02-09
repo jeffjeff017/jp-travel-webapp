@@ -75,8 +75,8 @@ body {
   z-index: 9999;
 }
 
-/* Clean mode styles */
-.clean-mode * {
+/* Clean mode styles - disable sakura animations but keep utility animations */
+.clean-mode *:not(.animate-spin):not([class*="animate-"]) {
   animation: none !important;
   transition: none !important;
 }

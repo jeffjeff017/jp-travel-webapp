@@ -132,8 +132,8 @@ export default function WishlistPage() {
   // Users state (for avatar display)
   const [users, setUsers] = useState<User[]>([])
   
-  // Like animation state: { itemId: displayName } for items currently showing animation
-  const [likeAnimations, setLikeAnimations] = useState<Record<string | number, string>>({})
+  // Popup "對此讚好" animation state
+  const [showPopupLikeAnim, setShowPopupLikeAnim] = useState(false)
   
   // Add/Edit form state
   const [showAddForm, setShowAddForm] = useState(false)
@@ -285,6 +285,33 @@ export default function WishlistPage() {
       try {
         const dbItems = await getSupabaseWishlistItems()
         if (dbItems.length > 0) {
+          // Backfill: update items without added_by in Supabase
+          const user = currentUser || getCurrentUser()
+          let freshUsers: User[] = []
+          if (!user) {
+            try {
+              freshUsers = await getUsersAsync()
+            } catch { /* ignore */ }
+          }
+          const fallbackUser = user || (() => {
+            const admin = freshUsers.find(u => u.role === 'admin')
+            return admin || freshUsers[0] || null
+          })()
+          
+          const itemsWithoutAddedBy = dbItems.filter(db => !db.added_by)
+          if (fallbackUser && itemsWithoutAddedBy.length > 0) {
+            const addedByData = {
+              username: fallbackUser.username,
+              display_name: (fallbackUser as any).displayName || (fallbackUser as any).display_name || fallbackUser.username,
+              avatar_url: (fallbackUser as any).avatarUrl || (fallbackUser as any).avatar_url || undefined,
+            }
+            // Fire-and-forget: update all items missing added_by
+            for (const db of itemsWithoutAddedBy) {
+              updateSupabaseWishlistItem(db.id, { added_by: addedByData }).catch(() => {})
+              db.added_by = addedByData
+            }
+          }
+          
           const items = dbItems.map(fromSupabaseFormat)
           const grouped = groupByCategory(items)
           setWishlist(grouped)
@@ -316,7 +343,7 @@ export default function WishlistPage() {
     }
     
     loadWishlist()
-  }, [groupByCategory])
+  }, [groupByCategory, currentUser])
   
   // Get filtered items based on active tab and search query
   const getFilteredItems = () => {
@@ -489,7 +516,7 @@ export default function WishlistPage() {
     setIsSubmitting(false)
   }
   
-  // Handle toggle favorite with Instagram-like animation
+  // Handle toggle favorite
   const handleToggleFavorite = async (item: WishlistItem) => {
     const willBeFavorite = !item.isFavorite
     
@@ -507,18 +534,10 @@ export default function WishlistPage() {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(newWishlist))
         }
         
-        // Show Instagram-like "對此讚好" animation when favoriting
+        // Show animation in popup when favoriting
         if (willBeFavorite) {
-          const user = currentUser || getCurrentUser()
-          const displayName = user?.displayName || '你'
-          setLikeAnimations(prev => ({ ...prev, [item.id]: displayName }))
-          setTimeout(() => {
-            setLikeAnimations(prev => {
-              const next = { ...prev }
-              delete next[item.id]
-              return next
-            })
-          }, 2500)
+          setShowPopupLikeAnim(true)
+          setTimeout(() => setShowPopupLikeAnim(false), 2500)
         }
       }
     } catch (err) {
@@ -645,7 +664,16 @@ export default function WishlistPage() {
                 exit={{ opacity: 0, scale: 0.9 }}
                 className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow group cursor-pointer select-none"
                 style={{ touchAction: 'manipulation' }}
-                onClick={() => setSelectedItemPopup(item)}
+                onClick={() => {
+                  setSelectedItemPopup(item)
+                  // Show "對此讚好" animation if item is favorited
+                  if (item.isFavorite) {
+                    setShowPopupLikeAnim(true)
+                    setTimeout(() => setShowPopupLikeAnim(false), 2500)
+                  } else {
+                    setShowPopupLikeAnim(false)
+                  }
+                }}
                 role="button"
                 tabIndex={0}
               >
@@ -672,33 +700,12 @@ export default function WishlistPage() {
                     </div>
                   )}
                   
-                  {/* Favorite button - bottom right */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleToggleFavorite(item)
-                    }}
-                    className="absolute bottom-2 right-2 w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:scale-110 transition-transform"
-                  >
-                    {item.isFavorite ? '❤️' : '🤍'}
-                  </button>
-                  
-                  {/* Instagram-like "對此讚好" animation */}
-                  <AnimatePresence>
-                    {likeAnimations[item.id] && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.3 }}
-                        className="absolute bottom-12 left-1/2 -translate-x-1/2 whitespace-nowrap"
-                      >
-                        <div className="bg-black/70 text-white text-[10px] px-3 py-1.5 rounded-full backdrop-blur-sm shadow-lg">
-                          <span className="font-medium">{likeAnimations[item.id]}</span> 對此讚好 ❤️
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  {/* Favorite indicator - bottom right */}
+                  {item.isFavorite && (
+                    <div className="absolute bottom-2 right-2 w-7 h-7 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-sm">
+                      ❤️
+                    </div>
+                  )}
                 </div>
                 
                 {/* Content */}
@@ -1203,19 +1210,80 @@ export default function WishlistPage() {
                   >
                     ✕
                   </button>
+                  {/* Favorite button - bottom right of image */}
+                  <button
+                    onClick={() => {
+                      handleToggleFavorite(selectedItemPopup)
+                      setSelectedItemPopup({ ...selectedItemPopup, isFavorite: !selectedItemPopup.isFavorite })
+                    }}
+                    className="absolute bottom-3 right-3 w-10 h-10 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:scale-110 transition-transform"
+                  >
+                    <span className="text-lg">{selectedItemPopup.isFavorite ? '❤️' : '🤍'}</span>
+                  </button>
+                  {/* Instagram-like "對此讚好" animation */}
+                  <AnimatePresence>
+                    {showPopupLikeAnim && (() => {
+                      const user = currentUser || getCurrentUser()
+                      const displayName = user?.displayName || '你'
+                      return (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          transition={{ duration: 0.35 }}
+                          className="absolute bottom-16 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none"
+                        >
+                          <div className="bg-black/75 text-white text-xs px-4 py-2 rounded-full backdrop-blur-sm shadow-lg">
+                            <span className="font-medium">{displayName}</span> 對此讚好 ❤️
+                          </div>
+                        </motion.div>
+                      )
+                    })()}
+                  </AnimatePresence>
                 </div>
               )}
               
               {/* Content */}
               <div className="p-6">
                 {!selectedItemPopup.imageUrl && (
-                  <div className="flex justify-end mb-2">
-                    <button
-                      onClick={() => setSelectedItemPopup(null)}
-                      className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
-                    >
-                      ✕
-                    </button>
+                  <div className="flex items-center justify-between mb-2">
+                    {/* Instagram-like "對此讚好" animation (no-image) */}
+                    <AnimatePresence>
+                      {showPopupLikeAnim ? (() => {
+                        const user = currentUser || getCurrentUser()
+                        const displayName = user?.displayName || '你'
+                        return (
+                          <motion.div
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.35 }}
+                            className="whitespace-nowrap pointer-events-none"
+                          >
+                            <div className="bg-black/75 text-white text-xs px-3 py-1.5 rounded-full">
+                              <span className="font-medium">{displayName}</span> 對此讚好 ❤️
+                            </div>
+                          </motion.div>
+                        )
+                      })() : <div />}
+                    </AnimatePresence>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          handleToggleFavorite(selectedItemPopup)
+                          setSelectedItemPopup({ ...selectedItemPopup, isFavorite: !selectedItemPopup.isFavorite })
+                        }}
+                        className="w-8 h-8 flex items-center justify-center hover:scale-110 transition-transform"
+                      >
+                        {selectedItemPopup.isFavorite ? '❤️' : '🤍'}
+                      </button>
+                      <button
+                        onClick={() => setSelectedItemPopup(null)}
+                        className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 )}
                 
@@ -1299,25 +1367,8 @@ export default function WishlistPage() {
                   </div>
                 )}
                 
-                {/* Actions */}
+                {/* Actions: Favorite + Edit + Delete */}
                 <div className="flex gap-3 mt-4">
-                  <button
-                    onClick={() => {
-                      handleToggleFavorite(selectedItemPopup)
-                      setSelectedItemPopup({ ...selectedItemPopup, isFavorite: !selectedItemPopup.isFavorite })
-                    }}
-                    className={`flex-1 py-3 rounded-xl font-medium transition-colors ${
-                      selectedItemPopup.isFavorite 
-                        ? 'bg-red-50 text-red-500' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {selectedItemPopup.isFavorite ? '❤️ 取消收藏' : '🤍 收藏'}
-                  </button>
-                </div>
-                
-                {/* Edit / Delete */}
-                <div className="flex gap-3 mt-3">
                   <button
                     onClick={() => handleEditItemFromPopup(selectedItemPopup)}
                     className="flex-1 py-3 rounded-xl font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
