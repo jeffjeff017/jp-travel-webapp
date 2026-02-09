@@ -225,6 +225,7 @@ export default function MainPage() {
   
   // Trip detail view state (Airbnb-style)
   const [showTripDetail, setShowTripDetail] = useState(false)
+  const [showTripMapEmbed, setShowTripMapEmbed] = useState(false)
   const [detailTrip, setDetailTrip] = useState<Trip | null>(null)
   
   // Travel notice checklist state
@@ -1429,14 +1430,10 @@ export default function MainPage() {
                   ←
                 </button>
                 
-                {/* Top Right Buttons - Open in Google Maps */}
+                {/* Top Right Buttons - Show Map Popup */}
                 <div className="absolute top-4 right-4 flex items-center gap-2">
                   <button
-                    onClick={() => {
-                      // Open Google Maps in new tab with trip location
-                      const url = `https://www.google.com/maps/search/?api=1&query=${detailTrip.lat},${detailTrip.lng}`
-                      window.open(url, '_blank')
-                    }}
+                    onClick={() => setShowTripMapEmbed(true)}
                     className="w-9 h-9 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:bg-gray-100 transition-colors"
                   >
                     🗺️
@@ -1467,10 +1464,7 @@ export default function MainPage() {
                   <div className="flex-1">
                     <p className="text-gray-700">{detailTrip.location}</p>
                     <button
-                      onClick={() => {
-                        const url = `https://www.google.com/maps/search/?api=1&query=${detailTrip.lat},${detailTrip.lng}`
-                        window.open(url, '_blank')
-                      }}
+                      onClick={() => setShowTripMapEmbed(true)}
                       className="text-sm text-sakura-500 mt-1 hover:underline"
                     >
                       在地圖上查看 →
@@ -1550,6 +1544,57 @@ export default function MainPage() {
                 </div>
               </div>
             )}
+          {/* Google Maps Embed Popup - overlays on trip detail */}
+          <AnimatePresence>
+            {showTripMapEmbed && detailTrip && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4"
+                onClick={() => setShowTripMapEmbed(false)}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="w-full max-w-lg bg-white rounded-2xl overflow-hidden shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-gray-800 truncate">📍 {detailTrip.location}</h3>
+                    </div>
+                    <div className="flex items-center gap-2 ml-3">
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${detailTrip.lat},${detailTrip.lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-500 hover:underline whitespace-nowrap"
+                      >
+                        開啟 Google Maps
+                      </a>
+                      <button
+                        onClick={() => setShowTripMapEmbed(false)}
+                        className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                  <div className="aspect-[4/3]">
+                    <iframe
+                      src={`https://maps.google.com/maps?q=${detailTrip.lat},${detailTrip.lng}&z=16&output=embed`}
+                      className="w-full h-full border-0"
+                      allowFullScreen
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>

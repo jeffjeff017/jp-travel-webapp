@@ -132,6 +132,9 @@ export default function WishlistPage() {
   // Users state (for avatar display)
   const [users, setUsers] = useState<User[]>([])
   
+  // Like animation state: { itemId: displayName } for items currently showing animation
+  const [likeAnimations, setLikeAnimations] = useState<Record<string | number, string>>({})
+  
   // Add/Edit form state
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null)
@@ -486,20 +489,36 @@ export default function WishlistPage() {
     setIsSubmitting(false)
   }
   
-  // Handle toggle favorite
+  // Handle toggle favorite with Instagram-like animation
   const handleToggleFavorite = async (item: WishlistItem) => {
+    const willBeFavorite = !item.isFavorite
+    
     try {
       const updated = await updateSupabaseWishlistItem(Number(item.id), {
-        is_favorite: !item.isFavorite
+        is_favorite: willBeFavorite
       })
       
       if (updated) {
         const newWishlist = { ...wishlist }
         const idx = newWishlist[item.category].findIndex(i => i.id === item.id)
         if (idx !== -1) {
-          newWishlist[item.category][idx] = { ...newWishlist[item.category][idx], isFavorite: !item.isFavorite }
+          newWishlist[item.category][idx] = { ...newWishlist[item.category][idx], isFavorite: willBeFavorite }
           setWishlist(newWishlist)
           localStorage.setItem(STORAGE_KEY, JSON.stringify(newWishlist))
+        }
+        
+        // Show Instagram-like "對此讚好" animation when favoriting
+        if (willBeFavorite) {
+          const user = currentUser || getCurrentUser()
+          const displayName = user?.displayName || '你'
+          setLikeAnimations(prev => ({ ...prev, [item.id]: displayName }))
+          setTimeout(() => {
+            setLikeAnimations(prev => {
+              const next = { ...prev }
+              delete next[item.id]
+              return next
+            })
+          }, 2500)
         }
       }
     } catch (err) {
@@ -646,39 +665,40 @@ export default function WishlistPage() {
                     </div>
                   )}
                   
-                  {/* Favorite button */}
+                  {/* Added to trip badge */}
+                  {item.addedToDay && (
+                    <div className="absolute top-2 left-2 px-2 py-1 bg-green-500 text-white text-xs font-medium rounded-full">
+                      Day {item.addedToDay}
+                    </div>
+                  )}
+                  
+                  {/* Favorite button - bottom right */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       handleToggleFavorite(item)
                     }}
-                    className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:scale-110 transition-transform"
+                    className="absolute bottom-2 right-2 w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:scale-110 transition-transform"
                   >
                     {item.isFavorite ? '❤️' : '🤍'}
                   </button>
                   
-                  {/* Added to trip badge */}
-                  {item.addedToDay && (
-                    <div className="absolute bottom-2 left-2 px-2 py-1 bg-green-500 text-white text-xs font-medium rounded-full">
-                      Day {item.addedToDay}
-                    </div>
-                  )}
-                  
-                  {/* Added by avatar - bottom right of image */}
-                  {item.addedBy && (() => {
-                    const avatarUrl = getUserAvatar(item.addedBy.username, item.addedBy.avatarUrl)
-                    return (
-                      <div className="absolute bottom-2 right-2" title={`由 ${item.addedBy.displayName} 新增`}>
-                        {avatarUrl ? (
-                          <img src={avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover border-2 border-white shadow-sm" />
-                        ) : (
-                          <div className="w-6 h-6 rounded-full bg-sakura-400 border-2 border-white shadow-sm flex items-center justify-center text-white text-[10px] font-medium">
-                            {item.addedBy.displayName.charAt(0)}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })()}
+                  {/* Instagram-like "對此讚好" animation */}
+                  <AnimatePresence>
+                    {likeAnimations[item.id] && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.3 }}
+                        className="absolute bottom-12 left-1/2 -translate-x-1/2 whitespace-nowrap"
+                      >
+                        <div className="bg-black/70 text-white text-[10px] px-3 py-1.5 rounded-full backdrop-blur-sm shadow-lg">
+                          <span className="font-medium">{likeAnimations[item.id]}</span> 對此讚好 ❤️
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 
                 {/* Content */}
@@ -720,11 +740,23 @@ export default function WishlistPage() {
                     <span className="text-xs text-gray-400">
                       {CATEGORIES.find(c => c.id === item.category || (c.id === 'food' && ['restaurant', 'bakery'].includes(item.category)))?.name || item.category}
                     </span>
-                    {item.addedBy && (
-                      <span className="text-[10px] text-gray-400 truncate ml-2">
-                        {item.addedBy.displayName}
-                      </span>
-                    )}
+                    {item.addedBy && (() => {
+                      const avatarUrl = getUserAvatar(item.addedBy.username, item.addedBy.avatarUrl)
+                      return (
+                        <div className="flex items-center gap-1 ml-2">
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-4 h-4 rounded-full bg-sakura-400 flex items-center justify-center text-white text-[8px] font-medium">
+                              {item.addedBy.displayName.charAt(0)}
+                            </div>
+                          )}
+                          <span className="text-[10px] text-gray-400 truncate max-w-[60px]">
+                            {item.addedBy.displayName}
+                          </span>
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
               </motion.div>
