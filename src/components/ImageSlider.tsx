@@ -9,6 +9,7 @@ interface ImageSliderProps {
   autoPlay?: boolean
   interval?: number
   showCounter?: boolean // Show prominent counter badge (Airbnb style)
+  hideArrows?: boolean // Hide navigation arrows (useful for card view on mobile)
 }
 
 export default function ImageSlider({
@@ -17,6 +18,7 @@ export default function ImageSlider({
   autoPlay = true,
   interval = 6000, // Default 6 seconds
   showCounter = false,
+  hideArrows = false,
 }: ImageSliderProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
 
@@ -102,18 +104,22 @@ export default function ImageSlider({
       </div>
 
       {/* Navigation Arrows */}
-      <button
-        onClick={goToPrev}
-        className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
-      >
-        ‹
-      </button>
-      <button
-        onClick={goToNext}
-        className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
-      >
-        ›
-      </button>
+      {!hideArrows && (
+        <>
+          <button
+            onClick={goToPrev}
+            className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+          >
+            ‹
+          </button>
+          <button
+            onClick={goToNext}
+            className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+          >
+            ›
+          </button>
+        </>
+      )}
 
       {/* Dots Indicator */}
       <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-1">

@@ -1080,9 +1080,17 @@ export default function MainPage() {
 
             {isLoading ? (
               <div className="space-y-3">
+                <div className="flex items-center justify-center py-4">
+                  <div className="w-8 h-8 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
+                </div>
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="animate-pulse">
-                    <div className="h-24 bg-sakura-100 rounded-xl" />
+                  <div key={i} className="animate-pulse rounded-xl border-2 border-sakura-100 overflow-hidden">
+                    <div className="h-32 bg-sakura-100/60" />
+                    <div className="p-4 space-y-3">
+                      <div className="h-3 bg-sakura-100 rounded w-1/4" />
+                      <div className="h-4 bg-sakura-100 rounded w-3/4" />
+                      <div className="h-3 bg-sakura-100 rounded w-1/2" />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1131,6 +1139,7 @@ export default function MainPage() {
                               className="w-full h-full"
                               autoPlay={images.length > 1}
                               interval={6000}
+                              hideArrows
                             />
                           </div>
                         )
