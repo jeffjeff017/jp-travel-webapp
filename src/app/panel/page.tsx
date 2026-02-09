@@ -4245,7 +4245,7 @@ export default function AdminPage() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[70vh] overflow-hidden flex flex-col"
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Popup Header */}
@@ -4369,7 +4369,7 @@ export default function AdminPage() {
               </div>
               
               {/* Save Button */}
-              <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0 safe-area-bottom">
+              <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0 rounded-b-2xl">
                 <button
                   onClick={async () => {
                     // Save to settings

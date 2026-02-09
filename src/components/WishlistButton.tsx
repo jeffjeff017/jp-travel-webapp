@@ -82,6 +82,7 @@ function toSupabaseFormat(item: Omit<WishlistItem, 'id' | 'addedAt'>): Omit<Wish
     map_link: null,
     link: item.link || null,
     added_to_trip: item.addedToDay ? { day: item.addedToDay, time: item.addedTime || '12:00' } : null,
+    added_by: null,
     is_favorite: item.isFavorite || false,
   }
 }

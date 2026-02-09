@@ -362,6 +362,7 @@ export type WishlistItemDB = {
   map_link: string | null
   link: string | null
   added_to_trip: { day: number; time: string } | null
+  added_by: { username: string; display_name: string; avatar_url?: string } | null
   is_favorite: boolean
   created_at: string
 }
@@ -398,6 +399,20 @@ export async function saveSupabaseWishlistItem(item: Omit<WishlistItemDB, 'id' |
       .single()
 
     if (error) {
+      // If added_by column doesn't exist, retry without it
+      if (error.message.includes('added_by')) {
+        const { added_by, ...itemWithoutAddedBy } = item
+        const { data: retryData, error: retryError } = await supabase
+          .from('wishlist_items')
+          .insert([itemWithoutAddedBy])
+          .select()
+          .single()
+        if (retryError) {
+          console.error('Error creating wishlist item (retry):', retryError)
+          return { data: null, error: retryError.message }
+        }
+        return { data: retryData, error: null }
+      }
       console.error('Error creating wishlist item:', error)
       return { data: null, error: error.message }
     }

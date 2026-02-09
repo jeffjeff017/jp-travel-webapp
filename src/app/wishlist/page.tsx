@@ -44,6 +44,7 @@ type WishlistItem = {
   addedToDay?: number
   addedTime?: string
   isFavorite?: boolean
+  addedBy?: { username: string; displayName: string; avatarUrl?: string }
 }
 
 type Wishlist = {
@@ -81,6 +82,11 @@ function fromSupabaseFormat(db: WishlistItemDB): WishlistItem {
     addedToDay: db.added_to_trip?.day,
     addedTime: db.added_to_trip?.time,
     isFavorite: db.is_favorite,
+    addedBy: db.added_by ? {
+      username: db.added_by.username,
+      displayName: db.added_by.display_name,
+      avatarUrl: db.added_by.avatar_url,
+    } : undefined,
   }
 }
 
@@ -94,6 +100,11 @@ function toSupabaseFormat(item: Omit<WishlistItem, 'id' | 'addedAt'>): Omit<Wish
     map_link: null,
     link: item.link || null,
     added_to_trip: item.addedToDay ? { day: item.addedToDay, time: item.addedTime || '12:00' } : null,
+    added_by: item.addedBy ? {
+      username: item.addedBy.username,
+      display_name: item.addedBy.displayName,
+      avatar_url: item.addedBy.avatarUrl,
+    } : null,
     is_favorite: item.isFavorite || false,
   }
 }
@@ -242,34 +253,11 @@ export default function WishlistPage() {
     return grouped
   }, [])
   
-  // Load wishlist
+  // Load wishlist - always fetch fresh data from Supabase
   useEffect(() => {
     const loadWishlist = async () => {
       setIsLoading(true)
       
-      // Show cached data immediately for fast UX
-      const saved = localStorage.getItem(STORAGE_KEY)
-      let hasCachedData = false
-      
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved)
-          setWishlist({
-            cafe: parsed.cafe || [],
-            restaurant: parsed.restaurant || [],
-            bakery: parsed.bakery || [],
-            shopping: parsed.shopping || [],
-            park: parsed.park || [],
-            threads: parsed.threads || [],
-          })
-          hasCachedData = true
-          setIsLoading(false)
-        } catch (e) {
-          console.error('Failed to parse cached wishlist:', e)
-        }
-      }
-      
-      // Always fetch fresh data from Supabase (stale-while-revalidate)
       try {
         const dbItems = await getSupabaseWishlistItems()
         if (dbItems.length > 0) {
@@ -281,6 +269,23 @@ export default function WishlistPage() {
         }
       } catch (err) {
         console.error('Error loading wishlist:', err)
+        // Fallback to cache only if Supabase fails
+        const saved = localStorage.getItem(STORAGE_KEY)
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved)
+            setWishlist({
+              cafe: parsed.cafe || [],
+              restaurant: parsed.restaurant || [],
+              bakery: parsed.bakery || [],
+              shopping: parsed.shopping || [],
+              park: parsed.park || [],
+              threads: parsed.threads || [],
+            })
+          } catch (e) {
+            console.error('Failed to parse cached wishlist:', e)
+          }
+        }
       }
       
       setIsLoading(false)
@@ -347,18 +352,30 @@ export default function WishlistPage() {
     
     try {
       const category = newItemCategory
-      const newItem = {
+      const user = currentUser || getCurrentUser()
+      const newItem: Omit<WishlistItem, 'id' | 'addedAt'> = {
         category,
         name: newItemName.trim(),
         note: newItemNote.trim() || undefined,
         imageUrl: newItemImage || undefined,
         link: newItemUrl.trim() || undefined,
         isFavorite: false,
+        addedBy: user ? {
+          username: user.username,
+          displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
+        } : undefined,
       }
       
       const { data: dbItem, error } = await saveSupabaseWishlistItem(toSupabaseFormat(newItem))
       
-      if (dbItem && !error) {
+      if (error) {
+        alert(`新增失敗：${error}`)
+        setIsSubmitting(false)
+        return
+      }
+      
+      if (dbItem) {
         const item = fromSupabaseFormat(dbItem)
         const newWishlist = { ...wishlist }
         if (!newWishlist[category]) newWishlist[category] = []
@@ -375,9 +392,9 @@ export default function WishlistPage() {
       setNewItemUrl('')
       setNewItemCategory('cafe')
       setShowAddForm(false)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to add item:', err)
-      alert('新增失敗')
+      alert(`新增失敗：${err.message || '未知錯誤'}`)
     }
     
     setIsSubmitting(false)
@@ -389,14 +406,63 @@ export default function WishlistPage() {
     
     try {
       await deleteSupabaseWishlistItem(Number(item.id))
-      
-      const newWishlist = { ...wishlist }
-      newWishlist[item.category] = newWishlist[item.category].filter(i => i.id !== item.id)
-      setWishlist(newWishlist)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newWishlist))
+      setSelectedItemPopup(null)
+      // Refresh page to get fresh data
+      window.location.reload()
     } catch (err) {
       console.error('Failed to delete item:', err)
+      alert('刪除失敗')
     }
+  }
+  
+  // Handle edit item from popup - open the add form pre-filled
+  const handleEditItemFromPopup = (item: WishlistItem) => {
+    setEditingItem(item)
+    setNewItemName(item.name)
+    setNewItemNote(item.note || '')
+    setNewItemImage(item.imageUrl || '')
+    setNewItemUrl(item.link || '')
+    setNewItemCategory(item.category)
+    setSelectedItemPopup(null)
+    setShowAddForm(true)
+  }
+  
+  // Handle save edited item
+  const handleSaveEdit = async () => {
+    if (!editingItem || !newItemName.trim()) return
+    
+    setIsSubmitting(true)
+    
+    try {
+      const { error } = await updateSupabaseWishlistItem(Number(editingItem.id), {
+        name: newItemName.trim(),
+        note: newItemNote.trim() || null,
+        image_url: newItemImage || null,
+        link: newItemUrl.trim() || null,
+        category: newItemCategory,
+      })
+      
+      if (error) {
+        alert(`更新失敗：${error}`)
+        setIsSubmitting(false)
+        return
+      }
+      
+      // Reset form and refresh
+      setEditingItem(null)
+      setNewItemName('')
+      setNewItemNote('')
+      setNewItemImage('')
+      setNewItemUrl('')
+      setNewItemCategory('cafe')
+      setShowAddForm(false)
+      window.location.reload()
+    } catch (err: any) {
+      console.error('Failed to update item:', err)
+      alert(`更新失敗：${err.message || '未知錯誤'}`)
+    }
+    
+    setIsSubmitting(false)
   }
   
   // Handle toggle favorite
@@ -633,7 +699,7 @@ export default function WishlistPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-            onClick={() => setShowAddForm(false)}
+            onClick={() => { setShowAddForm(false); setEditingItem(null) }}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -645,9 +711,9 @@ export default function WishlistPage() {
             >
               {/* Fixed Header */}
               <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-100 flex-shrink-0">
-                <h3 className="text-lg font-semibold text-gray-800">新增心願</h3>
+                <h3 className="text-lg font-semibold text-gray-800">{editingItem ? '編輯心願' : '新增心願'}</h3>
                 <button
-                  onClick={() => setShowAddForm(false)}
+                  onClick={() => { setShowAddForm(false); setEditingItem(null) }}
                   className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
                 >
                   ✕
@@ -746,7 +812,7 @@ export default function WishlistPage() {
               {/* Fixed Footer */}
               <div className="p-4 md:p-6 border-t border-gray-100 flex-shrink-0 bg-white rounded-b-2xl">
                 <button
-                  onClick={handleAddItem}
+                  onClick={editingItem ? handleSaveEdit : handleAddItem}
                   disabled={!newItemName.trim() || isSubmitting}
                   className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 disabled:bg-gray-300 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
                 >
@@ -756,7 +822,7 @@ export default function WishlistPage() {
                       處理中...
                     </>
                   ) : (
-                    '新增'
+                    editingItem ? '更新' : '新增'
                   )}
                 </button>
               </div>
@@ -1036,16 +1102,16 @@ export default function WishlistPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center overscroll-none"
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overscroll-none"
             style={{ touchAction: 'none' }}
             onClick={() => setSelectedItemPopup(null)}
           >
             <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full md:max-w-lg bg-white rounded-t-3xl md:rounded-2xl overflow-hidden max-h-[85vh] overflow-y-auto overscroll-contain"
+              className="w-full max-w-lg bg-white rounded-2xl overflow-hidden max-h-[85vh] overflow-y-auto overscroll-contain"
               style={{ WebkitOverflowScrolling: 'touch' }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -1067,7 +1133,7 @@ export default function WishlistPage() {
               )}
               
               {/* Content */}
-              <div className="p-6 pb-24 md:pb-6">
+              <div className="p-6">
                 {!selectedItemPopup.imageUrl && (
                   <div className="flex justify-end mb-2">
                     <button
@@ -1140,8 +1206,27 @@ export default function WishlistPage() {
                   </a>
                 )}
                 
+                {/* Added by user info */}
+                {selectedItemPopup.addedBy && (
+                  <div className="flex items-center gap-2 mb-4 p-3 bg-gray-50 rounded-xl">
+                    {(() => {
+                      const avatarUrl = getUserAvatar(selectedItemPopup.addedBy.username, selectedItemPopup.addedBy.avatarUrl)
+                      return avatarUrl ? (
+                        <img src={avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-sakura-400 flex items-center justify-center text-white text-xs font-medium">
+                          {selectedItemPopup.addedBy.displayName.charAt(0)}
+                        </div>
+                      )
+                    })()}
+                    <span className="text-sm text-gray-500">
+                      由 <span className="font-medium text-gray-700">{selectedItemPopup.addedBy.displayName}</span> 新增
+                    </span>
+                  </div>
+                )}
+                
                 {/* Actions */}
-                <div className="flex gap-3 mt-6">
+                <div className="flex gap-3 mt-4">
                   <button
                     onClick={() => {
                       handleToggleFavorite(selectedItemPopup)
@@ -1154,6 +1239,22 @@ export default function WishlistPage() {
                     }`}
                   >
                     {selectedItemPopup.isFavorite ? '❤️ 取消收藏' : '🤍 收藏'}
+                  </button>
+                </div>
+                
+                {/* Edit / Delete */}
+                <div className="flex gap-3 mt-3">
+                  <button
+                    onClick={() => handleEditItemFromPopup(selectedItemPopup)}
+                    className="flex-1 py-3 rounded-xl font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                  >
+                    ✏️ 編輯
+                  </button>
+                  <button
+                    onClick={() => handleDeleteItem(selectedItemPopup)}
+                    className="flex-1 py-3 rounded-xl font-medium bg-red-50 text-red-500 hover:bg-red-100 transition-colors"
+                  >
+                    🗑️ 刪除
                   </button>
                 </div>
               </div>
