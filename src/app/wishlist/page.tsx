@@ -642,6 +642,22 @@ export default function WishlistPage() {
                       Day {item.addedToDay}
                     </div>
                   )}
+                  
+                  {/* Added by avatar - bottom right of image */}
+                  {item.addedBy && (() => {
+                    const avatarUrl = getUserAvatar(item.addedBy.username, item.addedBy.avatarUrl)
+                    return (
+                      <div className="absolute bottom-2 right-2" title={`由 ${item.addedBy.displayName} 新增`}>
+                        {avatarUrl ? (
+                          <img src={avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover border-2 border-white shadow-sm" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-sakura-400 border-2 border-white shadow-sm flex items-center justify-center text-white text-[10px] font-medium">
+                            {item.addedBy.displayName.charAt(0)}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
                 
                 {/* Content */}
@@ -678,11 +694,16 @@ export default function WishlistPage() {
                     </div>
                   )}
                   
-                  {/* Category */}
-                  <div className="mt-3 pt-2 border-t border-gray-50">
+                  {/* Category + Added by */}
+                  <div className="mt-3 pt-2 border-t border-gray-50 flex items-center justify-between">
                     <span className="text-xs text-gray-400">
                       {CATEGORIES.find(c => c.id === item.category || (c.id === 'food' && ['restaurant', 'bakery'].includes(item.category)))?.name || item.category}
                     </span>
+                    {item.addedBy && (
+                      <span className="text-[10px] text-gray-400 truncate ml-2">
+                        {item.addedBy.displayName}
+                      </span>
+                    )}
                   </div>
                 </div>
               </motion.div>
