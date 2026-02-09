@@ -1212,23 +1212,6 @@ export default function MainPage() {
                           )}
                         </AnimatePresence>
                       
-                        {/* Actions - Admin only */}
-                        {isAdmin && (
-                          <div className="flex items-center gap-1.5 pt-1 flex-wrap">
-                            <button
-                              onClick={(e) => openEditForm(trip, e)}
-                              className="px-2 py-1 text-[10px] sm:text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-0.5 border border-blue-100"
-                            >
-                              ✏️ 編輯
-                            </button>
-                            <button
-                              onClick={(e) => handleDeleteTrip(trip.id, e)}
-                              className="px-2 py-1 text-[10px] sm:text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-0.5 border border-red-100"
-                            >
-                              🗑️ 刪除
-                            </button>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -1410,7 +1393,7 @@ export default function MainPage() {
             className="md:hidden fixed inset-0 bg-white z-[70]"
           >
             {/* Scrollable Content */}
-            <div className="h-full overflow-y-auto pb-24">
+            <div className={`h-full overflow-y-auto ${isAdmin ? 'pb-28' : 'pb-8'}`}>
               {/* Image Section - Full Width with Overlay Buttons */}
               <div className="relative">
                 {(() => {
@@ -1446,14 +1429,13 @@ export default function MainPage() {
                   ←
                 </button>
                 
-                {/* Top Right Buttons - Share & Map */}
+                {/* Top Right Buttons - Open in Google Maps */}
                 <div className="absolute top-4 right-4 flex items-center gap-2">
                   <button
                     onClick={() => {
-                      // Open map with this trip selected
-                      setShowTripDetail(false)
-                      setShowMapPopup(true)
-                      setActiveBottomTab('map')
+                      // Open Google Maps in new tab with trip location
+                      const url = `https://www.google.com/maps/search/?api=1&query=${detailTrip.lat},${detailTrip.lng}`
+                      window.open(url, '_blank')
                     }}
                     className="w-9 h-9 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:bg-gray-100 transition-colors"
                   >
@@ -1486,9 +1468,8 @@ export default function MainPage() {
                     <p className="text-gray-700">{detailTrip.location}</p>
                     <button
                       onClick={() => {
-                        setShowTripDetail(false)
-                        setShowMapPopup(true)
-                        setActiveBottomTab('map')
+                        const url = `https://www.google.com/maps/search/?api=1&query=${detailTrip.lat},${detailTrip.lng}`
+                        window.open(url, '_blank')
                       }}
                       className="text-sm text-sakura-500 mt-1 hover:underline"
                     >
@@ -1545,7 +1526,7 @@ export default function MainPage() {
             
             {/* Bottom Action Bar - Fixed */}
             {isAdmin && (
-              <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-5 py-4 safe-area-bottom">
+              <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-5 pt-3 pb-6 z-10">
                 <div className="flex gap-3">
                   <button
                     onClick={(e) => {

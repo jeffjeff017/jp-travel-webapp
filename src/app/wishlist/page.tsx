@@ -13,7 +13,7 @@ import {
   type WishlistItemDB 
 } from '@/lib/supabase'
 import { getSettings, getSettingsAsync, type SiteSettings } from '@/lib/settings'
-import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, logout, getUsers, type User } from '@/lib/auth'
+import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, isAuthenticated, logout, getUsers, getUsersAsync, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 
@@ -180,16 +180,37 @@ export default function WishlistPage() {
       }
     }
     
-    // Load settings
-    const loadSettings = async () => {
+    // Load settings + fresh users, reconstruct currentUser if needed
+    const init = async () => {
       const cachedSettings = getSettings()
       setSettings(cachedSettings)
       const freshSettings = await getSettingsAsync()
       if (freshSettings) {
         setSettings(freshSettings)
       }
+      
+      // Load fresh users and reconstruct currentUser if cookie is missing
+      try {
+        const freshUsers = await getUsersAsync()
+        setUsers(freshUsers)
+        
+        if (!getCurrentUser() && isAuthenticated() && freshUsers.length > 0) {
+          const adminUser = freshUsers.find(u => u.role === 'admin')
+          const fallbackUser = adminUser || freshUsers[0]
+          if (fallbackUser) {
+            setCurrentUser({
+              username: fallbackUser.username,
+              role: fallbackUser.role,
+              displayName: fallbackUser.displayName,
+              avatarUrl: fallbackUser.avatarUrl
+            })
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch users:', err)
+      }
     }
-    loadSettings()
+    init()
   }, [])
   
   // Get user's current avatar from users list (most up-to-date)
