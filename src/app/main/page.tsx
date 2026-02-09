@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { getTrips, createTrip, updateTrip, deleteTrip, type Trip } from '@/lib/supabase'
+import { getTrips, createTrip, updateTrip, deleteTrip, getSupabaseChecklistStates, saveSupabaseChecklistState, type Trip } from '@/lib/supabase'
 import { getSettings, getSettingsAsync, saveSettings, saveSettingsAsync, type SiteSettings } from '@/lib/settings'
 import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, logout, getUsers, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
@@ -253,18 +253,38 @@ export default function MainPage() {
     if (savedSakuraMode === 'true') {
       setIsSakuraMode(true)
     }
-    // Load checked travel notice items from localStorage
-    const savedCheckedItems = localStorage.getItem('travel_notice_checked')
-    if (savedCheckedItems) {
+    // Load checklist states from Supabase (synced across devices)
+    const loadChecklist = async () => {
       try {
-        setCheckedItems(JSON.parse(savedCheckedItems))
-      } catch (e) {
-        console.error('Failed to parse checked items:', e)
+        const states = await getSupabaseChecklistStates()
+        if (states.length > 0) {
+          const checkedMap: Record<string, { username: string; displayName: string; avatarUrl?: string }[]> = {}
+          states.forEach(s => {
+            checkedMap[s.id] = s.checked_by.map(u => ({
+              username: u.username,
+              displayName: u.displayName || u.username,
+              avatarUrl: u.avatarUrl,
+            }))
+          })
+          setCheckedItems(checkedMap)
+          localStorage.setItem('travel_notice_checked', JSON.stringify(checkedMap))
+        } else {
+          const saved = localStorage.getItem('travel_notice_checked')
+          if (saved) {
+            try { setCheckedItems(JSON.parse(saved)) } catch {}
+          }
+        }
+      } catch {
+        const saved = localStorage.getItem('travel_notice_checked')
+        if (saved) {
+          try { setCheckedItems(JSON.parse(saved)) } catch {}
+        }
       }
     }
+    loadChecklist()
   }, [])
   
-  // Toggle travel notice item check
+  // Toggle travel notice item check (synced to Supabase)
   const toggleCheckItem = (itemKey: string) => {
     if (!currentUser) return
     
@@ -280,15 +300,21 @@ export default function MainPage() {
       
       let newUsers: typeof currentUsers
       if (userIndex >= 0) {
-        // User already checked, remove them
         newUsers = currentUsers.filter(u => u.username !== currentUser.username)
       } else {
-        // User not checked, add them
         newUsers = [...currentUsers, user]
       }
       
       const newCheckedItems = { ...prev, [itemKey]: newUsers }
       localStorage.setItem('travel_notice_checked', JSON.stringify(newCheckedItems))
+      
+      // Sync to Supabase
+      saveSupabaseChecklistState({
+        id: itemKey,
+        checked_by: newUsers,
+        updated_at: new Date().toISOString(),
+      }).catch(() => {})
+      
       return newCheckedItems
     })
   }

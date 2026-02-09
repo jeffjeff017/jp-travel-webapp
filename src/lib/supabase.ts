@@ -470,7 +470,7 @@ export async function deleteSupabaseWishlistItem(id: number): Promise<{ success:
 
 export type ChecklistStateDB = {
   id: string
-  checked_by: { username: string; avatarUrl?: string }[]
+  checked_by: { username: string; displayName?: string; avatarUrl?: string }[]
   updated_at: string
 }
 
