@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { getTrips, createTrip, updateTrip, deleteTrip, getSupabaseChecklistStates, saveSupabaseChecklistState, type Trip } from '@/lib/supabase'
 import { getSettings, getSettingsAsync, saveSettings, saveSettingsAsync, type SiteSettings } from '@/lib/settings'
-import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, logout, getUsers, type User } from '@/lib/auth'
+import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, getUsers, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 import DailyPopup from '@/components/DailyPopup'
@@ -1952,25 +1952,6 @@ export default function MainPage() {
                   </div>
                 )}
                 
-                {/* User Info & Logout */}
-                {currentUser && (
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-sm text-gray-600">
-                        目前登入：<span className="font-medium">{currentUser.displayName}</span>
-                      </p>
-                      <button
-                        onClick={() => {
-                          logout()
-                          window.location.href = '/login'
-                        }}
-                        className="mt-2 w-full py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
-                      >
-                        登出
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
               
               {/* Action Button */}
