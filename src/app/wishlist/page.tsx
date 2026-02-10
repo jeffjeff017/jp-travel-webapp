@@ -1251,7 +1251,7 @@ export default function WishlistPage() {
                     <AnimatePresence>
                       {showPopupLikeAnim && (() => {
                         const user = currentUser || getCurrentUser()
-                        const displayName = user?.displayName || '你'
+                        const displayName = user ? getUserDisplayName(user.username, user.displayName) : '你'
                         return (
                           <motion.div
                             initial={{ opacity: 0, x: 10 }}
@@ -1289,7 +1289,7 @@ export default function WishlistPage() {
                     <AnimatePresence>
                       {showPopupLikeAnim ? (() => {
                         const user = currentUser || getCurrentUser()
-                        const displayName = user?.displayName || '你'
+                        const displayName = user ? getUserDisplayName(user.username, user.displayName) : '你'
                         return (
                           <motion.div
                             initial={{ opacity: 0, x: 10 }}
@@ -1331,9 +1331,6 @@ export default function WishlistPage() {
                      selectedItemPopup.category === 'bakery' ? '麵包店' :
                      CATEGORIES.find(c => c.id === selectedItemPopup.category)?.name || selectedItemPopup.category}
                   </span>
-                  {selectedItemPopup.isFavorite && (
-                    <span className="text-red-500">❤️ 已收藏</span>
-                  )}
                 </div>
                 
                 {/* Title */}
