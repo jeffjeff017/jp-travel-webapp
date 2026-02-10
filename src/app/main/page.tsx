@@ -4,7 +4,9 @@ import { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { getTrips, createTrip, updateTrip, deleteTrip, getSupabaseChecklistStates, saveSupabaseChecklistState, type Trip } from '@/lib/supabase'
+import { createTrip, updateTrip, saveSupabaseChecklistState, type Trip } from '@/lib/supabase'
+import { useTrips, useCreateTrip, useUpdateTrip, useDeleteTrip, useChecklistStates, queryKeys } from '@/hooks/useQueries'
+import { useQueryClient } from '@tanstack/react-query'
 import { getSettings, getSettingsAsync, saveSettings, saveSettingsAsync, type SiteSettings } from '@/lib/settings'
 import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, getUsers, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
@@ -177,10 +179,15 @@ const getWeatherIcon = (dayNum: number) => {
 }
 
 export default function MainPage() {
-  const [trips, setTrips] = useState<Trip[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  // TanStack Query hooks for data fetching
+  const queryClient = useQueryClient()
+  const { data: trips = [], isLoading, error: tripsError } = useTrips({ refetchInterval: 30000 })
+  const { data: checklistData } = useChecklistStates()
+  const createTripMutation = useCreateTrip()
+  const updateTripMutation = useUpdateTrip()
+  const deleteTripMutation = useDeleteTrip()
+
   const [isSakuraMode, setIsSakuraMode] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [settings, setSettings] = useState<SiteSettings | null>(null)
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null)
   const [selectedDay, setSelectedDay] = useState<number>(1)
@@ -253,36 +260,28 @@ export default function MainPage() {
     if (savedSakuraMode === 'true') {
       setIsSakuraMode(true)
     }
-    // Load checklist states from Supabase (synced across devices)
-    const loadChecklist = async () => {
-      try {
-        const states = await getSupabaseChecklistStates()
-        if (states.length > 0) {
-          const checkedMap: Record<string, { username: string; displayName: string; avatarUrl?: string }[]> = {}
-          states.forEach(s => {
-            checkedMap[s.id] = s.checked_by.map(u => ({
-              username: u.username,
-              displayName: u.displayName || u.username,
-              avatarUrl: u.avatarUrl,
-            }))
-          })
-          setCheckedItems(checkedMap)
-          localStorage.setItem('travel_notice_checked', JSON.stringify(checkedMap))
-        } else {
-          const saved = localStorage.getItem('travel_notice_checked')
-          if (saved) {
-            try { setCheckedItems(JSON.parse(saved)) } catch {}
-          }
-        }
-      } catch {
-        const saved = localStorage.getItem('travel_notice_checked')
-        if (saved) {
-          try { setCheckedItems(JSON.parse(saved)) } catch {}
-        }
+  }, [])
+
+  // Sync checklist states from TanStack Query
+  useEffect(() => {
+    if (checklistData && checklistData.length > 0) {
+      const checkedMap: Record<string, { username: string; displayName: string; avatarUrl?: string }[]> = {}
+      checklistData.forEach(s => {
+        checkedMap[s.id] = s.checked_by.map(u => ({
+          username: u.username,
+          displayName: u.displayName || u.username,
+          avatarUrl: u.avatarUrl,
+        }))
+      })
+      setCheckedItems(checkedMap)
+      localStorage.setItem('travel_notice_checked', JSON.stringify(checkedMap))
+    } else if (!checklistData || checklistData.length === 0) {
+      const saved = localStorage.getItem('travel_notice_checked')
+      if (saved) {
+        try { setCheckedItems(JSON.parse(saved)) } catch {}
       }
     }
-    loadChecklist()
-  }, [])
+  }, [checklistData])
   
   // Toggle travel notice item check (synced to Supabase)
   const toggleCheckItem = (itemKey: string) => {
@@ -346,59 +345,20 @@ export default function MainPage() {
         console.warn('Failed to fetch settings from Supabase, using local:', err)
       }
       
-      try {
-        // Fetch trips
-        const data = await getTrips()
-        
-        // Only update state if we got valid data (not empty due to connection error)
-        // Don't auto-sync tripStartDate to avoid unexpected data loss
-        if (data && data.length >= 0) {
-          setTrips(data)
+      // Auto-select current day based on trip start date
+      if (loadedSettings.tripStartDate) {
+        const startDate = new Date(loadedSettings.tripStartDate)
+        const today = new Date()
+        const diffTime = today.getTime() - startDate.getTime()
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
+        if (diffDays >= 1 && diffDays <= loadedSettings.totalDays) {
+          setSelectedDay(diffDays)
         }
-        setSettings(loadedSettings)
-        
-        // Auto-select current day based on trip start date
-        if (loadedSettings.tripStartDate) {
-          const startDate = new Date(loadedSettings.tripStartDate)
-          const today = new Date()
-          const diffTime = today.getTime() - startDate.getTime()
-          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
-          if (diffDays >= 1 && diffDays <= loadedSettings.totalDays) {
-            setSelectedDay(diffDays)
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch trips:', err)
-        setError('載入行程失敗')
-      } finally {
-        setIsLoading(false)
       }
     }
 
     initializeData()
-    
-    // Refresh trips periodically (without syncing settings to avoid flickering)
-    const interval = setInterval(async () => {
-      try {
-        const data = await getTrips()
-        setTrips(data)
-      } catch (err) {
-        console.error('Failed to refresh trips:', err)
-      }
-    }, 30000)
-    
-    return () => clearInterval(interval)
   }, [])
-
-  // Fetch trips function (for refreshing after add/edit)
-  const fetchTrips = async () => {
-    try {
-      const data = await getTrips()
-      setTrips(data)
-    } catch (err) {
-      console.error('Failed to fetch trips:', err)
-    }
-  }
   
   // Toggle trip description expansion
   const toggleTripExpand = (tripId: number) => {
@@ -543,24 +503,22 @@ export default function MainPage() {
       }
 
       if (editingTrip) {
-        const { data, error } = await updateTrip(editingTrip.id, tripData)
-        if (data) {
+        const result = await updateTripMutation.mutateAsync({ id: editingTrip.id, trip: tripData })
+        if (result.data) {
           setFormMessage({ type: 'success', text: '行程已更新！' })
-          await fetchTrips()
           // Use closeFormSimple to avoid reverting day settings
           setTimeout(closeFormSimple, 1000)
         } else {
-          setFormMessage({ type: 'error', text: error || '更新失敗' })
+          setFormMessage({ type: 'error', text: result.error || '更新失敗' })
         }
       } else {
-        const { data, error } = await createTrip(tripData)
-        if (data) {
+        const result = await createTripMutation.mutateAsync(tripData)
+        if (result.data) {
           setFormMessage({ type: 'success', text: '行程已新增！' })
-          await fetchTrips()
           // Use closeFormSimple to avoid reverting day settings
           setTimeout(closeFormSimple, 1000)
         } else {
-          setFormMessage({ type: 'error', text: error || '新增失敗' })
+          setFormMessage({ type: 'error', text: result.error || '新增失敗' })
         }
       }
     } catch (err: any) {
@@ -576,11 +534,9 @@ export default function MainPage() {
     if (!confirm('確定要刪除此行程嗎？')) return
 
     try {
-      const { success, error } = await deleteTrip(tripId)
-      if (success) {
-        await fetchTrips()
-      } else {
-        alert(error || '刪除失敗')
+      const result = await deleteTripMutation.mutateAsync(tripId)
+      if (!result.success) {
+        alert(result.error || '刪除失敗')
       }
     } catch (err: any) {
       alert(err.message || '發生錯誤')
@@ -706,9 +662,8 @@ export default function MainPage() {
       await updateTrip(trip.id, { date: fromDate })
     }
     
-    // Refresh trips
-    const updatedTrips = await getTrips()
-    setTrips(updatedTrips)
+    // Refresh trips via TanStack Query
+    await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
     
     // Switch to the destination day
     setSelectedDay(toDay)
@@ -1120,9 +1075,9 @@ export default function MainPage() {
                   </div>
                 ))}
               </div>
-            ) : error ? (
+            ) : tripsError ? (
               <div className="text-center py-8">
-                <p className="text-red-500">{error}</p>
+                <p className="text-red-500">{tripsError instanceof Error ? tripsError.message : '載入行程失敗'}</p>
               </div>
             ) : filteredTrips.length === 0 ? (
               <div className="text-center py-8">
@@ -1684,8 +1639,7 @@ export default function MainPage() {
           
           try {
             await createTrip(tripData)
-            const updatedTrips = await getTrips()
-            setTrips(updatedTrips)
+            await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
             setSelectedDay(day)
             setShowWishlistPopup(false)
             setActiveBottomTab('home')

@@ -8,7 +8,6 @@ import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 import { logout, canAccessAdmin, isAdmin, isAuthenticated, getCurrentUser, getUsers, getUsersAsync, updateUser, updateUserAsync, deleteUser, deleteUserAsync, type User, type UserRole } from '@/lib/auth'
 import {
-  getTrips,
   createTrip,
   updateTrip,
   deleteTrip,
@@ -17,7 +16,6 @@ import {
   DEFAULT_DESTINATIONS,
   saveSupabaseDestination,
   deleteSupabaseDestination,
-  getSupabaseWishlistItems,
   updateSupabaseWishlistItem,
   deleteSupabaseWishlistItem,
   type WishlistItemDB,
@@ -26,13 +24,19 @@ import {
   type ExpenseCategory,
   type WalletSettingsDB,
   EXPENSE_CATEGORIES,
-  getSupabaseExpenses,
   createSupabaseExpense,
   updateSupabaseExpense,
   deleteSupabaseExpense,
-  getSupabaseWalletSettings,
   saveSupabaseWalletSettings,
 } from '@/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
+import {
+  useTrips,
+  useWishlistItems,
+  useExpenses,
+  useWalletSettings,
+  queryKeys,
+} from '@/hooks/useQueries'
 import { 
   getSettings, 
   getSettingsAsync, 
@@ -135,7 +139,14 @@ const parseScheduleItems = (description: string | undefined): ScheduleItem[] => 
 }
 
 export default function AdminPage() {
-  const [trips, setTrips] = useState<Trip[]>([])
+  // TanStack Query hooks
+  const queryClient = useQueryClient()
+  const { data: trips = [], isLoading: isTripsLoading } = useTrips()
+  const { data: wishlistItemsData } = useWishlistItems()
+  const { data: personalExpensesData } = useExpenses('personal', typeof window !== 'undefined' ? getCurrentUser()?.username : undefined)
+  const { data: sharedExpensesData } = useExpenses('shared')
+  const { data: walletSettingsData } = useWalletSettings()
+
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -234,8 +245,9 @@ export default function AdminPage() {
     trips: Trip[]
     users: User[]
     destinations: DestinationDB[]
-  }>({ trips: [], users: [], destinations: [] })
-  const [trashTab, setTrashTab] = useState<'trips' | 'users' | 'destinations'>('trips')
+    wishlist: WishlistItemDB[]
+  }>({ trips: [], users: [], destinations: [], wishlist: [] })
+  const [trashTab, setTrashTab] = useState<'trips' | 'users' | 'destinations' | 'wishlist'>('trips')
   const router = useRouter()
   const { t } = useLanguage()
   
@@ -251,6 +263,26 @@ export default function AdminPage() {
       document.body.style.overflow = ''
     }
   }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showExpenseForm, showBudgetForm])
+
+  // Sync TanStack Query data to local state
+  useEffect(() => {
+    if (wishlistItemsData) setWishlistItems(wishlistItemsData)
+  }, [wishlistItemsData])
+  
+  useEffect(() => {
+    if (personalExpensesData) setPersonalExpenses(personalExpensesData)
+  }, [personalExpensesData])
+  
+  useEffect(() => {
+    if (sharedExpensesData) setSharedExpenses(sharedExpensesData)
+  }, [sharedExpensesData])
+  
+  useEffect(() => {
+    if (walletSettingsData) {
+      setWalletSettings(walletSettingsData)
+      setBudgetForm({ amount: walletSettingsData.shared_budget.toString() })
+    }
+  }, [walletSettingsData])
 
   // Load trash from localStorage
   useEffect(() => {
@@ -272,21 +304,7 @@ export default function AdminPage() {
     // Load current user
     const user = getCurrentUser()
     setCurrentUser(user)
-    // Pre-load wallet data so budget persists after refresh
-    // Always load shared data (budget + shared expenses) regardless of login
-    // Personal expenses need username so only load if logged in
-    Promise.all([
-      user ? getSupabaseExpenses('personal', user.username) : Promise.resolve([] as ExpenseDB[]),
-      getSupabaseExpenses('shared'),
-      getSupabaseWalletSettings(),
-    ]).then(([personal, shared, settings]) => {
-      setPersonalExpenses(personal)
-      setSharedExpenses(shared)
-      setWalletSettings(settings)
-      if (settings) {
-        setBudgetForm({ amount: settings.shared_budget.toString() })
-      }
-    }).catch(err => console.error('Failed to pre-load wallet data:', err))
+    // Wallet data is now managed by TanStack Query (useExpenses, useWalletSettings)
     // Load checked travel notice items from localStorage
     const savedCheckedItems = localStorage.getItem('travel_notice_checked')
     if (savedCheckedItems) {
@@ -361,7 +379,8 @@ export default function AdminPage() {
         return
       }
       
-      fetchTrips()
+      // Trips are now managed by TanStack Query (useTrips)
+      setIsLoading(false)
       
       // Load destinations
       const currentDest = getCurrentDestination()
@@ -446,33 +465,29 @@ export default function AdminPage() {
     initAdmin()
   }, [])
 
+  // Refresh trips via TanStack Query invalidation
   const fetchTrips = async () => {
-    setIsLoading(true)
-    try {
-      const data = await getTrips()
-      setTrips(data)
-    } catch (err) {
-      setMessage({ type: 'error', text: '載入行程失敗' })
-    } finally {
-      setIsLoading(false)
-    }
+    await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
   }
 
+  // Refresh wishlist via TanStack Query invalidation
   const loadWishlistItems = async () => {
-    try {
-      const items = await getSupabaseWishlistItems()
-      setWishlistItems(items)
-    } catch (err) {
-      console.error('Failed to load wishlist items:', err)
-    }
+    await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
   }
 
   const handleDeleteWishlistItem = async (item: WishlistItemDB) => {
-    if (!confirm(`確定要刪除「${item.name}」嗎？`)) return
+    if (!confirm(`確定要將「${item.name}」移至垃圾桶嗎？`)) return
     try {
+      // Move to trash first
+      const newTrash = {
+        ...trashItems,
+        wishlist: [...(trashItems.wishlist || []), { ...item, deletedAt: new Date().toISOString() }]
+      }
+      saveTrash(newTrash)
+      
       await deleteSupabaseWishlistItem(item.id)
       setWishlistItems(prev => prev.filter(i => i.id !== item.id))
-      setMessage({ type: 'success', text: '已刪除收藏項目' })
+      setMessage({ type: 'success', text: '已移至垃圾桶' })
     } catch (err) {
       setMessage({ type: 'error', text: '刪除失敗' })
     }
@@ -636,12 +651,14 @@ export default function AdminPage() {
   }
   
   // Permanently delete from trash
-  const handlePermanentDelete = (type: 'trips' | 'users' | 'destinations', id: number | string) => {
+  const handlePermanentDelete = (type: 'trips' | 'users' | 'destinations' | 'wishlist', id: number | string) => {
     if (!confirm('確定要永久刪除此項目嗎？此操作無法復原！')) return
     
     const newTrash = { ...trashItems }
     if (type === 'trips') {
       newTrash.trips = newTrash.trips.filter(t => t.id !== id)
+    } else if (type === 'wishlist') {
+      newTrash.wishlist = newTrash.wishlist.filter(w => w.id !== id)
     } else if (type === 'users') {
       newTrash.users = newTrash.users.filter(u => u.username !== id)
     } else if (type === 'destinations') {
@@ -654,7 +671,7 @@ export default function AdminPage() {
   // Clear all trash
   const handleClearTrash = () => {
     if (!confirm('確定要清空垃圾桶嗎？所有項目將被永久刪除！')) return
-    saveTrash({ trips: [], users: [], destinations: [] })
+    saveTrash({ trips: [], users: [], destinations: [], wishlist: [] })
     setMessage({ type: 'success', text: '垃圾桶已清空！' })
   }
 
@@ -902,19 +919,11 @@ export default function AdminPage() {
           <div 
             className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
             onClick={async () => {
-              // Load wallet data - always load shared data, personal only if logged in
-              const user = currentUser || getCurrentUser()
-              const [personal, shared, settings] = await Promise.all([
-                user ? getSupabaseExpenses('personal', user.username) : Promise.resolve([] as ExpenseDB[]),
-                getSupabaseExpenses('shared'),
-                getSupabaseWalletSettings(),
+              // Refresh wallet data via TanStack Query
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+                queryClient.invalidateQueries({ queryKey: queryKeys.walletSettings }),
               ])
-              setPersonalExpenses(personal)
-              setSharedExpenses(shared)
-              setWalletSettings(settings)
-              if (settings) {
-                setBudgetForm({ amount: settings.shared_budget.toString() })
-              }
               setShowWallet(true)
             }}
           >
@@ -1157,7 +1166,7 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-800 text-sm">垃圾桶</h3>
-                    <p className="text-xs text-gray-500">{trashItems.trips.length + trashItems.users.length + trashItems.destinations.length} 個項目</p>
+                    <p className="text-xs text-gray-500">{trashItems.trips.length + trashItems.users.length + trashItems.destinations.length + (trashItems.wishlist?.length || 0)} 個項目</p>
                   </div>
                 </div>
               </div>
@@ -1334,19 +1343,11 @@ export default function AdminPage() {
             </div>
             <button
               onClick={async () => {
-                // Load wallet data - always load shared data, personal only if logged in
-                const user = currentUser || getCurrentUser()
-                const [personal, shared, settings] = await Promise.all([
-                  user ? getSupabaseExpenses('personal', user.username) : Promise.resolve([] as ExpenseDB[]),
-                  getSupabaseExpenses('shared'),
-                  getSupabaseWalletSettings(),
+                // Refresh wallet data via TanStack Query
+                await Promise.all([
+                  queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+                  queryClient.invalidateQueries({ queryKey: queryKeys.walletSettings }),
                 ])
-                setPersonalExpenses(personal)
-                setSharedExpenses(shared)
-                setWalletSettings(settings)
-                if (settings) {
-                  setBudgetForm({ amount: settings.shared_budget.toString() })
-                }
                 setShowWallet(true)
               }}
               className="mt-4 w-full py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
@@ -1391,7 +1392,7 @@ export default function AdminPage() {
                   已刪除的項目
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {trashItems.trips.length + trashItems.users.length + trashItems.destinations.length} 個項目
+                  {trashItems.trips.length + trashItems.users.length + trashItems.destinations.length + (trashItems.wishlist?.length || 0)} 個項目
                 </p>
               </div>
             </div>
@@ -2682,7 +2683,7 @@ export default function AdminPage() {
                                   setMessage({ type: 'error', text: `預算儲存失敗：${result.error || '未知錯誤'}` })
                                   return
                                 }
-                                setWalletSettings(prev => prev ? { ...prev, shared_budget: amount } : { id: 1, shared_budget: amount, currency: 'JPY', updated_at: new Date().toISOString() })
+                                await queryClient.invalidateQueries({ queryKey: queryKeys.walletSettings })
                                 setShowBudgetForm(false)
                                 setMessage({ type: 'success', text: '預算已更新！' })
                                 setWalletDirty(true)
@@ -2778,8 +2779,7 @@ export default function AdminPage() {
                                       onClick={async () => {
                                         if (confirm('確定要刪除此支出？')) {
                                           await deleteSupabaseExpense(expense.id)
-                                          const fresh = await getSupabaseExpenses('shared')
-                                          setSharedExpenses(fresh)
+                                          await queryClient.invalidateQueries({ queryKey: ['expenses'] })
                                           setWalletDirty(true)
                                         }
                                       }}
@@ -2859,8 +2859,7 @@ export default function AdminPage() {
                                     onClick={async () => {
                                       if (confirm('確定要刪除此支出？')) {
                                         await deleteSupabaseExpense(expense.id)
-                                        const fresh = await getSupabaseExpenses('personal', currentUser?.username)
-                                        setPersonalExpenses(fresh)
+                                        await queryClient.invalidateQueries({ queryKey: ['expenses'] })
                                         setWalletDirty(true)
                                       }
                                     }}
@@ -3048,14 +3047,8 @@ export default function AdminPage() {
                           }
                         }
                         
-                        // Refresh data
-                        if (walletTab === 'shared') {
-                          const fresh = await getSupabaseExpenses('shared')
-                          setSharedExpenses(fresh)
-                        } else {
-                          const fresh = await getSupabaseExpenses('personal', user.username)
-                          setPersonalExpenses(fresh)
-                        }
+                        // Refresh data via TanStack Query
+                        await queryClient.invalidateQueries({ queryKey: ['expenses'] })
                         
                         setShowExpenseForm(false)
                         setEditingExpense(null)
@@ -3098,7 +3091,7 @@ export default function AdminPage() {
                 <div className="p-4 border-b border-gray-100 flex-shrink-0">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium text-gray-800">🗑️ 垃圾桶</h3>
-                    {(trashItems.trips.length + trashItems.users.length + trashItems.destinations.length) > 0 && (
+                    {(trashItems.trips.length + trashItems.users.length + trashItems.destinations.length + (trashItems.wishlist?.length || 0)) > 0 && (
                       <button
                         onClick={handleClearTrash}
                         className="px-3 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-colors"
@@ -3140,6 +3133,16 @@ export default function AdminPage() {
                       }`}
                     >
                       🌏 目的地 ({trashItems.destinations.length})
+                    </button>
+                    <button
+                      onClick={() => setTrashTab('wishlist')}
+                      className={`flex-1 py-2 px-3 text-sm rounded-lg transition-colors ${
+                        trashTab === 'wishlist'
+                          ? 'bg-gray-800 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      💝 心願 ({trashItems.wishlist?.length || 0})
                     </button>
                   </div>
 
@@ -3219,6 +3222,44 @@ export default function AdminPage() {
                             <button
                               onClick={() => handlePermanentDelete('destinations', dest.id)}
                               className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                            >
+                              永久刪除
+                            </button>
+                          </div>
+                        ))
+                      )
+                    )}
+
+                    {trashTab === 'wishlist' && (
+                      !trashItems.wishlist?.length ? (
+                        <p className="text-center text-gray-400 text-sm py-8">沒有已刪除的心願</p>
+                      ) : (
+                        trashItems.wishlist.map((item) => (
+                          <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {item.image_url ? (
+                                <img src={item.image_url} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-lg bg-pink-100 flex items-center justify-center text-pink-500 text-xs flex-shrink-0">
+                                  💝
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="font-medium text-gray-800 truncate">{item.name}</p>
+                                <p className="text-xs text-gray-500">
+                                  {item.category === 'restaurant' ? '餐廳' : 
+                                   item.category === 'bakery' ? '麵包店' :
+                                   item.category === 'shopping' ? '購物' :
+                                   item.category === 'attraction' ? '景點' :
+                                   item.category === 'food' ? '美食' :
+                                   item.category === 'accommodation' ? '住宿' : item.category}
+                                  {item.added_by ? ` · ${item.added_by.display_name}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handlePermanentDelete('wishlist', item.id)}
+                              className="ml-2 px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex-shrink-0"
                             >
                               永久刪除
                             </button>
@@ -3438,7 +3479,7 @@ export default function AdminPage() {
         </AnimatePresence>
 
         {/* Trips List - Grouped by Day */}
-        {isLoading ? (
+        {(isLoading || isTripsLoading) ? (
           <div className="bg-white rounded-xl border border-gray-200 p-8">
             <div className="flex items-center justify-center">
               <div className="w-8 h-8 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />

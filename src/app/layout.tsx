@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { LanguageProvider } from '@/lib/i18n'
+import { QueryProvider } from '@/lib/query-provider'
 
 export const metadata: Metadata = {
   title: '日本旅遊 | Japan Travel App',
@@ -15,9 +16,11 @@ export default function RootLayout({
   return (
     <html lang="zh-TW">
       <body className="min-h-screen antialiased">
-        <LanguageProvider>
-          {children}
-        </LanguageProvider>
+        <QueryProvider>
+          <LanguageProvider>
+            {children}
+          </LanguageProvider>
+        </QueryProvider>
       </body>
     </html>
   )

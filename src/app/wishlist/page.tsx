@@ -6,14 +6,14 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { 
-  getSupabaseWishlistItems, 
   saveSupabaseWishlistItem, 
   updateSupabaseWishlistItem, 
   deleteSupabaseWishlistItem,
-  getSupabaseChecklistStates,
   saveSupabaseChecklistState,
   type WishlistItemDB 
 } from '@/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
+import { useWishlistItems, useChecklistStates, queryKeys } from '@/hooks/useQueries'
 import { getSettings, getSettingsAsync, type SiteSettings } from '@/lib/settings'
 import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, isAuthenticated, logout, getUsers, getUsersAsync, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
@@ -113,6 +113,9 @@ function toSupabaseFormat(item: Omit<WishlistItem, 'id' | 'addedAt'>): Omit<Wish
 
 export default function WishlistPage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const { data: wishlistDbItems, isLoading: isWishlistLoading } = useWishlistItems()
+  const { data: checklistData } = useChecklistStates()
   const [activeTab, setActiveTab] = useState('all')
   const [activeFoodSubTab, setActiveFoodSubTab] = useState('restaurant')
   const [wishlist, setWishlist] = useState<Wishlist>({
@@ -175,37 +178,8 @@ export default function WishlistPage() {
       setIsSakuraMode(true)
     }
     
-    // Load settings + fresh users + checklist states
+    // Load settings + fresh users (checklist states are managed by TanStack Query)
     const init = async () => {
-      // Load checklist states from Supabase (synced across devices)
-      try {
-        const states = await getSupabaseChecklistStates()
-        if (states.length > 0) {
-          const checkedMap: Record<string, { username: string; displayName: string; avatarUrl?: string }[]> = {}
-          states.forEach(s => {
-            checkedMap[s.id] = s.checked_by.map(u => ({
-              username: u.username,
-              displayName: u.displayName || u.username,
-              avatarUrl: u.avatarUrl,
-            }))
-          })
-          setCheckedItems(checkedMap)
-          localStorage.setItem('travel_notice_checked', JSON.stringify(checkedMap))
-        } else {
-          // Fallback to localStorage if Supabase has no data
-          const saved = localStorage.getItem('travel_notice_checked')
-          if (saved) {
-            try { setCheckedItems(JSON.parse(saved)) } catch {}
-          }
-        }
-      } catch {
-        // Fallback to localStorage on error
-        const saved = localStorage.getItem('travel_notice_checked')
-        if (saved) {
-          try { setCheckedItems(JSON.parse(saved)) } catch {}
-        }
-      }
-
       const cachedSettings = getSettings()
       setSettings(cachedSettings)
       const freshSettings = await getSettingsAsync()
@@ -485,11 +459,30 @@ export default function WishlistPage() {
     setIsSubmitting(false)
   }
   
-  // Handle delete item
+  // Handle delete item (move to trash)
   const handleDeleteItem = async (item: WishlistItem) => {
-    if (!confirm('確定要刪除此項目嗎？')) return
+    if (!confirm('確定要將此項目移至垃圾桶嗎？')) return
     
     try {
+      // Move to trash in localStorage
+      const savedTrash = localStorage.getItem('admin_trash_bin')
+      const trashData = savedTrash ? JSON.parse(savedTrash) : { trips: [], users: [], destinations: [], wishlist: [] }
+      const trashWishlistItem: WishlistItemDB = {
+        id: Number(item.id),
+        category: item.category,
+        name: item.name,
+        note: item.note || null,
+        image_url: item.imageUrl || null,
+        map_link: null,
+        link: item.link || null,
+        added_to_trip: item.addedToDay ? { day: item.addedToDay, time: item.addedTime || '' } : null,
+        added_by: item.addedBy ? { username: item.addedBy.username, display_name: item.addedBy.displayName, avatar_url: item.addedBy.avatarUrl } : null,
+        is_favorite: item.isFavorite || false,
+        created_at: item.addedAt,
+      }
+      trashData.wishlist = [...(trashData.wishlist || []), { ...trashWishlistItem, deletedAt: new Date().toISOString() }]
+      localStorage.setItem('admin_trash_bin', JSON.stringify(trashData))
+      
       await deleteSupabaseWishlistItem(Number(item.id))
       setSelectedItemPopup(null)
       // Refresh page to get fresh data
