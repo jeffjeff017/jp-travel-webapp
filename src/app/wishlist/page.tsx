@@ -243,6 +243,13 @@ export default function WishlistPage() {
     const user = users.find(u => u.username === username)
     return user?.avatarUrl || fallbackAvatarUrl || undefined
   }
+
+  // Get user's current display name from users list (most up-to-date)
+  // Falls back to stored displayName, then username
+  const getUserDisplayName = (username: string, fallbackDisplayName?: string): string => {
+    const user = users.find(u => u.username === username)
+    return user?.displayName || fallbackDisplayName || username
+  }
   
   // Toggle travel notice item check (synced to Supabase)
   const toggleCheckItem = (itemKey: string) => {
@@ -776,17 +783,18 @@ export default function WishlistPage() {
                     </span>
                     {item.addedBy && (() => {
                       const avatarUrl = getUserAvatar(item.addedBy.username, item.addedBy.avatarUrl)
+                      const displayName = getUserDisplayName(item.addedBy.username, item.addedBy.displayName)
                       return (
                         <div className="flex items-center gap-1 ml-2">
                           {avatarUrl ? (
                             <img src={avatarUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
                           ) : (
                             <div className="w-4 h-4 rounded-full bg-sakura-400 flex items-center justify-center text-white text-[8px] font-medium">
-                              {item.addedBy.username.charAt(0).toUpperCase()}
+                              {displayName.charAt(0)}
                             </div>
                           )}
                           <span className="text-[10px] text-gray-400 truncate max-w-[60px]">
-                            {item.addedBy.username}
+                            {displayName}
                           </span>
                         </div>
                       )
@@ -1381,17 +1389,22 @@ export default function WishlistPage() {
                   <div className="flex items-center gap-2 mb-4 p-3 bg-gray-50 rounded-xl">
                     {(() => {
                       const avatarUrl = getUserAvatar(selectedItemPopup.addedBy.username, selectedItemPopup.addedBy.avatarUrl)
-                      return avatarUrl ? (
-                        <img src={avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-7 h-7 rounded-full bg-sakura-400 flex items-center justify-center text-white text-xs font-medium">
-                          {selectedItemPopup.addedBy.username.charAt(0).toUpperCase()}
-                        </div>
+                      const displayName = getUserDisplayName(selectedItemPopup.addedBy.username, selectedItemPopup.addedBy.displayName)
+                      return (
+                        <>
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-sakura-400 flex items-center justify-center text-white text-xs font-medium">
+                              {displayName.charAt(0)}
+                            </div>
+                          )}
+                          <span className="text-sm text-gray-500">
+                            由 <span className="font-medium text-gray-700">{displayName}</span> 新增
+                          </span>
+                        </>
                       )
                     })()}
-                    <span className="text-sm text-gray-500">
-                      由 <span className="font-medium text-gray-700">{selectedItemPopup.addedBy.username}</span> 新增
-                    </span>
                   </div>
                 )}
                 
