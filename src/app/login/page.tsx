@@ -93,7 +93,7 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
   }, [username, password, recaptchaEnabled, executeRecaptcha, t.login.invalidCredentials])
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center px-4 relative overflow-hidden">
+    <main className="h-[100dvh] bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center px-4 relative overflow-hidden">
       {/* Sakura Effect */}
       <SakuraCanvas />
       
@@ -168,8 +168,22 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
         className="w-full max-w-md relative z-10"
       >
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-medium text-gray-800">{t.login.title}</h1>
+        <div className="text-center mb-4 sm:mb-6">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="flex justify-center mb-2 sm:mb-3"
+          >
+            <Image
+              src="/images/gonggu card_1-04-nobg.png"
+              alt="Gonggu Card"
+              width={200}
+              height={200}
+              className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 object-contain"
+            />
+          </motion.div>
+          <h1 className="text-xl sm:text-2xl font-medium text-gray-800">{t.login.title}</h1>
         </div>
 
         {/* Login Form */}
@@ -178,7 +192,7 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
           onSubmit={handleSubmit}
-          className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-sakura-100 p-6"
+          className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-sakura-100 p-5 sm:p-6"
         >
           {error && (
             <motion.div
@@ -203,7 +217,7 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
                 id="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none transition-all"
+                className="w-full px-4 py-2.5 sm:py-3 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none transition-all text-sm sm:text-base"
                 placeholder="輸入使用者名稱"
                 required
               />
@@ -221,7 +235,7 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
                 id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none transition-all"
+                className="w-full px-4 py-2.5 sm:py-3 rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none transition-all text-sm sm:text-base"
                 placeholder="輸入密碼"
                 required
               />
@@ -238,7 +252,7 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
           <button
             type="submit"
             disabled={isLoading}
-            className={`w-full py-3 bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${recaptchaEnabled ? '' : 'mt-6'}`}
+            className={`w-full py-2.5 sm:py-3 bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm sm:text-base ${recaptchaEnabled ? '' : 'mt-4 sm:mt-6'}`}
           >
             {isLoading ? (
               <>
@@ -295,7 +309,7 @@ export default function LoginPage() {
   // Show loading while checking auth
   if (isChecking) {
     return (
-      <main className="min-h-screen bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center">
+      <main className="h-[100dvh] bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center">
         <SakuraCanvas />
         <div className="w-8 h-8 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
       </main>

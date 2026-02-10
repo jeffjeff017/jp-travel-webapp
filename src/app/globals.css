@@ -10,6 +10,11 @@
   --background-end-rgb: 255, 245, 245;
 }
 
+/* Mobile viewport height fix - prevents 100vh from extending behind browser chrome */
+html {
+  height: -webkit-fill-available;
+}
+
 body {
   color: rgb(var(--foreground-rgb));
   background: linear-gradient(
@@ -18,6 +23,7 @@ body {
     rgb(var(--background-end-rgb))
   );
   font-family: 'Noto Sans JP', sans-serif;
+  min-height: -webkit-fill-available;
 }
 
 /* Custom scrollbar */

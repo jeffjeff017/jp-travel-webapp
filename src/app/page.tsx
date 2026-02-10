@@ -20,7 +20,7 @@ export default function LandingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center overflow-hidden relative">
+    <main className="h-[100dvh] bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center overflow-hidden relative">
       {/* Sakura Effect */}
       <SakuraCanvas enabled={true} />
       <AnimatePresence mode="wait">
@@ -31,39 +31,59 @@ export default function LandingPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.5 }}
-            className="text-center px-4"
+            className="text-center px-6"
           >
             {/* Title */}
             <motion.h1
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="text-4xl md:text-6xl font-light text-gray-800 mb-4"
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-800 mb-4 sm:mb-6 leading-snug tracking-tight"
             >
-              <span className="text-sakura-500">日本</span>旅遊
+              <span className="text-sakura-500 drop-shadow-sm">頌晞專屬</span>
+              <span className="block text-xl sm:text-2xl md:text-3xl lg:text-4xl mt-1 sm:mt-2 font-semibold">東京七日『<span className="text-sakura-500 drop-shadow-sm">極Chill</span>』慶生之旅</span>
             </motion.h1>
 
-            {/* Decorative sakura */}
+            {/* Decorative images */}
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.6 }}
-              className="flex justify-center gap-2 mb-8"
+              className="flex items-center justify-center gap-3 sm:gap-4 mb-6 sm:mb-8"
             >
-              {['🌸', '✿', '🌸'].map((emoji, i) => (
-                <motion.span
-                  key={i}
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    delay: i * 0.2,
-                  }}
-                  className="text-2xl"
-                >
-                  {emoji}
-                </motion.span>
-              ))}
+              <motion.div
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity, delay: 0 }}
+                className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full overflow-hidden border-2 border-sakura-200 shadow-md bg-white"
+              >
+                <Image
+                  src="/images/draw-5a-nobg.png"
+                  alt="draw-5a"
+                  width={56}
+                  height={56}
+                  className="w-full h-full object-cover"
+                />
+              </motion.div>
+              <motion.span
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="text-xl sm:text-2xl md:text-3xl text-red-400"
+              >
+                ❤️
+              </motion.span>
+              <motion.div
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity, delay: 0.4 }}
+                className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full overflow-hidden border-2 border-sakura-200 shadow-md bg-white"
+              >
+                <Image
+                  src="/images/draw-6a-nobg.png"
+                  alt="draw-6a"
+                  width={56}
+                  height={56}
+                  className="w-full h-full object-cover"
+                />
+              </motion.div>
             </motion.div>
 
             {/* Enter Button */}
@@ -74,9 +94,9 @@ export default function LandingPage() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleEnter}
-              className="px-12 py-4 bg-sakura-500 hover:bg-sakura-600 text-white rounded-full text-lg font-medium shadow-lg shadow-sakura-200 transition-colors"
+              className="px-10 py-3 sm:px-12 sm:py-3.5 bg-sakura-500 hover:bg-sakura-600 text-white rounded-full text-base sm:text-lg font-medium shadow-lg shadow-sakura-200 transition-colors"
             >
-              {t.landing.enter}
+              Let&apos;s Start !!
             </motion.button>
           </motion.div>
         ) : (
@@ -98,7 +118,7 @@ export default function LandingPage() {
                 times: [0, 0.6, 1],
                 ease: 'easeInOut',
               }}
-              className="w-36 h-36 md:w-44 md:h-44 rounded-full overflow-hidden bg-white shadow-2xl"
+              className="w-28 h-28 sm:w-36 sm:h-36 md:w-44 md:h-44 rounded-full overflow-hidden bg-white shadow-2xl"
             >
               <Image
                 src="/images/chiikawa-transition.png"
@@ -115,7 +135,7 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1 }}
-              className="mt-8 text-center text-sakura-600 font-medium"
+              className="mt-6 sm:mt-8 text-center text-sakura-600 font-medium text-sm sm:text-base"
             >
               {t.landing.loading}
             </motion.p>

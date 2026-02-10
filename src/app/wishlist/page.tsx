@@ -18,6 +18,7 @@ import { getSettings, getSettingsAsync, type SiteSettings } from '@/lib/settings
 import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, isAuthenticated, logout, getUsers, getUsersAsync, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
+import { safeSetItem } from '@/lib/safeStorage'
 
 // Main categories
 const CATEGORIES = [
@@ -56,6 +57,20 @@ type Wishlist = {
 const STORAGE_KEY = 'japan_travel_wishlist'
 const CACHE_KEY = 'japan_travel_wishlist_cache_time'
 const CACHE_DURATION = 5 * 60 * 1000
+
+
+// Strip base64 image data from wishlist before caching to save localStorage space
+function stripImagesForCache(wishlist: Wishlist): Wishlist {
+  const stripped: Wishlist = {}
+  for (const [key, items] of Object.entries(wishlist)) {
+    stripped[key] = items.map(item => ({
+      ...item,
+      // Only strip base64 data URIs, keep regular URL references
+      imageUrl: item.imageUrl?.startsWith('data:') ? undefined : item.imageUrl,
+    }))
+  }
+  return stripped
+}
 
 // Helper function for Google Maps URL
 const getGoogleMapsUrl = (placeName: string) => {
@@ -210,6 +225,27 @@ export default function WishlistPage() {
     }
     init()
   }, [])
+
+  // Sync checklist states from TanStack Query
+  useEffect(() => {
+    if (checklistData && checklistData.length > 0) {
+      const checkedMap: Record<string, { username: string; displayName: string; avatarUrl?: string }[]> = {}
+      checklistData.forEach(s => {
+        checkedMap[s.id] = s.checked_by.map(u => ({
+          username: u.username,
+          displayName: u.displayName || u.username,
+          avatarUrl: u.avatarUrl,
+        }))
+      })
+      setCheckedItems(checkedMap)
+      safeSetItem('travel_notice_checked', JSON.stringify(checkedMap))
+    } else if (!checklistData || checklistData.length === 0) {
+      const saved = localStorage.getItem('travel_notice_checked')
+      if (saved) {
+        try { setCheckedItems(JSON.parse(saved)) } catch {}
+      }
+    }
+  }, [checklistData])
   
   // Get user's current avatar from users list (most up-to-date)
   // Returns undefined if no avatar, so UI can show initials fallback
@@ -247,7 +283,7 @@ export default function WishlistPage() {
       }
       
       const newCheckedItems = { ...prev, [itemKey]: newUsers }
-      localStorage.setItem('travel_notice_checked', JSON.stringify(newCheckedItems))
+      safeSetItem('travel_notice_checked', JSON.stringify(newCheckedItems))
       
       // Sync to Supabase
       saveSupabaseChecklistState({
@@ -285,73 +321,36 @@ export default function WishlistPage() {
     return grouped
   }, [])
   
-  // Load wishlist - always fetch fresh data from Supabase
+  // Sync wishlist data from TanStack Query
   useEffect(() => {
-    const loadWishlist = async () => {
-      setIsLoading(true)
+    if (wishlistDbItems && wishlistDbItems.length > 0) {
+      // Backfill: update items without added_by in Supabase
+      const user = currentUser || getCurrentUser()
       
-      try {
-        const dbItems = await getSupabaseWishlistItems()
-        if (dbItems.length > 0) {
-          // Backfill: update items without added_by in Supabase
-          const user = currentUser || getCurrentUser()
-          let freshUsers: User[] = []
-          if (!user) {
-            try {
-              freshUsers = await getUsersAsync()
-            } catch { /* ignore */ }
-          }
-          const fallbackUser = user || (() => {
-            const admin = freshUsers.find(u => u.role === 'admin')
-            return admin || freshUsers[0] || null
-          })()
-          
-          const itemsWithoutAddedBy = dbItems.filter(db => !db.added_by)
-          if (fallbackUser && itemsWithoutAddedBy.length > 0) {
-            const addedByData = {
-              username: fallbackUser.username,
-              display_name: (fallbackUser as any).displayName || (fallbackUser as any).display_name || fallbackUser.username,
-              avatar_url: (fallbackUser as any).avatarUrl || (fallbackUser as any).avatar_url || undefined,
-            }
-            // Fire-and-forget: update all items missing added_by
-            for (const db of itemsWithoutAddedBy) {
-              updateSupabaseWishlistItem(db.id, { added_by: addedByData }).catch(() => {})
-              db.added_by = addedByData
-            }
-          }
-          
-          const items = dbItems.map(fromSupabaseFormat)
-          const grouped = groupByCategory(items)
-          setWishlist(grouped)
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(grouped))
-          localStorage.setItem(CACHE_KEY, Date.now().toString())
+      const itemsWithoutAddedBy = wishlistDbItems.filter(db => !db.added_by)
+      if (user && itemsWithoutAddedBy.length > 0) {
+        const addedByData = {
+          username: user.username,
+          display_name: (user as any).displayName || (user as any).display_name || user.username,
+          avatar_url: (user as any).avatarUrl || (user as any).avatar_url || undefined,
         }
-      } catch (err) {
-        console.error('Error loading wishlist:', err)
-        // Fallback to cache only if Supabase fails
-        const saved = localStorage.getItem(STORAGE_KEY)
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved)
-            setWishlist({
-              cafe: parsed.cafe || [],
-              restaurant: parsed.restaurant || [],
-              bakery: parsed.bakery || [],
-              shopping: parsed.shopping || [],
-              park: parsed.park || [],
-              threads: parsed.threads || [],
-            })
-          } catch (e) {
-            console.error('Failed to parse cached wishlist:', e)
-          }
+        // Fire-and-forget: update all items missing added_by
+        for (const db of itemsWithoutAddedBy) {
+          updateSupabaseWishlistItem(db.id, { added_by: addedByData }).catch(() => {})
         }
       }
       
-      setIsLoading(false)
+      const items = wishlistDbItems.map(fromSupabaseFormat)
+      const grouped = groupByCategory(items)
+      setWishlist(grouped)
+      safeSetItem(STORAGE_KEY, JSON.stringify(stripImagesForCache(grouped)))
+      safeSetItem(CACHE_KEY, Date.now().toString())
     }
     
-    loadWishlist()
-  }, [groupByCategory, currentUser])
+    if (!isWishlistLoading) {
+      setIsLoading(false)
+    }
+  }, [wishlistDbItems, isWishlistLoading, groupByCategory, currentUser])
   
   // Get filtered items based on active tab and search query
   const getFilteredItems = () => {
@@ -435,13 +434,8 @@ export default function WishlistPage() {
       }
       
       if (dbItem) {
-        const item = fromSupabaseFormat(dbItem)
-        const newWishlist = { ...wishlist }
-        if (!newWishlist[category]) newWishlist[category] = []
-        newWishlist[category] = [...newWishlist[category], item]
-        setWishlist(newWishlist)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newWishlist))
-        localStorage.setItem(CACHE_KEY, Date.now().toString())
+        // Invalidate TanStack Query to refetch fresh data
+        await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
       }
       
       // Reset form
@@ -481,12 +475,12 @@ export default function WishlistPage() {
         created_at: item.addedAt,
       }
       trashData.wishlist = [...(trashData.wishlist || []), { ...trashWishlistItem, deletedAt: new Date().toISOString() }]
-      localStorage.setItem('admin_trash_bin', JSON.stringify(trashData))
+      safeSetItem('admin_trash_bin', JSON.stringify(trashData))
       
       await deleteSupabaseWishlistItem(Number(item.id))
       setSelectedItemPopup(null)
-      // Refresh page to get fresh data
-      window.location.reload()
+      // Refresh data via TanStack Query
+      await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
     } catch (err) {
       console.error('Failed to delete item:', err)
       alert('刪除失敗')
@@ -526,7 +520,7 @@ export default function WishlistPage() {
         return
       }
       
-      // Reset form and refresh
+      // Reset form and refresh via TanStack Query
       setEditingItem(null)
       setNewItemName('')
       setNewItemNote('')
@@ -534,7 +528,7 @@ export default function WishlistPage() {
       setNewItemUrl('')
       setNewItemCategory('cafe')
       setShowAddForm(false)
-      window.location.reload()
+      await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
     } catch (err: any) {
       console.error('Failed to update item:', err)
       alert(`更新失敗：${err.message || '未知錯誤'}`)
@@ -558,7 +552,7 @@ export default function WishlistPage() {
         if (idx !== -1) {
           newWishlist[item.category][idx] = { ...newWishlist[item.category][idx], isFavorite: willBeFavorite }
           setWishlist(newWishlist)
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(newWishlist))
+          safeSetItem(STORAGE_KEY, JSON.stringify(stripImagesForCache(newWishlist)))
         }
         
         // Show animation in popup when favoriting
@@ -1448,7 +1442,7 @@ export default function WishlistPage() {
               const newValue = !isSakuraMode
               setIsSakuraMode(newValue)
               if (typeof window !== 'undefined') {
-                localStorage.setItem('sakura_mode', String(newValue))
+                safeSetItem('sakura_mode', String(newValue))
               }
             }}
             className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-300 ${

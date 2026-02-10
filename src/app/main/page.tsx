@@ -17,6 +17,7 @@ import MultiMediaUpload from '@/components/MultiMediaUpload'
 import ImageSlider from '@/components/ImageSlider'
 import WishlistButton from '@/components/WishlistButton'
 import { useLanguage } from '@/lib/i18n'
+import { safeSetItem } from '@/lib/safeStorage'
 
 const GoogleMapComponent = dynamic(
   () => import('@/components/GoogleMap'),
@@ -274,7 +275,7 @@ export default function MainPage() {
         }))
       })
       setCheckedItems(checkedMap)
-      localStorage.setItem('travel_notice_checked', JSON.stringify(checkedMap))
+      safeSetItem('travel_notice_checked', JSON.stringify(checkedMap))
     } else if (!checklistData || checklistData.length === 0) {
       const saved = localStorage.getItem('travel_notice_checked')
       if (saved) {
@@ -305,7 +306,7 @@ export default function MainPage() {
       }
       
       const newCheckedItems = { ...prev, [itemKey]: newUsers }
-      localStorage.setItem('travel_notice_checked', JSON.stringify(newCheckedItems))
+      safeSetItem('travel_notice_checked', JSON.stringify(newCheckedItems))
       
       // Sync to Supabase
       saveSupabaseChecklistState({
@@ -705,7 +706,7 @@ export default function MainPage() {
     const newValue = !isSakuraMode
     setIsSakuraMode(newValue)
     if (typeof window !== 'undefined') {
-      localStorage.setItem('sakura_mode', String(newValue))
+      safeSetItem('sakura_mode', String(newValue))
     }
   }
 
@@ -826,7 +827,7 @@ export default function MainPage() {
                       setActiveBottomTab('map')
                       // Store search query for map to use
                       if (typeof window !== 'undefined') {
-                        localStorage.setItem('map_search_query', searchQuery)
+                        safeSetItem('map_search_query', searchQuery)
                       }
                       setSearchQuery('')
                     }}
@@ -1267,7 +1268,7 @@ export default function MainPage() {
             onClick={() => {
               toggleSakuraMode()
               if (typeof window !== 'undefined') {
-                localStorage.setItem('mode_toggle_clicked', 'true')
+                safeSetItem('mode_toggle_clicked', 'true')
               }
             }}
             className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-300 ${

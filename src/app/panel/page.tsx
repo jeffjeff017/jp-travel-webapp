@@ -56,6 +56,8 @@ import LanguageSwitch from '@/components/LanguageSwitch'
 import MediaUpload from '@/components/MediaUpload'
 import MultiMediaUpload from '@/components/MultiMediaUpload'
 import ImageCropper from '@/components/ImageCropper'
+import ImageSlider from '@/components/ImageSlider'
+import { safeSetItem } from '@/lib/safeStorage'
 
 const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
   ssr: false,
@@ -203,6 +205,9 @@ export default function AdminPage() {
   const [showTrashBin, setShowTrashBin] = useState(false)
   // Expanded days state for trip grouping
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set())
+  // Trip detail view state (Airbnb-style)
+  const [showTripDetail, setShowTripDetail] = useState(false)
+  const [detailTrip, setDetailTrip] = useState<Trip | null>(null)
   // Wishlist management state
   const [showWishlistManagement, setShowWishlistManagement] = useState(false)
   const [wishlistItems, setWishlistItems] = useState<WishlistItemDB[]>([])
@@ -253,7 +258,7 @@ export default function AdminPage() {
   
   // Disable background scrolling when any popup/modal is active
   useEffect(() => {
-    const anyPopupOpen = showForm || showSettings || showUserManagement || showProfileEdit || showProfileCropper || showTravelNoticePopup || showDestinationModal || showTrashBin || showWishlistManagement || showChiikawaEdit || showChiikawaEditDesktop || showWallet || showExpenseForm || showBudgetForm
+    const anyPopupOpen = showForm || showSettings || showUserManagement || showProfileEdit || showProfileCropper || showTravelNoticePopup || showDestinationModal || showTrashBin || showWishlistManagement || showChiikawaEdit || showChiikawaEditDesktop || showWallet || showExpenseForm || showBudgetForm || showTripDetail
     if (anyPopupOpen) {
       document.body.style.overflow = 'hidden'
     } else {
@@ -262,7 +267,7 @@ export default function AdminPage() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showExpenseForm, showBudgetForm])
+  }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showExpenseForm, showBudgetForm, showTripDetail])
 
   // Sync TanStack Query data to local state
   useEffect(() => {
@@ -346,7 +351,7 @@ export default function AdminPage() {
       }
       
       const newCheckedItems = { ...prev, [itemKey]: newUsers }
-      localStorage.setItem('travel_notice_checked', JSON.stringify(newCheckedItems))
+      safeSetItem('travel_notice_checked', JSON.stringify(newCheckedItems))
       return newCheckedItems
     })
   }
@@ -361,7 +366,7 @@ export default function AdminPage() {
   // Save trash to localStorage
   const saveTrash = (newTrash: typeof trashItems) => {
     setTrashItems(newTrash)
-    localStorage.setItem('admin_trash_bin', JSON.stringify(newTrash))
+    safeSetItem('admin_trash_bin', JSON.stringify(newTrash))
   }
 
   // Get current destination theme color
@@ -2716,6 +2721,147 @@ export default function AdminPage() {
                         )}
                       </div>
 
+                      {/* Per-person Total Expenses */}
+                      {sharedExpenses.length > 0 && (() => {
+                        // Group expenses by username
+                        const perPerson = new Map<string, { username: string; displayName: string; avatarUrl?: string; total: number }>()
+                        sharedExpenses.forEach(expense => {
+                          const existing = perPerson.get(expense.username)
+                          if (existing) {
+                            existing.total += expense.amount
+                          } else {
+                            perPerson.set(expense.username, {
+                              username: expense.username,
+                              displayName: expense.display_name,
+                              avatarUrl: getUserAvatarUrl(expense.username, expense.avatar_url || undefined),
+                              total: expense.amount,
+                            })
+                          }
+                        })
+                        const people = Array.from(perPerson.values()).sort((a, b) => b.total - a.total)
+                        const grandTotal = sharedExpenses.reduce((sum, e) => sum + e.amount, 0)
+                        const avgPerPerson = people.length > 0 ? grandTotal / people.length : 0
+                        
+                        return (
+                          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                            <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+                              <h4 className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                                👥 各人支出總計
+                              </h4>
+                              <span className="text-[10px] text-gray-400">
+                                人均 ¥{Math.round(avgPerPerson).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="px-3 pb-3 space-y-1.5">
+                              {people.map((person) => {
+                                const diff = person.total - avgPerPerson
+                                const pct = grandTotal > 0 ? (person.total / grandTotal) * 100 : 0
+                                return (
+                                  <div key={person.username} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                                    {/* Avatar */}
+                                    {person.avatarUrl ? (
+                                      <img src={person.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0" />
+                                    ) : (
+                                      <div 
+                                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium shadow-sm flex-shrink-0"
+                                        style={{ backgroundColor: themeColor }}
+                                      >
+                                        {person.displayName.charAt(0)}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Name + Bar */}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-sm font-medium text-gray-800 truncate">{person.displayName}</span>
+                                        <span className="text-sm font-semibold text-gray-800 ml-2 flex-shrink-0">¥{person.total.toLocaleString()}</span>
+                                      </div>
+                                      {/* Progress bar */}
+                                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                        <div 
+                                          className="h-full rounded-full transition-all duration-500"
+                                          style={{ 
+                                            width: `${Math.min(pct, 100)}%`, 
+                                            backgroundColor: themeColor,
+                                            opacity: 0.7 + (pct / 100) * 0.3
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            
+                            {/* Settlement hint */}
+                            {people.length === 2 && (
+                              <div className="px-4 py-2.5 bg-amber-50 border-t border-amber-100">
+                                {(() => {
+                                  const [a, b] = people
+                                  const diff = Math.abs(a.total - b.total)
+                                  const half = Math.round(diff / 2)
+                                  if (half === 0) return (
+                                    <p className="text-xs text-amber-700 text-center">✅ 雙方支出相同，無需補差額</p>
+                                  )
+                                  const payer = a.total > b.total ? a : b
+                                  const receiver = a.total > b.total ? b : a
+                                  return (
+                                    <p className="text-xs text-amber-700 text-center">
+                                      💡 <span className="font-medium">{receiver.displayName}</span> 需付 <span className="font-bold">¥{half.toLocaleString()}</span> 給 <span className="font-medium">{payer.displayName}</span>
+                                    </p>
+                                  )
+                                })()}
+                              </div>
+                            )}
+                            {people.length > 2 && (
+                              <div className="px-4 py-2.5 bg-amber-50 border-t border-amber-100">
+                                <div className="space-y-1">
+                                  {(() => {
+                                    // Calculate who owes whom using simplified debt settlement
+                                    const balances = people.map(p => ({
+                                      ...p,
+                                      balance: p.total - avgPerPerson
+                                    }))
+                                    const creditors = balances.filter(b => b.balance > 0).sort((a, b) => b.balance - a.balance)
+                                    const debtors = balances.filter(b => b.balance < 0).sort((a, b) => a.balance - b.balance)
+                                    const settlements: { from: string; to: string; amount: number }[] = []
+                                    
+                                    let ci = 0, di = 0
+                                    const creds = creditors.map(c => ({ ...c }))
+                                    const debts = debtors.map(d => ({ ...d, balance: Math.abs(d.balance) }))
+                                    
+                                    while (ci < creds.length && di < debts.length) {
+                                      const amount = Math.min(creds[ci].balance, debts[di].balance)
+                                      if (Math.round(amount) > 0) {
+                                        settlements.push({
+                                          from: debts[di].displayName,
+                                          to: creds[ci].displayName,
+                                          amount: Math.round(amount)
+                                        })
+                                      }
+                                      creds[ci].balance -= amount
+                                      debts[di].balance -= amount
+                                      if (creds[ci].balance < 1) ci++
+                                      if (debts[di].balance < 1) di++
+                                    }
+                                    
+                                    if (settlements.length === 0) {
+                                      return <p className="text-xs text-amber-700 text-center">✅ 各人支出相同，無需補差額</p>
+                                    }
+                                    
+                                    return settlements.map((s, i) => (
+                                      <p key={i} className="text-xs text-amber-700 text-center">
+                                        💡 <span className="font-medium">{s.from}</span> 需付 <span className="font-bold">¥{s.amount.toLocaleString()}</span> 給 <span className="font-medium">{s.to}</span>
+                                      </p>
+                                    ))
+                                  })()}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
+
                       {/* Expense List */}
                       <div className="space-y-2">
                         {sharedExpenses.length === 0 ? (
@@ -3592,7 +3738,15 @@ export default function AdminPage() {
                                 const tripImages = parseImages(trip.image_url)
                                 const img = tripImages[0]
                                 return (
-                                  <div key={trip.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                                  <div 
+                                    key={trip.id} 
+                                    className="bg-white rounded-xl border border-gray-100 overflow-hidden cursor-pointer"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setDetailTrip(trip)
+                                      setShowTripDetail(true)
+                                    }}
+                                  >
                                     <div className="flex items-center gap-3 p-3">
                                       {img && (
                                         <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
@@ -3639,7 +3793,11 @@ export default function AdminPage() {
                     <div key={trip.id} className="contents">
                       {/* Mobile Card - Compact for 2-column grid */}
                       <div 
-                        className={`md:hidden bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-200 ${isMultiple ? 'hidden' : ''}`}
+                        className={`md:hidden bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer ${isMultiple ? 'hidden' : ''}`}
+                        onClick={() => {
+                          setDetailTrip(trip)
+                          setShowTripDetail(true)
+                        }}
                       >
                         {img && (
                           <div className="h-28 relative overflow-hidden">
@@ -3670,13 +3828,13 @@ export default function AdminPage() {
                         
                         <div className="flex border-t border-gray-100">
                           <button
-                            onClick={() => handleEdit(trip)}
+                            onClick={(e) => { e.stopPropagation(); handleEdit(trip) }}
                             className="flex-1 py-2 text-[10px] font-medium text-gray-600 hover:bg-gray-50 transition-colors"
                           >
                             編輯
                           </button>
                           <button
-                            onClick={() => handleDelete(trip.id)}
+                            onClick={(e) => { e.stopPropagation(); handleDelete(trip.id) }}
                             className="flex-1 py-2 text-[10px] font-medium text-red-500 hover:bg-red-50 transition-colors border-l border-gray-100"
                           >
                             刪除
@@ -3686,7 +3844,11 @@ export default function AdminPage() {
                       
                       {/* Desktop Card - Full layout */}
                       <div 
-                        className={`hidden md:block bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-200 ${isMultiple ? '' : ''}`}
+                        className={`hidden md:block bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer ${isMultiple ? '' : ''}`}
+                        onClick={() => {
+                          setDetailTrip(trip)
+                          setShowTripDetail(true)
+                        }}
                       >
                         <div className="flex flex-row">
                           {img && (
@@ -3718,13 +3880,13 @@ export default function AdminPage() {
                             </div>
                             <div className="flex items-center gap-2 mt-3">
                               <button
-                                onClick={() => handleEdit(trip)}
+                                onClick={(e) => { e.stopPropagation(); handleEdit(trip) }}
                                 className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                               >
                                 編輯
                               </button>
                               <button
-                                onClick={() => handleDelete(trip.id)}
+                                onClick={(e) => { e.stopPropagation(); handleDelete(trip.id) }}
                                 className="px-3 py-1.5 text-xs font-medium text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
                               >
                                 刪除
@@ -3742,6 +3904,259 @@ export default function AdminPage() {
         })()}
       </div>
       
+      {/* Trip Detail View - Airbnb-style */}
+      <AnimatePresence>
+        {showTripDetail && detailTrip && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-white z-[70] md:bg-black/50 md:flex md:items-center md:justify-center md:p-4"
+            onClick={(e) => {
+              // Desktop: click overlay to close
+              if (e.target === e.currentTarget) {
+                setShowTripDetail(false)
+                setDetailTrip(null)
+              }
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 30 }}
+              className="h-full md:h-auto md:max-h-[85vh] md:w-full md:max-w-2xl md:bg-white md:rounded-2xl md:shadow-2xl md:overflow-hidden flex flex-col"
+            >
+              {/* Scrollable Content */}
+              <div className={`flex-1 overflow-y-auto ${isAdminUser ? 'pb-28 md:pb-4' : 'pb-8 md:pb-4'}`}>
+                {/* Image Section */}
+                <div className="relative">
+                  {(() => {
+                    const images = parseImages(detailTrip.image_url)
+                    if (images.length > 0) {
+                      return (
+                        <div className="w-full h-[45vh] md:h-[300px] relative">
+                          <ImageSlider 
+                            images={images} 
+                            className="w-full h-full"
+                            autoPlay={false}
+                            showCounter={true}
+                          />
+                        </div>
+                      )
+                    }
+                    return (
+                      <div 
+                        className="w-full h-[30vh] md:h-[200px] flex items-center justify-center"
+                        style={{ background: `linear-gradient(135deg, ${themeColor}20, ${themeColor}10)` }}
+                      >
+                        <span className="text-6xl">🗾</span>
+                      </div>
+                    )
+                  })()}
+                  
+                  {/* Back Button - Overlay */}
+                  <button
+                    onClick={() => {
+                      setShowTripDetail(false)
+                      setDetailTrip(null)
+                    }}
+                    className="absolute top-4 left-4 w-9 h-9 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    ←
+                  </button>
+                  
+                  {/* Google Maps Button */}
+                  {detailTrip.lat && detailTrip.lng && (
+                    <div className="absolute top-4 right-4 flex items-center gap-2">
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${detailTrip.lat},${detailTrip.lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-9 h-9 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:bg-gray-100 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        🗺️
+                      </a>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Content Section */}
+                <div className="px-5 py-4 space-y-4">
+                  {/* Day Badge + Date */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {(() => {
+                      if (!siteSettings?.tripStartDate || !detailTrip.date) return null
+                      const startDate = new Date(siteSettings.tripStartDate)
+                      const tripDate = new Date(detailTrip.date)
+                      startDate.setHours(0, 0, 0, 0)
+                      tripDate.setHours(0, 0, 0, 0)
+                      const diffTime = tripDate.getTime() - startDate.getTime()
+                      const dayNum = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
+                      if (dayNum > 0) {
+                        return (
+                          <span 
+                            className="inline-block text-xs font-bold text-white px-2.5 py-1 rounded-lg"
+                            style={{ backgroundColor: themeColor }}
+                          >
+                            Day {dayNum}
+                          </span>
+                        )
+                      }
+                      return null
+                    })()}
+                    <span className="inline-block text-sm bg-gray-100 px-3 py-1 rounded-full" style={{ color: themeColor }}>
+                      {new Date(detailTrip.date).toLocaleDateString('zh-TW', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        weekday: 'short',
+                      })}
+                    </span>
+                  </div>
+                  
+                  {/* Title */}
+                  <h1 className="text-2xl font-bold text-gray-800 leading-tight">
+                    {detailTrip.title}
+                  </h1>
+                  
+                  {/* Location */}
+                  <div className="flex items-start gap-2 bg-gray-50 rounded-xl p-4">
+                    <span className="text-xl">📍</span>
+                    <div className="flex-1">
+                      <p className="text-gray-700">{detailTrip.location}</p>
+                      {detailTrip.lat && detailTrip.lng && (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${detailTrip.lat},${detailTrip.lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm mt-1 hover:underline inline-block"
+                          style={{ color: themeColor }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          在 Google Maps 上查看 →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Divider */}
+                  <div className="border-t border-gray-100" />
+                  
+                  {/* Schedule Items */}
+                  {detailTrip.description && (
+                    <div className="space-y-3">
+                      <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                        <span>📋</span>
+                        行程明細
+                      </h3>
+                      <div className="space-y-2">
+                        {(() => {
+                          try {
+                            const items = JSON.parse(detailTrip.description)
+                            if (Array.isArray(items) && items.length > 0) {
+                              return items.map((item: any, idx: number) => (
+                                <div 
+                                  key={idx} 
+                                  className="flex items-start gap-3 p-3 bg-white border border-gray-100 rounded-xl"
+                                >
+                                  {(item.time_start || item.time_end) && (
+                                    <span 
+                                      className="text-xs font-semibold px-2 py-1 rounded-lg whitespace-nowrap"
+                                      style={{ backgroundColor: `${themeColor}15`, color: themeColor }}
+                                    >
+                                      {item.time_start}{item.time_end ? ` - ${item.time_end}` : ''}
+                                    </span>
+                                  )}
+                                  <span className="text-gray-700 flex-1">{item.content}</span>
+                                </div>
+                              ))
+                            }
+                          } catch {
+                            return (
+                              <div 
+                                className="text-gray-600 bg-gray-50 rounded-xl p-4"
+                                dangerouslySetInnerHTML={{ __html: detailTrip.description }}
+                              />
+                            )
+                          }
+                          return null
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Bottom Action Bar - Fixed (Admin only, mobile) */}
+              {isAdminUser && (
+                <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-5 pt-3 pb-6 z-10">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setShowTripDetail(false)
+                        handleEdit(detailTrip)
+                      }}
+                      className="flex-1 py-3 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                      style={{ backgroundColor: themeColor }}
+                    >
+                      ✏️ 編輯行程
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleDelete(detailTrip.id)
+                        setShowTripDetail(false)
+                        setDetailTrip(null)
+                      }}
+                      className="py-3 px-4 border border-red-200 text-red-500 hover:bg-red-50 rounded-xl font-medium transition-colors"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {/* Desktop Bottom Action Bar */}
+              {isAdminUser && (
+                <div className="hidden md:block border-t border-gray-100 px-5 py-3">
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={() => {
+                        setShowTripDetail(false)
+                        setDetailTrip(null)
+                      }}
+                      className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-medium text-sm"
+                    >
+                      關閉
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowTripDetail(false)
+                        handleEdit(detailTrip)
+                      }}
+                      className="px-4 py-2 text-white rounded-xl font-medium transition-colors text-sm flex items-center gap-1.5"
+                      style={{ backgroundColor: themeColor }}
+                    >
+                      ✏️ 編輯行程
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleDelete(detailTrip.id)
+                        setShowTripDetail(false)
+                        setDetailTrip(null)
+                      }}
+                      className="px-4 py-2 border border-red-200 text-red-500 hover:bg-red-50 rounded-xl font-medium transition-colors text-sm"
+                    >
+                      🗑️ 刪除
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Chiikawa Pet - only show on mobile when sakura mode is on */}
       <div className="md:hidden">
         <ChiikawaPet enabled={isSakuraMode} />
@@ -3774,7 +4189,7 @@ export default function AdminPage() {
               const newValue = !isSakuraMode
               setIsSakuraMode(newValue)
               if (typeof window !== 'undefined') {
-                localStorage.setItem('sakura_mode', String(newValue))
+                safeSetItem('sakura_mode', String(newValue))
               }
             }}
             className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-300 ${
