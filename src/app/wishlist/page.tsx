@@ -782,11 +782,11 @@ export default function WishlistPage() {
                             <img src={avatarUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
                           ) : (
                             <div className="w-4 h-4 rounded-full bg-sakura-400 flex items-center justify-center text-white text-[8px] font-medium">
-                              {item.addedBy.displayName.charAt(0)}
+                              {item.addedBy.username.charAt(0).toUpperCase()}
                             </div>
                           )}
                           <span className="text-[10px] text-gray-400 truncate max-w-[60px]">
-                            {item.addedBy.displayName}
+                            {item.addedBy.username}
                           </span>
                         </div>
                       )
@@ -1385,12 +1385,12 @@ export default function WishlistPage() {
                         <img src={avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
                       ) : (
                         <div className="w-7 h-7 rounded-full bg-sakura-400 flex items-center justify-center text-white text-xs font-medium">
-                          {selectedItemPopup.addedBy.displayName.charAt(0)}
+                          {selectedItemPopup.addedBy.username.charAt(0).toUpperCase()}
                         </div>
                       )
                     })()}
                     <span className="text-sm text-gray-500">
-                      由 <span className="font-medium text-gray-700">{selectedItemPopup.addedBy.displayName}</span> 新增
+                      由 <span className="font-medium text-gray-700">{selectedItemPopup.addedBy.username}</span> 新增
                     </span>
                   </div>
                 )}
