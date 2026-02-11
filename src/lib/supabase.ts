@@ -753,6 +753,11 @@ export type WalletSettingsDB = {
 
 // Get all expenses (personal filtered by username, shared shows all)
 export async function getSupabaseExpenses(type: 'personal' | 'shared', username?: string): Promise<ExpenseDB[]> {
+  // Personal expenses require a username to filter - return empty if not provided
+  if (type === 'personal' && !username) {
+    return []
+  }
+
   try {
     let query = supabase
       .from('expenses')

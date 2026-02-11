@@ -241,12 +241,15 @@ export default function MainPage() {
   // Wishlist detail popup state (for search results)
   const [selectedWishlistItem, setSelectedWishlistItem] = useState<WishlistItemDB | null>(null)
   
+  // Home location map popup state
+  const [showHomeMapPopup, setShowHomeMapPopup] = useState(false)
+  
   // Travel notice checklist state
   const [checkedItems, setCheckedItems] = useState<Record<string, { username: string; displayName: string; avatarUrl?: string }[]>>({})
   
   // Disable background scrolling when any popup/modal is active
   useEffect(() => {
-    const anyPopupOpen = showTripForm || showMapPopup || showWishlistPopup || showInfoPopup || showSearch || showTripDetail || !!selectedWishlistItem
+    const anyPopupOpen = showTripForm || showMapPopup || showWishlistPopup || showInfoPopup || showSearch || showTripDetail || !!selectedWishlistItem || showHomeMapPopup
     if (anyPopupOpen) {
       document.body.style.overflow = 'hidden'
     } else {
@@ -255,7 +258,7 @@ export default function MainPage() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [showTripForm, showMapPopup, showWishlistPopup, showInfoPopup, showSearch, showTripDetail, selectedWishlistItem])
+  }, [showTripForm, showMapPopup, showWishlistPopup, showInfoPopup, showSearch, showTripDetail, selectedWishlistItem, showHomeMapPopup])
 
   useEffect(() => {
     setIsAdmin(canEdit())
@@ -970,14 +973,7 @@ export default function MainPage() {
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                onClick={() => {
-                  const loc = settings.homeLocation
-                  if (loc?.lat && loc?.lng) {
-                    window.open(`https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}`, '_blank')
-                  } else if (loc?.address) {
-                    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`, '_blank')
-                  }
-                }}
+                onClick={() => setShowHomeMapPopup(true)}
                 className={`mb-4 rounded-xl border-2 transition-all cursor-pointer overflow-hidden relative border-blue-200 hover:border-blue-300`}
               >
                 {/* Background Image with Overlay */}
@@ -1799,6 +1795,72 @@ export default function MainPage() {
         )}
       </AnimatePresence>
 
+      {/* Home Location Map Popup */}
+      <AnimatePresence>
+        {showHomeMapPopup && settings?.homeLocation && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4"
+            onClick={() => setShowHomeMapPopup(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden"
+              style={{ maxHeight: '80vh' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">📍</span>
+                  <span className="font-medium text-gray-800">{settings.homeLocation.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${settings.homeLocation.lat},${settings.homeLocation.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-500 hover:text-blue-600 transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    開啟 Google Maps
+                  </a>
+                  <button
+                    onClick={() => setShowHomeMapPopup(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              {/* Google Maps Embed */}
+              <div className="w-full" style={{ height: '400px' }}>
+                <iframe
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  src={`https://www.google.com/maps?q=${settings.homeLocation.lat},${settings.homeLocation.lng}&z=15&output=embed`}
+                  allowFullScreen
+                />
+              </div>
+              {/* Address */}
+              <div className="px-4 py-3 border-t border-gray-100">
+                <p className="text-sm text-gray-600">{settings.homeLocation.address}</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Chiikawa Pet - Floating character when sakura mode is on */}
       <ChiikawaPet enabled={isSakuraMode} />
 
@@ -2014,16 +2076,18 @@ export default function MainPage() {
                                   ✅
                                 </span>
                               )}
-                              {/* Checkbox */}
-                              <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
-                                isChecked 
-                                  ? 'bg-green-500 border-green-500 text-white' 
-                                  : anyoneChecked
-                                    ? 'bg-green-200 border-green-300 text-green-600'
-                                    : 'border-gray-300'
-                              }`}>
-                                {anyoneChecked && '✓'}
-                              </span>
+                              {/* Checkbox - hidden when all users checked */}
+                              {!allUsersChecked && (
+                                <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
+                                  isChecked 
+                                    ? 'bg-green-500 border-green-500 text-white' 
+                                    : anyoneChecked
+                                      ? 'bg-green-200 border-green-300 text-green-600'
+                                      : 'border-gray-300'
+                                }`}>
+                                  {anyoneChecked && '✓'}
+                                </span>
+                              )}
                             </div>
                           </div>
                         )
@@ -2107,16 +2171,18 @@ export default function MainPage() {
                                   ✅
                                 </span>
                               )}
-                              {/* Checkbox */}
-                              <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
-                                isChecked 
-                                  ? 'bg-green-500 border-green-500 text-white' 
-                                  : anyoneChecked
-                                    ? 'bg-green-200 border-green-300 text-green-600'
-                                    : 'border-gray-300'
-                              }`}>
-                                {anyoneChecked && '✓'}
-                              </span>
+                              {/* Checkbox - hidden when all users checked */}
+                              {!allUsersChecked && (
+                                <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
+                                  isChecked 
+                                    ? 'bg-green-500 border-green-500 text-white' 
+                                    : anyoneChecked
+                                      ? 'bg-green-200 border-green-300 text-green-600'
+                                      : 'border-gray-300'
+                                }`}>
+                                  {anyoneChecked && '✓'}
+                                </span>
+                              )}
                             </div>
                           </div>
                         )

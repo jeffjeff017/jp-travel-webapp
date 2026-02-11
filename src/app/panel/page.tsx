@@ -146,7 +146,8 @@ export default function AdminPage() {
   const queryClient = useQueryClient()
   const { data: trips = [], isLoading: isTripsLoading } = useTrips()
   const { data: wishlistItemsData } = useWishlistItems()
-  const { data: personalExpensesData } = useExpenses('personal', typeof window !== 'undefined' ? getCurrentUser()?.username : undefined)
+  const [personalUsername, setPersonalUsername] = useState<string | undefined>(typeof window !== 'undefined' ? getCurrentUser()?.username : undefined)
+  const { data: personalExpensesData } = useExpenses('personal', personalUsername, { enabled: !!personalUsername })
   const { data: sharedExpensesData } = useExpenses('shared')
   const { data: walletSettingsData } = useWalletSettings()
 
@@ -275,6 +276,13 @@ export default function AdminPage() {
     if (wishlistItemsData) setWishlistItems(wishlistItemsData)
   }, [wishlistItemsData])
   
+  // Update personal expenses username when currentUser is resolved (including fallback)
+  useEffect(() => {
+    if (currentUser?.username && currentUser.username !== personalUsername) {
+      setPersonalUsername(currentUser.username)
+    }
+  }, [currentUser])
+
   useEffect(() => {
     if (personalExpensesData) setPersonalExpenses(personalExpensesData)
   }, [personalExpensesData])
@@ -4636,16 +4644,18 @@ export default function AdminPage() {
                                   ✅
                                 </span>
                               )}
-                              {/* Checkbox */}
-                              <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
-                                isChecked 
-                                  ? 'bg-green-500 border-green-500 text-white' 
-                                  : anyoneChecked
-                                    ? 'bg-green-200 border-green-300 text-green-600'
-                                    : 'border-gray-300'
-                              }`}>
-                                {anyoneChecked && '✓'}
-                              </span>
+                              {/* Checkbox - hidden when all users checked */}
+                              {!allUsersChecked && (
+                                <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
+                                  isChecked 
+                                    ? 'bg-green-500 border-green-500 text-white' 
+                                    : anyoneChecked
+                                      ? 'bg-green-200 border-green-300 text-green-600'
+                                      : 'border-gray-300'
+                                }`}>
+                                  {anyoneChecked && '✓'}
+                                </span>
+                              )}
                             </div>
                           </div>
                         )
@@ -4729,16 +4739,18 @@ export default function AdminPage() {
                                   ✅
                                 </span>
                               )}
-                              {/* Checkbox */}
-                              <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
-                                isChecked 
-                                  ? 'bg-green-500 border-green-500 text-white' 
-                                  : anyoneChecked
-                                    ? 'bg-green-200 border-green-300 text-green-600'
-                                    : 'border-gray-300'
-                              }`}>
-                                {anyoneChecked && '✓'}
-                              </span>
+                              {/* Checkbox - hidden when all users checked */}
+                              {!allUsersChecked && (
+                                <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
+                                  isChecked 
+                                    ? 'bg-green-500 border-green-500 text-white' 
+                                    : anyoneChecked
+                                      ? 'bg-green-200 border-green-300 text-green-600'
+                                      : 'border-gray-300'
+                                }`}>
+                                  {anyoneChecked && '✓'}
+                                </span>
+                              )}
                             </div>
                           </div>
                         )
