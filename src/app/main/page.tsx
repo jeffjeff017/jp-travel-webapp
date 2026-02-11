@@ -5,10 +5,11 @@ import dynamic from 'next/dynamic'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { createTrip, updateTrip, saveSupabaseChecklistState, type Trip } from '@/lib/supabase'
-import { useTrips, useCreateTrip, useUpdateTrip, useDeleteTrip, useChecklistStates, queryKeys } from '@/hooks/useQueries'
+import { useTrips, useCreateTrip, useUpdateTrip, useDeleteTrip, useChecklistStates, useWishlistItems, queryKeys } from '@/hooks/useQueries'
+import { type WishlistItemDB } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { getSettings, getSettingsAsync, saveSettings, saveSettingsAsync, type SiteSettings } from '@/lib/settings'
-import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, getUsers, type User } from '@/lib/auth'
+import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, getUsers, getAuthToken, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 import DailyPopup from '@/components/DailyPopup'
@@ -184,6 +185,7 @@ export default function MainPage() {
   const queryClient = useQueryClient()
   const { data: trips = [], isLoading, error: tripsError } = useTrips({ refetchInterval: 30000 })
   const { data: checklistData } = useChecklistStates()
+  const { data: wishlistDbItems = [] } = useWishlistItems()
   const createTripMutation = useCreateTrip()
   const updateTripMutation = useUpdateTrip()
   const deleteTripMutation = useDeleteTrip()
@@ -236,12 +238,15 @@ export default function MainPage() {
   const [showTripMapEmbed, setShowTripMapEmbed] = useState(false)
   const [detailTrip, setDetailTrip] = useState<Trip | null>(null)
   
+  // Wishlist detail popup state (for search results)
+  const [selectedWishlistItem, setSelectedWishlistItem] = useState<WishlistItemDB | null>(null)
+  
   // Travel notice checklist state
   const [checkedItems, setCheckedItems] = useState<Record<string, { username: string; displayName: string; avatarUrl?: string }[]>>({})
   
   // Disable background scrolling when any popup/modal is active
   useEffect(() => {
-    const anyPopupOpen = showTripForm || showMapPopup || showWishlistPopup || showInfoPopup || showSearch || showTripDetail
+    const anyPopupOpen = showTripForm || showMapPopup || showWishlistPopup || showInfoPopup || showSearch || showTripDetail || !!selectedWishlistItem
     if (anyPopupOpen) {
       document.body.style.overflow = 'hidden'
     } else {
@@ -250,7 +255,7 @@ export default function MainPage() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [showTripForm, showMapPopup, showWishlistPopup, showInfoPopup, showSearch, showTripDetail])
+  }, [showTripForm, showMapPopup, showWishlistPopup, showInfoPopup, showSearch, showTripDetail, selectedWishlistItem])
 
   useEffect(() => {
     setIsAdmin(canEdit())
@@ -263,12 +268,46 @@ export default function MainPage() {
     }
   }, [])
 
+  // Fallback: if currentUser is null but user is authenticated, reconstruct from users list + auth token
+  useEffect(() => {
+    if (!currentUser && users.length > 0) {
+      const isAdm = checkIsAdmin()
+      let fallbackUser: User | undefined
+      
+      if (isAdm) {
+        fallbackUser = users.find(u => u.role === 'admin')
+      } else {
+        const token = getAuthToken()
+        if (token) {
+          const match = token.match(/^japan_travel_user_(.+)_2024$/)
+          if (match) {
+            const tokenUsername = match[1]
+            fallbackUser = users.find(u => u.username === tokenUsername)
+          }
+        }
+        if (!fallbackUser) {
+          fallbackUser = users.find(u => u.role === 'user') || users[0]
+        }
+      }
+      
+      if (fallbackUser) {
+        setCurrentUser({
+          username: fallbackUser.username,
+          role: fallbackUser.role,
+          displayName: fallbackUser.displayName,
+          avatarUrl: fallbackUser.avatarUrl,
+        })
+      }
+    }
+  }, [currentUser, users])
+
   // Sync checklist states from TanStack Query
   useEffect(() => {
     if (checklistData && checklistData.length > 0) {
       const checkedMap: Record<string, { username: string; displayName: string; avatarUrl?: string }[]> = {}
       checklistData.forEach(s => {
-        checkedMap[s.id] = s.checked_by.map(u => ({
+        const checkedBy = Array.isArray(s.checked_by) ? s.checked_by : []
+        checkedMap[s.id] = checkedBy.map(u => ({
           username: u.username,
           displayName: u.displayName || u.username,
           avatarUrl: u.avatarUrl,
@@ -308,12 +347,18 @@ export default function MainPage() {
       const newCheckedItems = { ...prev, [itemKey]: newUsers }
       safeSetItem('travel_notice_checked', JSON.stringify(newCheckedItems))
       
-      // Sync to Supabase
+      // Sync to Supabase and invalidate query cache on success
       saveSupabaseChecklistState({
         id: itemKey,
         checked_by: newUsers,
         updated_at: new Date().toISOString(),
-      }).catch(() => {})
+      }).then(result => {
+        if (result.success) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.checklistStates })
+        }
+      }).catch(err => {
+        console.error('Failed to save checklist state:', err)
+      })
       
       return newCheckedItems
     })
@@ -755,7 +800,7 @@ export default function MainPage() {
               <span className="text-lg">🔍</span>
               <div className="flex-1 text-left">
                 <p className="text-sm font-medium text-gray-800">搜尋地點</p>
-                <p className="text-xs text-gray-400">景點、餐廳、住宿...</p>
+                <p className="text-xs text-gray-400">景點、餐廳、住宿、心願清單...</p>
               </div>
             </button>
             
@@ -843,6 +888,31 @@ export default function MainPage() {
                     <span className="text-gray-400">→</span>
                   </button>
                   
+                  {/* Search in wishlist items by title */}
+                  {wishlistDbItems.filter(item => 
+                    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (item.note && item.note.toLowerCase().includes(searchQuery.toLowerCase()))
+                  ).map(item => (
+                    <button
+                      key={`wishlist-${item.id}`}
+                      onClick={() => {
+                        setShowSearch(false)
+                        setSearchQuery('')
+                        setSelectedWishlistItem(item)
+                      }}
+                      className="w-full flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
+                    >
+                      <span className="w-10 h-10 flex items-center justify-center bg-pink-100 text-pink-600 rounded-full">
+                        {item.is_favorite ? '⭐' : '📍'}
+                      </span>
+                      <div className="flex-1 text-left">
+                        <p className="font-medium text-gray-800">{item.name}</p>
+                        <p className="text-xs text-gray-500">{item.note || item.category}</p>
+                      </div>
+                      <span className="text-gray-400">→</span>
+                    </button>
+                  ))}
+                  
                   {/* Search in trips */}
                   {trips.filter(trip => 
                     trip.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -853,9 +923,12 @@ export default function MainPage() {
                       onClick={() => {
                         setShowSearch(false)
                         setSelectedTripId(trip.id)
-                        setShowMapPopup(true)
-                        setActiveBottomTab('map')
                         setSearchQuery('')
+                        // On mobile, show trip detail; on desktop, select on map
+                        if (window.innerWidth < 768) {
+                          setDetailTrip(trip)
+                          setShowTripDetail(true)
+                        }
                       }}
                       className="w-full flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
                     >
@@ -898,16 +971,14 @@ export default function MainPage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 onClick={() => {
-                  setSelectedTripId(-1) // -1 for home
-                  if (window.innerWidth < 768) {
-                    setShowMapPopup(true)
+                  const loc = settings.homeLocation
+                  if (loc?.lat && loc?.lng) {
+                    window.open(`https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}`, '_blank')
+                  } else if (loc?.address) {
+                    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`, '_blank')
                   }
                 }}
-                className={`mb-4 rounded-xl border-2 transition-all cursor-pointer overflow-hidden relative ${
-                  selectedTripId === -1 
-                    ? 'border-blue-400' 
-                    : 'border-blue-200 hover:border-blue-300'
-                }`}
+                className={`mb-4 rounded-xl border-2 transition-all cursor-pointer overflow-hidden relative border-blue-200 hover:border-blue-300`}
               >
                 {/* Background Image with Overlay */}
                 {settings.homeLocation.imageUrl && (
@@ -1590,6 +1661,144 @@ export default function MainPage() {
         )}
       </AnimatePresence>
 
+      {/* Wishlist Item Detail Popup (from search) */}
+      <AnimatePresence>
+        {selectedWishlistItem && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 overscroll-none"
+            style={{ touchAction: 'none' }}
+            onClick={() => setSelectedWishlistItem(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="w-full max-w-lg bg-white rounded-2xl overflow-hidden max-h-[85vh] overflow-y-auto overscroll-contain"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Image */}
+              {selectedWishlistItem.image_url && (
+                <div className="relative aspect-video bg-gray-100">
+                  <img
+                    src={selectedWishlistItem.image_url}
+                    alt={selectedWishlistItem.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    onClick={() => setSelectedWishlistItem(null)}
+                    className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-black/50 text-white rounded-full"
+                  >
+                    ✕
+                  </button>
+                  {/* Favorite indicator */}
+                  {selectedWishlistItem.is_favorite && (
+                    <div className="absolute bottom-3 right-3 w-10 h-10 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-lg">
+                      <span className="text-lg">❤️</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Content */}
+              <div className="p-6">
+                {!selectedWishlistItem.image_url && (
+                  <div className="flex justify-end mb-2">
+                    <button
+                      onClick={() => setSelectedWishlistItem(null)}
+                      className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+                
+                {/* Category badge */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
+                    {selectedWishlistItem.category === 'cafe' ? '☕ Cafe' :
+                     selectedWishlistItem.category === 'restaurant' ? '🍽️ 餐廳' :
+                     selectedWishlistItem.category === 'bakery' ? '🥐 麵包店' :
+                     selectedWishlistItem.category === 'shopping' ? '🛍️ Shopping' :
+                     selectedWishlistItem.category === 'park' ? '🌳 Park' :
+                     selectedWishlistItem.category === 'threads' ? '🔗 Threads' :
+                     selectedWishlistItem.category}
+                  </span>
+                </div>
+                
+                {/* Title */}
+                <h2 className="text-xl font-semibold text-gray-800 mb-2">{selectedWishlistItem.name}</h2>
+                
+                {/* Note */}
+                {selectedWishlistItem.note && (
+                  <p className="text-gray-600 mb-4">{selectedWishlistItem.note}</p>
+                )}
+                
+                {/* Google Maps link (not for threads) */}
+                {selectedWishlistItem.category !== 'threads' && (
+                  <a
+                    href={selectedWishlistItem.link && (selectedWishlistItem.link.includes('google.com/maps') || selectedWishlistItem.link.includes('maps.google'))
+                      ? selectedWishlistItem.link
+                      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedWishlistItem.name + ' Japan')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-blue-500 hover:text-blue-600 mb-4"
+                  >
+                    <span>🗺️</span>
+                    <span>在 Google Maps 查看</span>
+                  </a>
+                )}
+                
+                {/* Custom link for threads or other links */}
+                {selectedWishlistItem.link && (
+                  selectedWishlistItem.category === 'threads' || 
+                  !(selectedWishlistItem.link.includes('google.com/maps') || selectedWishlistItem.link.includes('maps.google'))
+                ) && (
+                  <a
+                    href={selectedWishlistItem.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-blue-500 hover:text-blue-600 mb-4"
+                  >
+                    <span>🔗</span>
+                    <span className="underline truncate">{selectedWishlistItem.category === 'threads' ? selectedWishlistItem.link : '點擊連結轉跳'}</span>
+                  </a>
+                )}
+                
+                {/* Added by user info */}
+                {selectedWishlistItem.added_by && (
+                  <div className="flex items-center gap-2 mb-4 p-3 bg-gray-50 rounded-xl">
+                    {(() => {
+                      const addedByUser = users.find(u => u.username === selectedWishlistItem.added_by?.username)
+                      const avatarUrl = addedByUser?.avatarUrl || selectedWishlistItem.added_by?.avatar_url
+                      const displayName = addedByUser?.displayName || selectedWishlistItem.added_by?.display_name || selectedWishlistItem.added_by?.username || ''
+                      return (
+                        <>
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-sakura-400 flex items-center justify-center text-white text-xs font-medium">
+                              {displayName.charAt(0)}
+                            </div>
+                          )}
+                          <span className="text-sm text-gray-500">
+                            由 <span className="font-medium text-gray-700">{displayName}</span> 新增
+                          </span>
+                        </>
+                      )
+                    })()}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Chiikawa Pet - Floating character when sakura mode is on */}
       <ChiikawaPet enabled={isSakuraMode} />
 
@@ -1748,19 +1957,22 @@ export default function MainPage() {
                         const isChecked = isItemCheckedByUser(itemKey)
                         const checkedUsers = checkedItems[itemKey] || []
                         const anyoneChecked = checkedUsers.length > 0
+                        const allUsersChecked = users.length > 0 && checkedUsers.length >= users.length
                         return (
                           <div 
                             key={idx} 
                             className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer transition-all ${
-                              anyoneChecked 
-                                ? 'bg-green-50 text-green-600' 
-                                : 'text-gray-600 hover:bg-gray-50'
+                              allUsersChecked
+                                ? 'bg-emerald-50/60 text-emerald-400'
+                                : anyoneChecked 
+                                  ? 'bg-green-50 text-green-600' 
+                                  : 'text-gray-600 hover:bg-gray-50'
                             }`}
                             onClick={() => toggleCheckItem(itemKey)}
                           >
                             <span className="flex items-center gap-2 min-w-0">
-                              <span className="flex-shrink-0">{item.icon}</span>
-                              <span className="truncate text-sm">{item.text}</span>
+                              <span className={`flex-shrink-0 ${allUsersChecked ? 'opacity-50' : ''}`}>{item.icon}</span>
+                              <span className={`truncate text-sm ${allUsersChecked ? 'line-through opacity-60' : ''}`}>{item.text}</span>
                             </span>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               {/* Checked users avatars */}
@@ -1795,6 +2007,12 @@ export default function MainPage() {
                                     </div>
                                   )}
                                 </div>
+                              )}
+                              {/* All users checked badge */}
+                              {allUsersChecked && (
+                                <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
+                                  ✅
+                                </span>
                               )}
                               {/* Checkbox */}
                               <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
@@ -1832,19 +2050,22 @@ export default function MainPage() {
                         const isChecked = isItemCheckedByUser(itemKey)
                         const checkedUsers = checkedItems[itemKey] || []
                         const anyoneChecked = checkedUsers.length > 0
+                        const allUsersChecked = users.length > 0 && checkedUsers.length >= users.length
                         return (
                           <div 
                             key={idx} 
                             className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer transition-all ${
-                              anyoneChecked 
-                                ? 'bg-green-50 text-green-600' 
-                                : 'text-gray-600 hover:bg-gray-50'
+                              allUsersChecked
+                                ? 'bg-emerald-50/60 text-emerald-400'
+                                : anyoneChecked 
+                                  ? 'bg-green-50 text-green-600' 
+                                  : 'text-gray-600 hover:bg-gray-50'
                             }`}
                             onClick={() => toggleCheckItem(itemKey)}
                           >
                             <span className="flex items-center gap-2 min-w-0">
-                              <span className="flex-shrink-0">{item.icon}</span>
-                              <span className="truncate text-sm">{item.text}</span>
+                              <span className={`flex-shrink-0 ${allUsersChecked ? 'opacity-50' : ''}`}>{item.icon}</span>
+                              <span className={`truncate text-sm ${allUsersChecked ? 'line-through opacity-60' : ''}`}>{item.text}</span>
                             </span>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               {/* Checked users avatars */}
@@ -1879,6 +2100,12 @@ export default function MainPage() {
                                     </div>
                                   )}
                                 </div>
+                              )}
+                              {/* All users checked badge */}
+                              {allUsersChecked && (
+                                <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
+                                  ✅
+                                </span>
                               )}
                               {/* Checkbox */}
                               <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${

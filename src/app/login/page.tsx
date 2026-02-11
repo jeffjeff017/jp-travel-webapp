@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import { GoogleReCaptchaProvider, useGoogleReCaptcha } from 'react-google-recaptcha-v3'
-import { login, isAuthenticated } from '@/lib/auth'
+import { login, loginAsync, isAuthenticated } from '@/lib/auth'
 import { useLanguage } from '@/lib/i18n'
 import { getSettingsAsync } from '@/lib/settings'
 import SakuraCanvas from '@/components/SakuraCanvas'
@@ -75,7 +75,7 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
         }
       }
 
-      const user = login(username, password)
+      const user = await loginAsync(username, password)
       
       if (user) {
         // Small delay to ensure cookie is set before redirect

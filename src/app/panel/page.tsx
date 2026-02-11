@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
-import { logout, canAccessAdmin, isAdmin, isAuthenticated, getCurrentUser, getUsers, getUsersAsync, updateUser, updateUserAsync, deleteUser, deleteUserAsync, type User, type UserRole } from '@/lib/auth'
+import { logout, canAccessAdmin, isAdmin, isAuthenticated, getCurrentUser, getUsers, getUsersAsync, updateUser, updateUserAsync, deleteUser, deleteUserAsync, getAuthToken, type User, type UserRole } from '@/lib/auth'
 import {
   createTrip,
   updateTrip,
@@ -28,6 +28,7 @@ import {
   updateSupabaseExpense,
   deleteSupabaseExpense,
   saveSupabaseWalletSettings,
+  saveSupabaseChecklistState,
 } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -327,7 +328,7 @@ export default function AdminPage() {
     return userObj?.avatarUrl || fallbackAvatarUrl || undefined
   }
   
-  // Toggle travel notice item check
+  // Toggle travel notice item check (synced to Supabase)
   const toggleCheckItem = (itemKey: string) => {
     if (!currentUser) return
     
@@ -352,6 +353,20 @@ export default function AdminPage() {
       
       const newCheckedItems = { ...prev, [itemKey]: newUsers }
       safeSetItem('travel_notice_checked', JSON.stringify(newCheckedItems))
+      
+      // Sync to Supabase and invalidate query cache on success
+      saveSupabaseChecklistState({
+        id: itemKey,
+        checked_by: newUsers,
+        updated_at: new Date().toISOString(),
+      }).then(result => {
+        if (result.success) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.checklistStates })
+        }
+      }).catch(err => {
+        console.error('Failed to save checklist state:', err)
+      })
+      
       return newCheckedItems
     })
   }
@@ -449,12 +464,29 @@ export default function AdminPage() {
       }
       
       // If user is authenticated but getCurrentUser() returned null (user_info cookie missing),
-      // reconstruct currentUser from the users list to prevent "請先登入" errors
+      // reconstruct currentUser from the users list using the auth token
       if (!getCurrentUser() && loadedUsers.length > 0) {
         const isAdm = isAdmin()
-        const fallbackUser = isAdm 
-          ? loadedUsers.find(u => u.role === 'admin') 
-          : loadedUsers[0]
+        let fallbackUser: User | undefined
+        
+        if (isAdm) {
+          fallbackUser = loadedUsers.find(u => u.role === 'admin')
+        } else {
+          // Parse username from auth token: japan_travel_user_{username}_2024
+          const token = getAuthToken()
+          if (token) {
+            const match = token.match(/^japan_travel_user_(.+)_2024$/)
+            if (match) {
+              const tokenUsername = match[1]
+              fallbackUser = loadedUsers.find(u => u.username === tokenUsername)
+            }
+          }
+          // Last resort: first non-admin user
+          if (!fallbackUser) {
+            fallbackUser = loadedUsers.find(u => u.role === 'user') || loadedUsers[0]
+          }
+        }
+        
         if (fallbackUser) {
           const reconstructed = {
             username: fallbackUser.username,
@@ -957,15 +989,26 @@ export default function AdminPage() {
               // Use currentUser state or try getCurrentUser() as fallback
               let user = currentUser || getCurrentUser()
               
-              // If still no user, try to find admin user from users list (as fallback)
-              if (!user && isAdminUser && users.length > 0) {
-                const adminUser = users.find(u => u.role === 'admin')
-                if (adminUser) {
+              // If still no user, try to find from users list using auth token
+              if (!user && users.length > 0) {
+                let fallbackUser: User | undefined
+                if (isAdminUser) {
+                  fallbackUser = users.find(u => u.role === 'admin')
+                } else {
+                  const token = getAuthToken()
+                  if (token) {
+                    const match = token.match(/^japan_travel_user_(.+)_2024$/)
+                    if (match) {
+                      fallbackUser = users.find(u => u.username === match[1])
+                    }
+                  }
+                }
+                if (fallbackUser) {
                   user = {
-                    username: adminUser.username,
-                    role: adminUser.role,
-                    displayName: adminUser.displayName,
-                    avatarUrl: adminUser.avatarUrl
+                    username: fallbackUser.username,
+                    role: fallbackUser.role,
+                    displayName: fallbackUser.displayName,
+                    avatarUrl: fallbackUser.avatarUrl
                   }
                   setCurrentUser(user)
                 }
@@ -981,22 +1024,33 @@ export default function AdminPage() {
                 })
                 setShowProfileEdit(true)
               } else {
-                // If still no user, try to refresh users and use the first admin
+                // If still no user, try to refresh users and identify from token
                 const freshUsers = await getUsersAsync()
                 setUsers(freshUsers)
-                const adminUser = freshUsers.find(u => u.role === 'admin')
-                if (adminUser) {
+                let targetUser: User | undefined
+                if (isAdminUser) {
+                  targetUser = freshUsers.find(u => u.role === 'admin')
+                } else {
+                  const token = getAuthToken()
+                  if (token) {
+                    const match = token.match(/^japan_travel_user_(.+)_2024$/)
+                    if (match) {
+                      targetUser = freshUsers.find(u => u.username === match[1])
+                    }
+                  }
+                }
+                if (targetUser) {
                   const newUser = {
-                    username: adminUser.username,
-                    role: adminUser.role as 'admin' | 'user',
-                    displayName: adminUser.displayName,
-                    avatarUrl: adminUser.avatarUrl
+                    username: targetUser.username,
+                    role: targetUser.role as 'admin' | 'user',
+                    displayName: targetUser.displayName,
+                    avatarUrl: targetUser.avatarUrl
                   }
                   setCurrentUser(newUser)
                   setProfileForm({
-                    displayName: adminUser.displayName || '',
+                    displayName: targetUser.displayName || '',
                     password: '',
-                    avatarUrl: adminUser.avatarUrl || ''
+                    avatarUrl: targetUser.avatarUrl || ''
                   })
                 } else {
                   setProfileForm({
@@ -2078,15 +2132,26 @@ export default function AdminPage() {
                         // Use currentUser state or try getCurrentUser() as fallback
                         let user = currentUser || getCurrentUser()
                         
-                        // If still no user but is admin, try to find admin user from users list
-                        if (!user && isAdminUser) {
-                          const adminUser = users.find(u => u.role === 'admin')
-                          if (adminUser) {
+                        // If still no user, try to find from users list using auth token
+                        if (!user && users.length > 0) {
+                          let fallbackUser: User | undefined
+                          if (isAdminUser) {
+                            fallbackUser = users.find(u => u.role === 'admin')
+                          } else {
+                            const token = getAuthToken()
+                            if (token) {
+                              const match = token.match(/^japan_travel_user_(.+)_2024$/)
+                              if (match) {
+                                fallbackUser = users.find(u => u.username === match[1])
+                              }
+                            }
+                          }
+                          if (fallbackUser) {
                             user = {
-                              username: adminUser.username,
-                              role: adminUser.role,
-                              displayName: adminUser.displayName,
-                              avatarUrl: adminUser.avatarUrl
+                              username: fallbackUser.username,
+                              role: fallbackUser.role,
+                              displayName: fallbackUser.displayName,
+                              avatarUrl: fallbackUser.avatarUrl
                             }
                           }
                         }
@@ -4514,19 +4579,22 @@ export default function AdminPage() {
                         const isChecked = isItemCheckedByUser(itemKey)
                         const checkedUsers = checkedItems[itemKey] || []
                         const anyoneChecked = checkedUsers.length > 0
+                        const allUsersChecked = users.length > 0 && checkedUsers.length >= users.length
                         return (
                           <div 
                             key={idx} 
                             className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer transition-all ${
-                              anyoneChecked 
-                                ? 'bg-green-50 text-green-600' 
-                                : 'text-gray-600 hover:bg-gray-50'
+                              allUsersChecked
+                                ? 'bg-emerald-50/60 text-emerald-400'
+                                : anyoneChecked 
+                                  ? 'bg-green-50 text-green-600' 
+                                  : 'text-gray-600 hover:bg-gray-50'
                             }`}
                             onClick={() => toggleCheckItem(itemKey)}
                           >
                             <span className="flex items-center gap-2 min-w-0">
-                              <span className="flex-shrink-0">{item.icon}</span>
-                              <span className="truncate text-sm">{item.text}</span>
+                              <span className={`flex-shrink-0 ${allUsersChecked ? 'opacity-50' : ''}`}>{item.icon}</span>
+                              <span className={`truncate text-sm ${allUsersChecked ? 'line-through opacity-60' : ''}`}>{item.text}</span>
                             </span>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               {/* Checked users avatars */}
@@ -4561,6 +4629,12 @@ export default function AdminPage() {
                                     </div>
                                   )}
                                 </div>
+                              )}
+                              {/* All users checked badge */}
+                              {allUsersChecked && (
+                                <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
+                                  ✅
+                                </span>
                               )}
                               {/* Checkbox */}
                               <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
@@ -4598,19 +4672,22 @@ export default function AdminPage() {
                         const isChecked = isItemCheckedByUser(itemKey)
                         const checkedUsers = checkedItems[itemKey] || []
                         const anyoneChecked = checkedUsers.length > 0
+                        const allUsersChecked = users.length > 0 && checkedUsers.length >= users.length
                         return (
                           <div 
                             key={idx} 
                             className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer transition-all ${
-                              anyoneChecked 
-                                ? 'bg-green-50 text-green-600' 
-                                : 'text-gray-600 hover:bg-gray-50'
+                              allUsersChecked
+                                ? 'bg-emerald-50/60 text-emerald-400'
+                                : anyoneChecked 
+                                  ? 'bg-green-50 text-green-600' 
+                                  : 'text-gray-600 hover:bg-gray-50'
                             }`}
                             onClick={() => toggleCheckItem(itemKey)}
                           >
                             <span className="flex items-center gap-2 min-w-0">
-                              <span className="flex-shrink-0">{item.icon}</span>
-                              <span className="truncate text-sm">{item.text}</span>
+                              <span className={`flex-shrink-0 ${allUsersChecked ? 'opacity-50' : ''}`}>{item.icon}</span>
+                              <span className={`truncate text-sm ${allUsersChecked ? 'line-through opacity-60' : ''}`}>{item.text}</span>
                             </span>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               {/* Checked users avatars */}
@@ -4645,6 +4722,12 @@ export default function AdminPage() {
                                     </div>
                                   )}
                                 </div>
+                              )}
+                              {/* All users checked badge */}
+                              {allUsersChecked && (
+                                <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
+                                  ✅
+                                </span>
                               )}
                               {/* Checkbox */}
                               <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${

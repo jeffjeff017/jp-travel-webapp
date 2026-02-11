@@ -15,7 +15,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { useWishlistItems, useChecklistStates, queryKeys } from '@/hooks/useQueries'
 import { getSettings, getSettingsAsync, type SiteSettings } from '@/lib/settings'
-import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, isAuthenticated, logout, getUsers, getUsersAsync, type User } from '@/lib/auth'
+import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, isAuthenticated, logout, getUsers, getUsersAsync, getAuthToken, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 import { safeSetItem } from '@/lib/safeStorage'
@@ -208,8 +208,26 @@ export default function WishlistPage() {
         setUsers(freshUsers)
         
         if (!getCurrentUser() && isAuthenticated() && freshUsers.length > 0) {
-          const adminUser = freshUsers.find(u => u.role === 'admin')
-          const fallbackUser = adminUser || freshUsers[0]
+          let fallbackUser: User | undefined
+          const isAdm = checkIsAdmin()
+          
+          if (isAdm) {
+            fallbackUser = freshUsers.find(u => u.role === 'admin')
+          } else {
+            // Parse username from auth token: japan_travel_user_{username}_2024
+            const token = getAuthToken()
+            if (token) {
+              const match = token.match(/^japan_travel_user_(.+)_2024$/)
+              if (match) {
+                const tokenUsername = match[1]
+                fallbackUser = freshUsers.find(u => u.username === tokenUsername)
+              }
+            }
+            if (!fallbackUser) {
+              fallbackUser = freshUsers.find(u => u.role === 'user') || freshUsers[0]
+            }
+          }
+          
           if (fallbackUser) {
             setCurrentUser({
               username: fallbackUser.username,
@@ -231,7 +249,8 @@ export default function WishlistPage() {
     if (checklistData && checklistData.length > 0) {
       const checkedMap: Record<string, { username: string; displayName: string; avatarUrl?: string }[]> = {}
       checklistData.forEach(s => {
-        checkedMap[s.id] = s.checked_by.map(u => ({
+        const checkedBy = Array.isArray(s.checked_by) ? s.checked_by : []
+        checkedMap[s.id] = checkedBy.map(u => ({
           username: u.username,
           displayName: u.displayName || u.username,
           avatarUrl: u.avatarUrl,
@@ -285,12 +304,18 @@ export default function WishlistPage() {
       const newCheckedItems = { ...prev, [itemKey]: newUsers }
       safeSetItem('travel_notice_checked', JSON.stringify(newCheckedItems))
       
-      // Sync to Supabase
+      // Sync to Supabase and invalidate query cache on success
       saveSupabaseChecklistState({
         id: itemKey,
         checked_by: newUsers,
         updated_at: new Date().toISOString(),
-      }).catch(() => {})
+      }).then(result => {
+        if (result.success) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.checklistStates })
+        }
+      }).catch(err => {
+        console.error('Failed to save checklist state:', err)
+      })
       
       return newCheckedItems
     })
@@ -1025,19 +1050,22 @@ export default function WishlistPage() {
                         const isChecked = isItemCheckedByUser(itemKey)
                         const itemCheckedUsers = checkedItems[itemKey] || []
                         const anyoneChecked = itemCheckedUsers.length > 0
+                        const allUsersChecked = users.length > 0 && itemCheckedUsers.length >= users.length
                         return (
                           <div 
                             key={idx} 
                             className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer transition-all ${
-                              anyoneChecked 
-                                ? 'bg-green-50 text-green-600' 
-                                : 'text-gray-600 hover:bg-gray-50'
+                              allUsersChecked
+                                ? 'bg-emerald-50/60 text-emerald-400'
+                                : anyoneChecked 
+                                  ? 'bg-green-50 text-green-600' 
+                                  : 'text-gray-600 hover:bg-gray-50'
                             }`}
                             onClick={() => toggleCheckItem(itemKey)}
                           >
                             <span className="flex items-center gap-2 min-w-0">
-                              <span className="flex-shrink-0">{item.icon}</span>
-                              <span className="truncate text-sm">{item.text}</span>
+                              <span className={`flex-shrink-0 ${allUsersChecked ? 'opacity-50' : ''}`}>{item.icon}</span>
+                              <span className={`truncate text-sm ${allUsersChecked ? 'line-through opacity-60' : ''}`}>{item.text}</span>
                             </span>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               {/* Checked users avatars */}
@@ -1072,6 +1100,12 @@ export default function WishlistPage() {
                                     </div>
                                   )}
                                 </div>
+                              )}
+                              {/* All users checked badge */}
+                              {allUsersChecked && (
+                                <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
+                                  ✅
+                                </span>
                               )}
                               {/* Checkbox */}
                               <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
@@ -1109,19 +1143,22 @@ export default function WishlistPage() {
                         const isChecked = isItemCheckedByUser(itemKey)
                         const itemCheckedUsers = checkedItems[itemKey] || []
                         const anyoneChecked = itemCheckedUsers.length > 0
+                        const allUsersChecked = users.length > 0 && itemCheckedUsers.length >= users.length
                         return (
                           <div 
                             key={idx} 
                             className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer transition-all ${
-                              anyoneChecked 
-                                ? 'bg-green-50 text-green-600' 
-                                : 'text-gray-600 hover:bg-gray-50'
+                              allUsersChecked
+                                ? 'bg-emerald-50/60 text-emerald-400'
+                                : anyoneChecked 
+                                  ? 'bg-green-50 text-green-600' 
+                                  : 'text-gray-600 hover:bg-gray-50'
                             }`}
                             onClick={() => toggleCheckItem(itemKey)}
                           >
                             <span className="flex items-center gap-2 min-w-0">
-                              <span className="flex-shrink-0">{item.icon}</span>
-                              <span className="truncate text-sm">{item.text}</span>
+                              <span className={`flex-shrink-0 ${allUsersChecked ? 'opacity-50' : ''}`}>{item.icon}</span>
+                              <span className={`truncate text-sm ${allUsersChecked ? 'line-through opacity-60' : ''}`}>{item.text}</span>
                             </span>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               {/* Checked users avatars */}
@@ -1156,6 +1193,12 @@ export default function WishlistPage() {
                                     </div>
                                   )}
                                 </div>
+                              )}
+                              {/* All users checked badge */}
+                              {allUsersChecked && (
+                                <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
+                                  ✅
+                                </span>
                               )}
                               {/* Checkbox */}
                               <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all text-xs ${
