@@ -59,12 +59,6 @@ CREATE TABLE trips (
 );
 ```
 
-## Admin Access
-
-- URL: `/admin`
-- Username: `admin`
-- Password: `admin`
-
 ## Project Structure
 
 ```
