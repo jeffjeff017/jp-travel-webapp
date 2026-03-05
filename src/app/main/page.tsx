@@ -2427,7 +2427,7 @@ export default function MainPage() {
                   </div>
 
                   {/* Fixed Footer with Submit Buttons */}
-                  <div className="p-4 md:p-6 border-t border-gray-100 flex-shrink-0 bg-white safe-area-bottom">
+                  <div className="px-4 pt-4 pb-4 md:px-6 md:pb-6 border-t border-gray-100 flex-shrink-0 bg-white">
                     <div className="flex gap-3">
                       <button
                         type="button"
