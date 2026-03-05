@@ -20,20 +20,64 @@ import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 import { safeSetItem } from '@/lib/safeStorage'
 
+// Tokyo district areas
+const TOKYO_AREAS = [
+  { id: 'shibuya',          zh: '渋谷',     en: 'Shibuya' },
+  { id: 'shinjuku',         zh: '新宿',     en: 'Shinjuku' },
+  { id: 'harajuku',         zh: '原宿',     en: 'Harajuku' },
+  { id: 'omotesando',       zh: '表参道',   en: 'Omotesando' },
+  { id: 'aoyama',           zh: '青山',     en: 'Aoyama' },
+  { id: 'ginza',            zh: '銀座',     en: 'Ginza' },
+  { id: 'roppongi',         zh: '六本木',   en: 'Roppongi' },
+  { id: 'akasaka',          zh: '赤坂',     en: 'Akasaka' },
+  { id: 'azabujuban',       zh: '麻布十番', en: 'Azabu-Juban' },
+  { id: 'hiro',             zh: '広尾',     en: 'Hiro' },
+  { id: 'ebisu',            zh: '恵比寿',   en: 'Ebisu' },
+  { id: 'daikanyama',       zh: '代官山',   en: 'Daikanyama' },
+  { id: 'nakameguro',       zh: '中目黒',   en: 'Nakameguro' },
+  { id: 'shimokitazawa',    zh: '下北沢',   en: 'Shimokitazawa' },
+  { id: 'sangenjaya',       zh: '三軒茶屋', en: 'Sangenjaya' },
+  { id: 'jiyugaoka',        zh: '自由が丘', en: 'Jiyugaoka' },
+  { id: 'futakotamagawa',   zh: '二子玉川', en: 'Futakotamagawa' },
+  { id: 'kichijoji',        zh: '吉祥寺',   en: 'Kichijoji' },
+  { id: 'koenji',           zh: '高円寺',   en: 'Koenji' },
+  { id: 'ogikubo',          zh: '荻窪',     en: 'Ogikubo' },
+  { id: 'ikebukuro',        zh: '池袋',     en: 'Ikebukuro' },
+  { id: 'kagurazaka',       zh: '神楽坂',   en: 'Kagurazaka' },
+  { id: 'iidabashi',        zh: '飯田橋',   en: 'Iidabashi' },
+  { id: 'jimbocho',         zh: '神保町',   en: 'Jimbocho' },
+  { id: 'ochanomizu',       zh: '御茶ノ水', en: 'Ochanomizu' },
+  { id: 'akihabara',        zh: '秋葉原',   en: 'Akihabara' },
+  { id: 'ueno',             zh: '上野',     en: 'Ueno' },
+  { id: 'asakusa',          zh: '浅草',     en: 'Asakusa' },
+  { id: 'yanaka',           zh: '谷根千',   en: 'Yanaka' },
+  { id: 'kuramae',          zh: '蔵前',     en: 'Kuramae' },
+  { id: 'kiyosumishirakawa',zh: '清澄白河', en: 'Kiyosumi-Shirakawa' },
+  { id: 'ryogoku',          zh: '両国',     en: 'Ryogoku' },
+  { id: 'kinshicho',        zh: '錦糸町',   en: 'Kinshicho' },
+  { id: 'kitasenju',        zh: '北千住',   en: 'Kita-Senju' },
+  { id: 'nihonbashi',       zh: '日本橋',   en: 'Nihonbashi' },
+  { id: 'yurakucho',        zh: '有楽町',   en: 'Yurakucho' },
+  { id: 'marunouchi',       zh: '丸の内',   en: 'Marunouchi' },
+  { id: 'otemachi',         zh: '大手町',   en: 'Otemachi' },
+  { id: 'tsukiji',          zh: '築地',     en: 'Tsukiji' },
+  { id: 'shimbashi',        zh: '新橋',     en: 'Shimbashi' },
+  { id: 'toyosu',           zh: '豊洲',     en: 'Toyosu' },
+  { id: 'odaiba',           zh: '台場',     en: 'Odaiba' },
+  { id: 'shinagawa',        zh: '品川',     en: 'Shinagawa' },
+  { id: 'machida',          zh: '町田',     en: 'Machida' },
+  { id: 'tachikawa',        zh: '立川',     en: 'Tachikawa' },
+]
+
 // Main categories
 const CATEGORIES = [
   { id: 'all', name: '全部', icon: '✨', color: 'from-gray-400 to-gray-600' },
   { id: 'cafe', name: 'Cafe', icon: '☕', color: 'from-amber-400 to-orange-500' },
-  { id: 'food', name: '餐廳', icon: '🍽️', color: 'from-red-400 to-pink-500', hasSubTabs: true },
+  { id: 'restaurant', name: '餐廳', icon: '🍽️', color: 'from-red-400 to-pink-500' },
+  { id: 'bakery', name: '麵包店', icon: '🥐', color: 'from-yellow-400 to-amber-500' },
   { id: 'shopping', name: 'Shopping', icon: '🛍️', color: 'from-purple-400 to-indigo-500' },
   { id: 'park', name: 'Park', icon: '🌳', color: 'from-green-400 to-emerald-500' },
   { id: 'threads', name: 'Threads', icon: '🔗', color: 'from-gray-600 to-gray-800' },
-]
-
-// Sub-tabs for food category
-const FOOD_SUBTABS = [
-  { id: 'restaurant', name: '餐廳', icon: '🍽️' },
-  { id: 'bakery', name: '麵包店', icon: '🥐' },
 ]
 
 type WishlistItem = {
@@ -43,6 +87,7 @@ type WishlistItem = {
   imageUrl?: string
   link?: string
   category: string
+  area?: string
   addedAt: string
   addedToDay?: number
   addedTime?: string
@@ -95,6 +140,7 @@ function fromSupabaseFormat(db: WishlistItemDB): WishlistItem {
     imageUrl: db.image_url || undefined,
     link: db.link || undefined,
     category: db.category,
+    area: db.map_link || undefined,
     addedAt: db.created_at,
     addedToDay: db.added_to_trip?.day,
     addedTime: db.added_to_trip?.time,
@@ -114,7 +160,7 @@ function toSupabaseFormat(item: Omit<WishlistItem, 'id' | 'addedAt'>): Omit<Wish
     name: item.name,
     note: item.note || null,
     image_url: item.imageUrl || null,
-    map_link: null,
+    map_link: item.area || null,
     link: item.link || null,
     added_to_trip: item.addedToDay ? { day: item.addedToDay, time: item.addedTime || '12:00' } : null,
     added_by: item.addedBy ? {
@@ -132,7 +178,6 @@ export default function WishlistPage() {
   const { data: wishlistDbItems, isLoading: isWishlistLoading } = useWishlistItems()
   const { data: checklistData } = useChecklistStates()
   const [activeTab, setActiveTab] = useState('all')
-  const [activeFoodSubTab, setActiveFoodSubTab] = useState('restaurant')
   const [wishlist, setWishlist] = useState<Wishlist>({
     cafe: [],
     restaurant: [],
@@ -163,10 +208,26 @@ export default function WishlistPage() {
   const [newItemImage, setNewItemImage] = useState('')
   const [newItemUrl, setNewItemUrl] = useState('')
   const [newItemCategory, setNewItemCategory] = useState('cafe')
+  const [newItemArea, setNewItemArea] = useState('')
+  const [areaDropdownOpen, setAreaDropdownOpen] = useState(false)
+  const [areaSearch, setAreaSearch] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const areaDropdownRef = useRef<HTMLDivElement>(null)
   const [selectedItemPopup, setSelectedItemPopup] = useState<WishlistItem | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Close area dropdown on outside click
+  useEffect(() => {
+    if (!areaDropdownOpen) return
+    const handler = (e: MouseEvent) => {
+      if (areaDropdownRef.current && !areaDropdownRef.current.contains(e.target as Node)) {
+        setAreaDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [areaDropdownOpen])
 
   // Disable background scrolling when any popup/modal is active
   useEffect(() => {
@@ -383,8 +444,6 @@ export default function WishlistPage() {
     
     if (activeTab === 'all') {
       items = Object.values(wishlist).flat()
-    } else if (activeTab === 'food') {
-      items = wishlist[activeFoodSubTab] || []
     } else {
       items = wishlist[activeTab] || []
     }
@@ -392,10 +451,18 @@ export default function WishlistPage() {
     // Apply search filter if there's a query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
-      items = items.filter(item => 
-        item.name.toLowerCase().includes(query) ||
-        (item.note && item.note.toLowerCase().includes(query))
-      )
+      items = items.filter(item => {
+        if (item.name.toLowerCase().includes(query)) return true
+        if (item.note && item.note.toLowerCase().includes(query)) return true
+        if (item.area) {
+          const areaData = TOKYO_AREAS.find(a => a.id === item.area)
+          if (areaData) {
+            if (areaData.zh.includes(query)) return true
+            if (areaData.en.toLowerCase().includes(query)) return true
+          }
+        }
+        return false
+      })
     }
     
     // Sort by favorite (favorites first)
@@ -411,7 +478,6 @@ export default function WishlistPage() {
   // Get current category for adding
   const getCurrentCategory = () => {
     if (activeTab === 'all') return 'cafe'
-    if (activeTab === 'food') return activeFoodSubTab
     return activeTab
   }
   
@@ -442,6 +508,7 @@ export default function WishlistPage() {
         note: newItemNote.trim() || undefined,
         imageUrl: newItemImage || undefined,
         link: newItemUrl.trim() || undefined,
+        area: newItemArea || undefined,
         isFavorite: false,
         addedBy: user ? {
           username: user.username,
@@ -469,6 +536,8 @@ export default function WishlistPage() {
       setNewItemImage('')
       setNewItemUrl('')
       setNewItemCategory('cafe')
+      setNewItemArea('')
+      setAreaSearch('')
       setShowAddForm(false)
     } catch (err: any) {
       console.error('Failed to add item:', err)
@@ -520,6 +589,8 @@ export default function WishlistPage() {
     setNewItemImage(item.imageUrl || '')
     setNewItemUrl(item.link || '')
     setNewItemCategory(item.category)
+    setNewItemArea(item.area || '')
+    setAreaSearch('')
     setSelectedItemPopup(null)
     setShowAddForm(true)
   }
@@ -537,6 +608,7 @@ export default function WishlistPage() {
         image_url: newItemImage || null,
         link: newItemUrl.trim() || null,
         category: newItemCategory,
+        map_link: newItemArea || null,
       })
       
       if (error) {
@@ -552,6 +624,8 @@ export default function WishlistPage() {
       setNewItemImage('')
       setNewItemUrl('')
       setNewItemCategory('cafe')
+      setNewItemArea('')
+      setAreaSearch('')
       setShowAddForm(false)
       await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
     } catch (err: any) {
@@ -592,7 +666,6 @@ export default function WishlistPage() {
   }
   
   const filteredItems = getFilteredItems()
-  const foodCount = (wishlist.restaurant?.length || 0) + (wishlist.bakery?.length || 0)
   
   return (
     <main className={`bg-gray-50 pb-20 ${!isSakuraMode ? 'clean-mode' : ''}`}>
@@ -650,35 +723,14 @@ export default function WishlistPage() {
                   <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                     activeTab === cat.id ? 'bg-white/20' : 'bg-gray-100'
                   }`}>
-                    {cat.id === 'food' ? foodCount : (wishlist[cat.id]?.length || 0)}
+                    {wishlist[cat.id]?.length || 0}
                   </span>
                 )}
               </button>
             ))}
           </div>
           
-          {/* Food Sub-tabs */}
-          {activeTab === 'food' && (
-            <div className="flex gap-2 mt-3">
-              {FOOD_SUBTABS.map((sub) => (
-                <button
-                  key={sub.id}
-                  onClick={() => setActiveFoodSubTab(sub.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all ${
-                    activeFoodSubTab === sub.id
-                      ? 'bg-sakura-100 text-sakura-700 border border-sakura-200'
-                      : 'bg-gray-50 text-gray-600 border border-gray-100 hover:bg-gray-100'
-                  }`}
-                >
-                  <span>{sub.icon}</span>
-                  <span>{sub.name}</span>
-                  <span className="text-xs text-gray-400">
-                    ({wishlist[sub.id]?.length || 0})
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+
         </div>
       </header>
       
@@ -734,17 +786,27 @@ export default function WishlistPage() {
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
                       <span className="text-4xl opacity-50">
-                        {CATEGORIES.find(c => c.id === item.category || (c.id === 'food' && ['restaurant', 'bakery'].includes(item.category)))?.icon || '📌'}
+                        {CATEGORIES.find(c => c.id === item.category)?.icon || '📌'}
                       </span>
                     </div>
                   )}
                   
-                  {/* Added to trip badge */}
+                  {/* Top-left: trip day badge */}
                   {item.addedToDay && (
                     <div className="absolute top-2 left-2 px-2 py-1 bg-green-500 text-white text-xs font-medium rounded-full">
                       Day {item.addedToDay}
                     </div>
                   )}
+
+                  {/* Top-right: area badge */}
+                  {item.area && (() => {
+                    const areaData = TOKYO_AREAS.find(a => a.id === item.area)
+                    return areaData ? (
+                      <div className="absolute top-2 right-2 px-2 py-0.5 bg-indigo-500/80 backdrop-blur-sm text-white text-[10px] font-medium rounded-full leading-snug">
+                        {areaData.zh}
+                      </div>
+                    ) : null
+                  })()}
                   
                   {/* Favorite indicator - bottom right */}
                   {item.isFavorite && (
@@ -791,7 +853,7 @@ export default function WishlistPage() {
                   {/* Category + Added by */}
                   <div className="mt-3 pt-2 border-t border-gray-50 flex items-center justify-between">
                     <span className="text-xs text-gray-400">
-                      {CATEGORIES.find(c => c.id === item.category || (c.id === 'food' && ['restaurant', 'bakery'].includes(item.category)))?.name || item.category}
+                      {CATEGORIES.find(c => c.id === item.category)?.name || item.category}
                     </span>
                     {item.addedBy && (() => {
                       const avatarUrl = getUserAvatar(item.addedBy.username, item.addedBy.avatarUrl)
@@ -868,6 +930,69 @@ export default function WishlistPage() {
                     </select>
                   </div>
                   
+                  {/* Area Selector */}
+                  <div className="relative" ref={areaDropdownRef}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">地區</label>
+                    <button
+                      type="button"
+                      onClick={() => { setAreaDropdownOpen(v => !v); setAreaSearch('') }}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none bg-white text-left flex items-center justify-between"
+                    >
+                      <span className={newItemArea ? 'text-gray-800' : 'text-gray-400'}>
+                        {newItemArea
+                          ? (() => { const a = TOKYO_AREAS.find(x => x.id === newItemArea); return a ? `${a.zh} ${a.en}` : newItemArea })()
+                          : '選擇地區（可略）'}
+                      </span>
+                      <span className="text-gray-400 text-xs ml-2">{areaDropdownOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {areaDropdownOpen && (
+                      <div className="absolute z-50 mt-1 w-full bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+                        {/* Search input */}
+                        <div className="p-2 border-b border-gray-100">
+                          <input
+                            type="text"
+                            value={areaSearch}
+                            onChange={(e) => setAreaSearch(e.target.value)}
+                            placeholder="搜尋地區... / Search area..."
+                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-sakura-400"
+                            autoFocus
+                          />
+                        </div>
+                        {/* Option list */}
+                        <div className="max-h-48 overflow-y-auto">
+                          {/* Clear option */}
+                          <button
+                            type="button"
+                            onClick={() => { setNewItemArea(''); setAreaDropdownOpen(false); setAreaSearch('') }}
+                            className="w-full text-left px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50"
+                          >
+                            — 不選擇
+                          </button>
+                          {TOKYO_AREAS.filter(a => {
+                            const q = areaSearch.toLowerCase()
+                            return !q || a.zh.includes(q) || a.en.toLowerCase().includes(q) || a.id.includes(q)
+                          }).map(a => (
+                            <button
+                              key={a.id}
+                              type="button"
+                              onClick={() => { setNewItemArea(a.id); setAreaDropdownOpen(false); setAreaSearch('') }}
+                              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-sakura-50 flex items-center justify-between ${newItemArea === a.id ? 'bg-sakura-50 text-sakura-700 font-medium' : 'text-gray-700'}`}
+                            >
+                              <span>{a.zh}</span>
+                              <span className="text-gray-400 text-xs">{a.en}</span>
+                            </button>
+                          ))}
+                          {TOKYO_AREAS.filter(a => {
+                            const q = areaSearch.toLowerCase()
+                            return !q || a.zh.includes(q) || a.en.toLowerCase().includes(q) || a.id.includes(q)
+                          }).length === 0 && (
+                            <div className="px-4 py-3 text-sm text-gray-400 text-center">沒有結果</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Image */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">圖片</label>
@@ -1357,14 +1482,20 @@ export default function WishlistPage() {
                   </div>
                 )}
                 
-                {/* Category badge */}
-                <div className="flex items-center gap-2 mb-3">
+                {/* Category + Area badges */}
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
                   <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-                    {CATEGORIES.find(c => c.id === selectedItemPopup.category || (c.id === 'food' && ['restaurant', 'bakery'].includes(selectedItemPopup.category)))?.icon}{' '}
-                    {selectedItemPopup.category === 'restaurant' ? '餐廳' : 
-                     selectedItemPopup.category === 'bakery' ? '麵包店' :
-                     CATEGORIES.find(c => c.id === selectedItemPopup.category)?.name || selectedItemPopup.category}
+                    {CATEGORIES.find(c => c.id === selectedItemPopup.category)?.icon}{' '}
+                    {CATEGORIES.find(c => c.id === selectedItemPopup.category)?.name || selectedItemPopup.category}
                   </span>
+                  {selectedItemPopup.area && (() => {
+                    const areaData = TOKYO_AREAS.find(a => a.id === selectedItemPopup.area)
+                    return areaData ? (
+                      <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-medium rounded-full">
+                        📍 {areaData.zh} · {areaData.en}
+                      </span>
+                    ) : null
+                  })()}
                 </div>
                 
                 {/* Title */}
