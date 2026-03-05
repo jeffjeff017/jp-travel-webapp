@@ -1133,11 +1133,11 @@ export default function MainPage() {
                   <div className="w-8 h-8 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
                 </div>
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="animate-pulse rounded-xl border-2 border-sakura-100 overflow-hidden">
-                    <div className="h-32 bg-sakura-100/60" />
-                    <div className="p-4 space-y-3">
-                      <div className="h-3 bg-sakura-100 rounded w-1/4" />
-                      <div className="h-4 bg-sakura-100 rounded w-3/4" />
+                  <div key={i} className="animate-pulse rounded-xl border-2 border-sakura-100 overflow-hidden flex flex-row">
+                    <div className="w-28 sm:w-36 flex-shrink-0 h-24 bg-sakura-100/60" />
+                    <div className="flex-1 p-3 space-y-2">
+                      <div className="h-3 bg-sakura-100 rounded w-1/3" />
+                      <div className="h-4 bg-sakura-100 rounded w-4/5" />
                       <div className="h-3 bg-sakura-100 rounded w-1/2" />
                     </div>
                   </div>
@@ -1175,56 +1175,63 @@ export default function MainPage() {
                         : 'border-sakura-100 bg-gradient-to-r from-sakura-50 to-white hover:border-sakura-300 hover:shadow-md'
                     }`}
                   >
-                    {/* Mobile: Vertical layout / Desktop: Horizontal layout */}
-                    <div className="flex flex-col md:flex-row">
-                      {/* Image - Top on mobile, Right on desktop */}
+                    {/* Horizontal layout: image left, content right */}
+                    <div className="flex flex-row">
+                      {/* Image - Left side, fills full card height */}
                       {(() => {
                         const images = parseImages(trip.image_url)
                         if (images.length === 0) return null
                         return (
-                          <div className="w-full h-32 md:w-40 md:h-32 md:order-2 flex-shrink-0 md:rounded-lg overflow-hidden md:m-3 shadow-sm">
-                            <ImageSlider 
-                              images={images} 
-                              className="w-full h-full"
-                              autoPlay={images.length > 1}
-                              interval={6000}
-                              hideArrows
-                            />
+                          <div className="w-28 sm:w-36 flex-shrink-0 self-stretch overflow-hidden relative min-h-[90px]">
+                            <div className="absolute inset-0">
+                              <ImageSlider 
+                                images={images} 
+                                className="w-full h-full"
+                                autoPlay={images.length > 1}
+                                interval={6000}
+                                hideArrows
+                              />
+                            </div>
+                            {images.length > 1 && (
+                              <span className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded z-10">
+                                {images.length}
+                              </span>
+                            )}
                           </div>
                         )
                       })()}
                       
                       {/* Content */}
-                      <div className="flex-1 p-4 space-y-3 md:order-1">
+                      <div className="flex-1 p-3 sm:p-4 space-y-2 min-w-0">
                         {/* Section 1: Date + Title */}
                         <div className="pb-2 border-b border-gray-100">
-                          {/* Date Badge - Year/Month/Day */}
-                          <span className="text-xs text-sakura-600 bg-sakura-100 px-2 py-0.5 rounded whitespace-nowrap inline-block mb-2">
+                          {/* Date Badge */}
+                          <span className="text-xs text-sakura-600 bg-sakura-100 px-2 py-0.5 rounded whitespace-nowrap inline-block mb-1.5">
                             {new Date(trip.date).toLocaleDateString('zh-TW', {
                               year: 'numeric',
                               month: 'numeric',
                               day: 'numeric',
                             })}
                           </span>
-                          <h3 className="font-semibold text-lg md:text-xl text-gray-800 leading-tight">
+                          <h3 className="font-semibold text-base sm:text-lg text-gray-800 leading-snug line-clamp-2">
                             {trip.title}
                           </h3>
                         </div>
                       
                         {/* Section 2: Location - Clickable to expand description */}
                         <div 
-                          className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors"
+                          className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-2.5 py-1.5 cursor-pointer hover:bg-gray-100 transition-colors"
                           onClick={(e) => {
                             e.stopPropagation()
                             toggleTripExpand(trip.id)
                           }}
                         >
-                          <span className="text-sakura-500">📍</span>
-                          <p className="text-sm text-gray-600 truncate flex-1" style={{ maxWidth: '20em' }}>
+                          <span className="text-sakura-500 text-sm">📍</span>
+                          <p className="text-xs text-gray-600 truncate flex-1">
                             {trip.location}
                           </p>
                           {trip.description && (
-                            <span className={`text-gray-400 transition-transform duration-200 ${expandedTrips.includes(trip.id) ? 'rotate-180' : ''}`}>
+                            <span className={`text-gray-400 text-xs transition-transform duration-200 flex-shrink-0 ${expandedTrips.includes(trip.id) ? 'rotate-180' : ''}`}>
                               ▼
                             </span>
                           )}
