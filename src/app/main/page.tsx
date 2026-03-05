@@ -1555,14 +1555,25 @@ export default function MainPage() {
                             return items.map((item: any, idx: number) => (
                               <div 
                                 key={idx} 
-                                className="flex items-start gap-3 p-3 bg-white border border-gray-100 rounded-xl"
+                                className="flex items-start gap-2 p-3 bg-white border border-gray-100 rounded-xl min-w-0"
                               >
                                 {(item.time_start || item.time_end) && (
-                                  <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg whitespace-nowrap">
+                                  <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg whitespace-nowrap flex-shrink-0">
                                     {item.time_start}{item.time_end ? ` - ${item.time_end}` : ''}
                                   </span>
                                 )}
-                                <span className="text-gray-700 flex-1">{item.content}</span>
+                                <span className="text-sm text-gray-700 flex-1 min-w-0 break-all leading-relaxed">
+                                  {/^https?:\/\//.test((item.content || '').trim()) ? (
+                                    <a
+                                      href={item.content.trim()}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-500 underline underline-offset-2 hover:text-blue-700"
+                                    >
+                                      {item.content.trim()}
+                                    </a>
+                                  ) : item.content}
+                                </span>
                               </div>
                             ))
                           }
@@ -1570,7 +1581,7 @@ export default function MainPage() {
                           // Legacy: render as HTML if not JSON
                           return (
                             <div 
-                              className="text-gray-600 bg-gray-50 rounded-xl p-4"
+                              className="text-sm text-gray-600 bg-gray-50 rounded-xl p-4 break-words overflow-hidden"
                               dangerouslySetInnerHTML={{ __html: detailTrip.description }}
                             />
                           )
