@@ -2233,17 +2233,17 @@ export default function MainPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 p-0 md:p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
             onClick={(e) => {
               if (e.target === e.currentTarget) closeForm()
             }}
           >
             <motion.div
-              initial={{ opacity: 0, y: 100 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 100 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-white rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-lg max-h-[80vh] md:max-h-[85vh] overflow-hidden flex flex-col"
+              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -10 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[88vh] overflow-hidden flex flex-col"
             >
               {/* Fixed Header */}
               <div className="p-4 md:p-6 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
