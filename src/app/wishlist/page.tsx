@@ -172,6 +172,23 @@ function toSupabaseFormat(item: Omit<WishlistItem, 'id' | 'addedAt'>): Omit<Wish
   }
 }
 
+// SVG heart icons — avoid emoji layout shifts on iOS
+function HeartFilled({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+    </svg>
+  )
+}
+
+function HeartOutline({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  )
+}
+
 export default function WishlistPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -802,7 +819,7 @@ export default function WishlistPage() {
                   {item.area && (() => {
                     const areaData = TOKYO_AREAS.find(a => a.id === item.area)
                     return areaData ? (
-                      <div className="absolute top-2 right-2 px-2 py-0.5 bg-indigo-500/80 backdrop-blur-sm text-white text-[10px] font-medium rounded-full leading-snug">
+                      <div className="absolute top-2 right-2 px-2 py-0.5 bg-indigo-500/80 backdrop-blur-sm text-white text-[10px] font-medium rounded-full leading-snug" style={{ fontFamily: "'Noto Sans JP', sans-serif" }}>
                         {areaData.zh}
                       </div>
                     ) : null
@@ -811,7 +828,7 @@ export default function WishlistPage() {
                   {/* Favorite indicator - bottom right */}
                   {item.isFavorite && (
                     <div className="absolute bottom-2 right-2 w-7 h-7 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-sm">
-                      ❤️
+                      <HeartFilled className="w-4 h-4 text-rose-500" />
                     </div>
                   )}
                 </div>
@@ -1434,7 +1451,9 @@ export default function WishlistPage() {
                       }}
                       className="w-10 h-10 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:scale-110 transition-transform"
                     >
-                      <span className="text-lg">{selectedItemPopup.isFavorite ? '❤️' : '🤍'}</span>
+                      {selectedItemPopup.isFavorite
+                        ? <HeartFilled className="w-5 h-5 text-rose-500" />
+                        : <HeartOutline className="w-5 h-5 text-gray-400" />}
                     </button>
                   </div>
                 </div>
@@ -1471,7 +1490,9 @@ export default function WishlistPage() {
                       }}
                       className="w-8 h-8 flex items-center justify-center hover:scale-110 transition-transform"
                     >
-                      {selectedItemPopup.isFavorite ? '❤️' : '🤍'}
+                      {selectedItemPopup.isFavorite
+                        ? <HeartFilled className="w-5 h-5 text-rose-500" />
+                        : <HeartOutline className="w-5 h-5 text-gray-400" />}
                     </button>
                     <button
                       onClick={() => setSelectedItemPopup(null)}
