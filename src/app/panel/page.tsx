@@ -1594,6 +1594,31 @@ export default function AdminPage() {
                       </p>
                     </div>
 
+                  {/* Day Labels */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      每日行程名稱
+                    </label>
+                    <div className="space-y-2">
+                      {Array.from({ length: settingsForm.totalDays }, (_, i) => i + 1).map(day => {
+                        const existing = settingsForm.daySchedules.find(d => d.dayNumber === day)
+                        const themeValue = existing?.theme && existing.theme !== `Day ${day}` ? existing.theme : ''
+                        return (
+                          <div key={day} className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-sakura-500 w-12 shrink-0">Day {day}</span>
+                            <input
+                              type="text"
+                              value={themeValue}
+                              onChange={(e) => updateDayTheme(day, e.target.value || `Day ${day}`)}
+                              placeholder={`Day ${day}`}
+                              className="flex-1 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-sakura-400"
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
                   </div>
 
                   {/* reCAPTCHA Toggle */}
