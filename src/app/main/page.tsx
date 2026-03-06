@@ -220,6 +220,8 @@ export default function MainPage() {
   const [isActualAdmin, setIsActualAdmin] = useState(false) // True only for admin role
   const [editingDayLabel, setEditingDayLabel] = useState<number | null>(null)
   const [editingDayLabelValue, setEditingDayLabelValue] = useState('')
+  const [dayLabelSaving, setDayLabelSaving] = useState<number | null>(null)
+  const [dayLabelSaveError, setDayLabelSaveError] = useState<number | null>(null)
   const [currentUser, setCurrentUser] = useState<{ username: string; role: string; displayName: string; avatarUrl?: string } | null>(null)
   
   // Mobile map popup state
@@ -665,8 +667,15 @@ export default function MainPage() {
     })
     const newSettings = { ...settings, daySchedules: updated }
     setSettings(newSettings)
-    saveSettingsAsync(newSettings)
     setEditingDayLabel(null)
+    setDayLabelSaving(dayNumber)
+    setDayLabelSaveError(null)
+    const result = await saveSettingsAsync(newSettings)
+    setDayLabelSaving(null)
+    if (!result.success) {
+      setDayLabelSaveError(dayNumber)
+      setTimeout(() => setDayLabelSaveError(null), 3000)
+    }
   }
 
   // Remove the last day
@@ -814,7 +823,7 @@ export default function MainPage() {
   }
 
   return (
-    <main className={`min-h-screen relative ${!isSakuraMode ? 'clean-mode' : ''}`}>
+    <main className={`h-dvh overflow-hidden relative ${!isSakuraMode ? 'clean-mode' : ''}`}>
       {/* Sakura Animation - Only when toggled ON */}
       <SakuraCanvas enabled={isSakuraMode} />
 
@@ -995,13 +1004,13 @@ export default function MainPage() {
       </AnimatePresence>
 
       {/* Main Content */}
-      <div className="pt-[72px] md:pt-[68px] h-screen flex flex-col md:flex-row">
+      <div className="pt-[72px] md:pt-[68px] h-full flex flex-col md:flex-row">
         {/* Sidebar - Trip List - Full height on mobile */}
         <motion.aside
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.2 }}
-          className="w-full h-full md:h-auto md:w-1/2 bg-white/90 backdrop-blur-sm border-r border-sakura-100 overflow-y-auto pb-24 md:pb-0"
+          className="w-full h-full md:h-auto md:w-1/2 bg-white/90 backdrop-blur-sm border-r border-sakura-100 overflow-y-auto overscroll-y-contain pb-24 md:pb-0"
         >
           <div className="p-4">
             {/* Home Location Card - Now at TOP with background image */}
@@ -1109,9 +1118,15 @@ export default function MainPage() {
                                 )
                               }}
                             >
-                              {daySchedule?.theme && daySchedule.theme !== `Day ${day}`
-                                ? daySchedule.theme
-                                : isAdmin ? <span className="opacity-50">+ 名稱</span> : null}
+                              {dayLabelSaving === day ? (
+                                <span className="opacity-70">⏳</span>
+                              ) : dayLabelSaveError === day ? (
+                                <span className="text-red-300" title="儲存失敗，請重試">⚠️</span>
+                              ) : daySchedule?.theme && daySchedule.theme !== `Day ${day}` ? (
+                                daySchedule.theme
+                              ) : isAdmin ? (
+                                <span className="opacity-50">+ 名稱</span>
+                              ) : null}
                             </div>
                           )}
                         </div>
@@ -1199,9 +1214,15 @@ export default function MainPage() {
                               )
                             }}
                           >
-                            {daySchedule?.theme && daySchedule.theme !== `Day ${day}`
-                              ? daySchedule.theme
-                              : isAdmin ? <span className="opacity-50">+ 名稱</span> : null}
+                            {dayLabelSaving === day ? (
+                              <span className="opacity-70">⏳</span>
+                            ) : dayLabelSaveError === day ? (
+                              <span className="text-red-300" title="儲存失敗，請重試">⚠️</span>
+                            ) : daySchedule?.theme && daySchedule.theme !== `Day ${day}` ? (
+                              daySchedule.theme
+                            ) : isAdmin ? (
+                              <span className="opacity-50">+ 名稱</span>
+                            ) : null}
                           </div>
                         )}
                         {/* Remove button - Actual Admin only, show on last day when hovering */}

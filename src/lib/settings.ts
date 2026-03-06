@@ -164,6 +164,11 @@ export function getSettings(): SiteSettings {
   return getLocalSettings()
 }
 
+// Helper: check if daySchedules contain any custom (non-default) names
+function hasCustomDayNames(daySchedules: DaySchedule[]): boolean {
+  return daySchedules.some((d) => d.theme && d.theme !== `Day ${d.dayNumber}`)
+}
+
 // Async get - fetches from Supabase and updates cache
 export async function getSettingsAsync(): Promise<SiteSettings> {
   // If cache is valid, return local settings
@@ -178,15 +183,17 @@ export async function getSettingsAsync(): Promise<SiteSettings> {
     
     if (dbSettings) {
       const settings = fromSupabaseFormat(dbSettings)
-      // If Supabase has real data, merge with local (prefer Supabase but keep local defaults)
+      // If Supabase has real data, decide which source is more up-to-date
       if (settings) {
-        // Only update if Supabase data is more complete (has trips and daySchedules)
         const supabaseHasData = settings.daySchedules && settings.daySchedules.length > 0
-        const localHasData = localSettings.daySchedules && localSettings.daySchedules.length > 0
-        
-        // If both have data, prefer the one with more totalDays (more complete data)
-        // If only one has data, use that one
-        if (supabaseHasData && (!localHasData || settings.totalDays >= localSettings.totalDays)) {
+        const supabaseHasCustomNames = supabaseHasData ? hasCustomDayNames(settings.daySchedules!) : false
+        const localHasCustomNames = localSettings.daySchedules ? hasCustomDayNames(localSettings.daySchedules) : false
+
+        // Use Supabase when:
+        // 1. Supabase has custom day names (intentionally saved data), OR
+        // 2. Neither has custom names but Supabase has more/equal total days
+        // Do NOT overwrite local custom names with Supabase defaults (handles save failures)
+        if (supabaseHasData && (supabaseHasCustomNames || (!localHasCustomNames && settings.totalDays >= localSettings.totalDays))) {
           saveLocalSettings(settings)
           return settings
         }
@@ -196,7 +203,7 @@ export async function getSettingsAsync(): Promise<SiteSettings> {
     console.error('Error fetching settings from Supabase:', err)
   }
   
-  // Fallback to local settings (more conservative - don't lose local data)
+  // Fallback to local settings (preserves custom names even if Supabase save had failed)
   return localSettings
 }
 
