@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { createTrip, updateTrip, saveSupabaseChecklistState, type Trip } from '@/lib/supabase'
+import { createTrip, updateTrip, saveSupabaseChecklistState, subscribeToSettingsChanges, type Trip } from '@/lib/supabase'
 import { useTrips, useCreateTrip, useUpdateTrip, useDeleteTrip, useChecklistStates, useWishlistItems, queryKeys } from '@/hooks/useQueries'
 import { type WishlistItemDB } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
@@ -409,6 +409,21 @@ export default function MainPage() {
     }
 
     initializeData()
+
+    // Realtime: re-fetch settings whenever another client saves them
+    const unsubscribeSettings = subscribeToSettingsChanges(async () => {
+      localStorage.removeItem('site_settings_cache_time') // Invalidate cache
+      try {
+        const freshSettings = await getSettingsAsync()
+        if (freshSettings) setSettings(freshSettings)
+      } catch (err) {
+        console.warn('Realtime settings refresh failed:', err)
+      }
+    })
+
+    return () => {
+      unsubscribeSettings()
+    }
   }, [])
   
   // Toggle trip description expansion

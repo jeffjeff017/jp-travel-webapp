@@ -237,6 +237,22 @@ export async function saveSupabaseSiteSettings(settings: Partial<Omit<SiteSettin
   }
 }
 
+// Subscribe to site_settings table changes (Realtime)
+export function subscribeToSettingsChanges(callback: () => void): () => void {
+  const channel = supabase
+    .channel('site_settings_realtime')
+    .on(
+      'postgres_changes' as any,
+      { event: '*', schema: 'public', table: 'site_settings' },
+      () => callback()
+    )
+    .subscribe()
+
+  return () => {
+    supabase.removeChannel(channel)
+  }
+}
+
 // ============================================
 // Users
 // ============================================
