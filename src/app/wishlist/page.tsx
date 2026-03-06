@@ -723,12 +723,12 @@ export default function WishlistPage() {
           </div>
           
           {/* Category Tabs - Airbnb style */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2 overflow-x-auto">
             {CATEGORIES.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setActiveTab(cat.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full whitespace-nowrap transition-all ${
+                className={`flex-1 min-w-max flex items-center justify-center gap-2 px-4 py-2 rounded-full whitespace-nowrap transition-all ${
                   activeTab === cat.id
                     ? 'bg-gray-900 text-white'
                     : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
