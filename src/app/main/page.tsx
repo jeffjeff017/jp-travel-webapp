@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
@@ -222,6 +222,7 @@ export default function MainPage() {
   const [editingDayLabelValue, setEditingDayLabelValue] = useState('')
   const [dayLabelSaving, setDayLabelSaving] = useState<number | null>(null)
   const [dayLabelSaveError, setDayLabelSaveError] = useState<number | null>(null)
+  const dayLabelSavingRef = useRef(false) // prevent double-call from onBlur + onKeyDown(Enter)
   const [currentUser, setCurrentUser] = useState<{ username: string; role: string; displayName: string; avatarUrl?: string } | null>(null)
   
   // Mobile map popup state
@@ -657,7 +658,8 @@ export default function MainPage() {
 
   // Save day label inline edit
   const handleSaveDayLabel = async (dayNumber: number) => {
-    if (!settings) return
+    if (!settings || dayLabelSavingRef.current) return
+    dayLabelSavingRef.current = true
     const newLabel = editingDayLabelValue.trim() || `Day ${dayNumber}`
     const existing = settings.daySchedules || []
     const updated = Array.from({ length: settings.totalDays }, (_, i) => {
@@ -670,11 +672,16 @@ export default function MainPage() {
     setEditingDayLabel(null)
     setDayLabelSaving(dayNumber)
     setDayLabelSaveError(null)
-    const result = await saveSettingsAsync(newSettings)
-    setDayLabelSaving(null)
-    if (!result.success) {
-      setDayLabelSaveError(dayNumber)
-      setTimeout(() => setDayLabelSaveError(null), 3000)
+    try {
+      const result = await saveSettingsAsync(newSettings)
+      if (!result.success) {
+        console.error('[Day Label] Supabase save failed:', result.error)
+        setDayLabelSaveError(dayNumber)
+        setTimeout(() => setDayLabelSaveError(null), 3000)
+      }
+    } finally {
+      setDayLabelSaving(null)
+      dayLabelSavingRef.current = false
     }
   }
 
@@ -1098,7 +1105,7 @@ export default function MainPage() {
                               onChange={(e) => setEditingDayLabelValue(e.target.value)}
                               onBlur={() => handleSaveDayLabel(day)}
                               onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveDayLabel(day)
+                                if (e.key === 'Enter') { e.preventDefault(); handleSaveDayLabel(day) }
                                 if (e.key === 'Escape') setEditingDayLabel(null)
                               }}
                               onClick={(e) => e.stopPropagation()}
@@ -1194,7 +1201,7 @@ export default function MainPage() {
                             onChange={(e) => setEditingDayLabelValue(e.target.value)}
                             onBlur={() => handleSaveDayLabel(day)}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleSaveDayLabel(day)
+                              if (e.key === 'Enter') { e.preventDefault(); handleSaveDayLabel(day) }
                               if (e.key === 'Escape') setEditingDayLabel(null)
                             }}
                             onClick={(e) => e.stopPropagation()}

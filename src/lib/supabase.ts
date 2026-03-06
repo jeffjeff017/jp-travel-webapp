@@ -226,13 +226,13 @@ export async function saveSupabaseSiteSettings(settings: Partial<Omit<SiteSettin
       })
 
     if (error) {
-      console.error('Error saving site settings:', error)
+      console.error('[Supabase] site_settings save error:', error.code, error.message, error.details)
       return { success: false, error: error.message }
     }
 
     return { success: true, error: null }
   } catch (err: any) {
-    console.error('Save site settings error:', err)
+    console.error('[Supabase] site_settings save exception:', err)
     return { success: false, error: err.message || '儲存設定時發生錯誤' }
   }
 }
