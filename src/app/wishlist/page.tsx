@@ -723,7 +723,9 @@ export default function WishlistPage() {
           </div>
           
           {/* Category Tabs - Airbnb style */}
-          <div className="flex gap-2 overflow-x-auto">
+          {/* -mx-4 breaks out of parent px-4 so tabs reach both screen edges */}
+          <div className="-mx-4 overflow-x-auto">
+            <div className="flex gap-2 px-4 pr-4">
             {CATEGORIES.map((cat) => (
               <button
                 key={cat.id}
@@ -745,8 +747,8 @@ export default function WishlistPage() {
                 )}
               </button>
             ))}
+            </div>
           </div>
-          
 
         </div>
       </header>
