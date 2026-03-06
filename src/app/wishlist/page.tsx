@@ -1055,18 +1055,6 @@ export default function WishlistPage() {
                     />
                   </div>
                   
-                  {/* Note */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
-                    <textarea
-                      value={newItemNote}
-                      onChange={(e) => setNewItemNote(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none resize-none"
-                      placeholder="輸入備註..."
-                      rows={2}
-                    />
-                  </div>
-                  
                   {/* URL */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">網址</label>
@@ -1076,6 +1064,18 @@ export default function WishlistPage() {
                       onChange={(e) => setNewItemUrl(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none"
                       placeholder="https://..."
+                    />
+                  </div>
+
+                  {/* Note */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
+                    <textarea
+                      value={newItemNote}
+                      onChange={(e) => setNewItemNote(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none resize-none"
+                      placeholder="輸入備註..."
+                      rows={2}
                     />
                   </div>
                 </div>
