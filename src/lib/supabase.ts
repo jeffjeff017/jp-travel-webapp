@@ -33,7 +33,8 @@ export async function getTrips(): Promise<Trip[]> {
     const { data, error } = await supabase
       .from('trips')
       .select('*')
-      .order('date', { ascending: false })
+      .order('date', { ascending: true })
+      .order('created_at', { ascending: true })
 
     if (error) {
       console.error('Error fetching trips:', error.message)

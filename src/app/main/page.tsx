@@ -734,7 +734,10 @@ export default function MainPage() {
     
     // Sort by time_start (trips without time go to the end)
     return filtered.sort((a, b) => {
-      if (!a.time_start && !b.time_start) return 0
+      if (!a.time_start && !b.time_start) {
+        // Fall back to creation order (oldest first)
+        return (a.created_at || '').localeCompare(b.created_at || '')
+      }
       if (!a.time_start) return 1
       if (!b.time_start) return -1
       return a.time_start.localeCompare(b.time_start)
