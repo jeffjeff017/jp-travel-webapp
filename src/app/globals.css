@@ -26,48 +26,20 @@ body {
   min-height: -webkit-fill-available;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #fef7f7;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #f7b8c5;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #f18ca4;
-}
-
-/* Horizontal scrollbar for day tabs */
-.day-tabs-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: #f7b8c5 transparent;
-}
-
-.day-tabs-scroll::-webkit-scrollbar {
-  height: 4px;
-}
-
-.day-tabs-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.day-tabs-scroll::-webkit-scrollbar-thumb {
-  background: #f7b8c5;
-  border-radius: 2px;
-}
-
-/* Hide scrollbar but keep functionality */
-.scrollbar-hide {
-  -ms-overflow-style: none;
+/* Hide all scrollbars globally while keeping scroll functionality */
+* {
   scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* Legacy utility class kept for backwards compatibility */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .scrollbar-hide::-webkit-scrollbar {

@@ -165,7 +165,9 @@ export default function AdminPage() {
     tripStartDate: '',
     totalDays: 3,
     daySchedules: [] as { dayNumber: number; theme: string; imageUrl?: string }[],
-    homeLocationImageUrl: ''
+    homeLocationImageUrl: '',
+    homeLocationName: '',
+    homeLocationAddress: ''
   })
   // User management state
   const [showUserManagement, setShowUserManagement] = useState(false)
@@ -443,7 +445,9 @@ export default function AdminPage() {
         tripStartDate: settings.tripStartDate || new Date().toISOString().split('T')[0],
         totalDays: settings.totalDays || 3,
         daySchedules: settings.daySchedules || [],
-        homeLocationImageUrl: settings.homeLocation?.imageUrl || ''
+        homeLocationImageUrl: settings.homeLocation?.imageUrl || '',
+        homeLocationName: settings.homeLocation?.name || '',
+        homeLocationAddress: settings.homeLocation?.address || ''
       })
       setRecaptchaEnabled(settings.recaptchaEnabled || false)
       // Load chiikawa messages with defaults
@@ -789,9 +793,11 @@ export default function AdminPage() {
       return existing || { dayNumber: i + 1, theme: `Day ${i + 1}` }
     })
     
-    // Update home location with image
+    // Update home location with name, address and image
     const updatedHomeLocation = {
       ...siteSettings!.homeLocation,
+      name: settingsForm.homeLocationName || siteSettings!.homeLocation?.name || '我的住所',
+      address: settingsForm.homeLocationAddress || siteSettings!.homeLocation?.address || '',
       imageUrl: settingsForm.homeLocationImageUrl || undefined
     }
     
@@ -1543,11 +1549,37 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  {/* Home Location Image */}
+                  {/* Home Location */}
                   <div className="border-t border-gray-100 pt-6">
                     <h4 className="text-sm font-medium text-gray-800 mb-4 flex items-center gap-2">
                       🏠 住所設定
                     </h4>
+                    <div className="space-y-3 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          住所名稱
+                        </label>
+                        <input
+                          type="text"
+                          value={settingsForm.homeLocationName}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, homeLocationName: e.target.value })}
+                          placeholder="例如：我的住所"
+                          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          住所地址
+                        </label>
+                        <input
+                          type="text"
+                          value={settingsForm.homeLocationAddress}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, homeLocationAddress: e.target.value })}
+                          placeholder="例如：4-chōme-18-6 Kamezawa, Sumida City..."
+                          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400"
+                        />
+                      </div>
+                    </div>
                     <MediaUpload
                       label="住所圖片"
                       value={settingsForm.homeLocationImageUrl}
