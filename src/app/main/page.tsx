@@ -218,6 +218,8 @@ export default function MainPage() {
   // Check if user can edit (admin or regular user like "girl")
   const [isAdmin, setIsAdmin] = useState(false)
   const [isActualAdmin, setIsActualAdmin] = useState(false) // True only for admin role
+  const [editingDayLabel, setEditingDayLabel] = useState<number | null>(null)
+  const [editingDayLabelValue, setEditingDayLabelValue] = useState('')
   const [currentUser, setCurrentUser] = useState<{ username: string; role: string; displayName: string; avatarUrl?: string } | null>(null)
   
   // Mobile map popup state
@@ -636,6 +638,22 @@ export default function MainPage() {
     setFormMessage(null)
   }
 
+  // Save day label inline edit
+  const handleSaveDayLabel = async (dayNumber: number) => {
+    if (!settings) return
+    const newLabel = editingDayLabelValue.trim() || `Day ${dayNumber}`
+    const existing = settings.daySchedules || []
+    const updated = Array.from({ length: settings.totalDays }, (_, i) => {
+      const found = existing.find(d => d.dayNumber === i + 1)
+      if (i + 1 === dayNumber) return { ...(found || { dayNumber }), theme: newLabel }
+      return found || { dayNumber: i + 1, theme: `Day ${i + 1}` }
+    })
+    const newSettings = { ...settings, daySchedules: updated }
+    setSettings(newSettings)
+    saveSettingsAsync(newSettings)
+    setEditingDayLabel(null)
+  }
+
   // Remove the last day
   const handleRemoveDay = () => {
     if (!settings || settings.totalDays <= 1) return
@@ -1027,10 +1045,11 @@ export default function MainPage() {
                   <div className="flex gap-2 pb-1" style={{ minWidth: 'max-content' }}>
                     {Array.from({ length: settings.totalDays }, (_, i) => i + 1).map((day) => {
                       const daySchedule = settings.daySchedules?.find(d => d.dayNumber === day)
+                      const isEditingThis = editingDayLabel === day
                       return (
                         <div
                           key={day}
-                          onClick={() => setSelectedDay(day)}
+                          onClick={() => { if (!isEditingThis) setSelectedDay(day) }}
                           className={`flex-shrink-0 w-[100px] py-2 px-3 text-sm font-medium transition-all rounded-lg cursor-pointer text-center ${
                             selectedDay === day
                               ? 'bg-sakura-500 text-white shadow-md'
@@ -1046,9 +1065,39 @@ export default function MainPage() {
                           </div>
                           {/* Day Number */}
                           <div className="font-bold text-center whitespace-nowrap">Day {day}</div>
-                          {/* Theme */}
-                          {daySchedule?.theme && daySchedule.theme !== `Day ${day}` && (
-                            <div className="text-xs mt-0.5 truncate text-center">{daySchedule.theme}</div>
+                          {/* Theme / Inline Edit */}
+                          {isAdmin && isEditingThis ? (
+                            <input
+                              autoFocus
+                              type="text"
+                              value={editingDayLabelValue}
+                              onChange={(e) => setEditingDayLabelValue(e.target.value)}
+                              onBlur={() => handleSaveDayLabel(day)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveDayLabel(day)
+                                if (e.key === 'Escape') setEditingDayLabel(null)
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              placeholder={`Day ${day}`}
+                              className="mt-1 w-full text-xs text-center bg-white/30 border border-white/60 rounded px-1 py-0.5 outline-none placeholder-white/60"
+                            />
+                          ) : (
+                            <div
+                              className={`text-xs mt-0.5 truncate text-center ${isAdmin ? 'cursor-text hover:underline' : ''}`}
+                              onClick={(e) => {
+                                if (!isAdmin) return
+                                e.stopPropagation()
+                                setSelectedDay(day)
+                                setEditingDayLabel(day)
+                                setEditingDayLabelValue(
+                                  daySchedule?.theme && daySchedule.theme !== `Day ${day}` ? daySchedule.theme : ''
+                                )
+                              }}
+                            >
+                              {daySchedule?.theme && daySchedule.theme !== `Day ${day}`
+                                ? daySchedule.theme
+                                : isAdmin ? <span className="opacity-50">+ 名稱</span> : null}
+                            </div>
                           )}
                         </div>
                       )
@@ -1106,9 +1155,39 @@ export default function MainPage() {
                         </div>
                         {/* Day Number */}
                         <div className="font-bold text-center whitespace-nowrap">Day {day}</div>
-                        {/* Theme */}
-                        {daySchedule?.theme && daySchedule.theme !== `Day ${day}` && (
-                          <div className="text-xs mt-0.5 truncate text-center max-w-[60px]">{daySchedule.theme}</div>
+                        {/* Theme / Inline Edit */}
+                        {isAdmin && editingDayLabel === day ? (
+                          <input
+                            autoFocus
+                            type="text"
+                            value={editingDayLabelValue}
+                            onChange={(e) => setEditingDayLabelValue(e.target.value)}
+                            onBlur={() => handleSaveDayLabel(day)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveDayLabel(day)
+                              if (e.key === 'Escape') setEditingDayLabel(null)
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder={`Day ${day}`}
+                            className="mt-1 w-full text-xs text-center bg-white/30 border border-white/60 rounded px-1 py-0.5 outline-none placeholder-white/60"
+                          />
+                        ) : (
+                          <div
+                            className={`text-xs mt-0.5 truncate text-center max-w-[80px] mx-auto ${isAdmin ? 'cursor-text hover:underline' : ''}`}
+                            onClick={(e) => {
+                              if (!isAdmin) return
+                              e.stopPropagation()
+                              setSelectedDay(day)
+                              setEditingDayLabel(day)
+                              setEditingDayLabelValue(
+                                daySchedule?.theme && daySchedule.theme !== `Day ${day}` ? daySchedule.theme : ''
+                              )
+                            }}
+                          >
+                            {daySchedule?.theme && daySchedule.theme !== `Day ${day}`
+                              ? daySchedule.theme
+                              : isAdmin ? <span className="opacity-50">+ 名稱</span> : null}
+                          </div>
                         )}
                         {/* Remove button - Actual Admin only, show on last day when hovering */}
                         {isActualAdmin && day === settings.totalDays && settings.totalDays > 1 && (
