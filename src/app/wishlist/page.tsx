@@ -515,13 +515,9 @@ export default function WishlistPage() {
       items = wishlist[activeTab] || []
     }
     
-    // Apply district filter
+    // Apply area filter (exact area match)
     if (activeAreaFilter) {
-      const district = TOKYO_DISTRICTS.find(d => d.id === activeAreaFilter)
-      if (district) {
-        const areaIds = new Set(district.areas.map(a => a.id))
-        items = items.filter(item => item.area && areaIds.has(item.area))
-      }
+      items = items.filter(item => item.area === activeAreaFilter)
     }
 
     // Apply search filter if there's a query
@@ -551,21 +547,21 @@ export default function WishlistPage() {
     return items
   }
   
-  // Districts that have at least one item under the current tab (ignoring area/search filters)
-  const availableDistricts = useMemo(() => {
+  // Individual areas that have at least one item under the current tab (ignoring area/search filters)
+  const availableAreas = useMemo(() => {
     const baseItems: WishlistItem[] =
       activeTab === 'all' ? Object.values(wishlist).flat() : (wishlist[activeTab] || [])
     const usedAreaIds = new Set(baseItems.map(i => i.area).filter(Boolean))
-    return TOKYO_DISTRICTS.filter(d => d.areas.some(a => usedAreaIds.has(a.id)))
+    return TOKYO_AREAS.filter(a => usedAreaIds.has(a.id))
   }, [wishlist, activeTab])
 
-  // Reset area filter when the selected district has no items in the new tab
+  // Reset area filter when the selected area has no items in the new tab
   useEffect(() => {
     if (activeAreaFilter) {
-      const stillValid = availableDistricts.some(d => d.id === activeAreaFilter)
+      const stillValid = availableAreas.some(a => a.id === activeAreaFilter)
       if (!stillValid) setActiveAreaFilter('')
     }
-  }, [availableDistricts, activeAreaFilter])
+  }, [availableAreas, activeAreaFilter])
 
   // Get current category for adding
   const getCurrentCategory = () => {
@@ -834,11 +830,11 @@ export default function WishlistPage() {
       {/* Content - Airbnb grid */}
       <div className="container mx-auto px-4 py-6">
 
-        {/* District filter — only shown when 2+ districts have items */}
-        {!isLoading && availableDistricts.length >= 2 && (
+        {/* Area filter — only shown when 2+ individual areas have items */}
+        {!isLoading && availableAreas.length >= 2 && (
           <div className="-mx-4 overflow-x-auto mb-4">
             <div className="flex gap-2 px-4 pr-4 items-center">
-              {/* "全部" clear chip — shown only when a district is active */}
+              {/* "全部" clear chip — shown only when a filter is active */}
               {activeAreaFilter && (
                 <button
                   onClick={() => setActiveAreaFilter('')}
@@ -848,26 +844,22 @@ export default function WishlistPage() {
                   全部
                 </button>
               )}
-              {availableDistricts.map(d => {
-                const isActive = activeAreaFilter === d.id
-                const count = (() => {
-                  const baseItems: WishlistItem[] =
-                    activeTab === 'all' ? Object.values(wishlist).flat() : (wishlist[activeTab] || [])
-                  const areaIds = new Set(d.areas.map(a => a.id))
-                  return baseItems.filter(i => i.area && areaIds.has(i.area)).length
-                })()
+              {availableAreas.map(area => {
+                const isActive = activeAreaFilter === area.id
+                const baseItems: WishlistItem[] =
+                  activeTab === 'all' ? Object.values(wishlist).flat() : (wishlist[activeTab] || [])
+                const count = baseItems.filter(i => i.area === area.id).length
                 return (
                   <button
-                    key={d.id}
-                    onClick={() => setActiveAreaFilter(isActive ? '' : d.id)}
+                    key={area.id}
+                    onClick={() => setActiveAreaFilter(isActive ? '' : area.id)}
                     className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
                       isActive
                         ? 'bg-gray-900 text-white'
                         : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-400'
                     }`}
                   >
-                    <span>{d.icon}</span>
-                    <span>{d.label}</span>
+                    <span>{area.zh}</span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{count}</span>
                   </button>
                 )
