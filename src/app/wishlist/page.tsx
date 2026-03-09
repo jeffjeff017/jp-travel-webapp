@@ -21,53 +21,102 @@ import ChiikawaPet from '@/components/ChiikawaPet'
 import { safeSetItem } from '@/lib/safeStorage'
 
 // Tokyo district areas
-const TOKYO_AREAS = [
-  { id: 'shibuya',          zh: '渋谷',     en: 'Shibuya' },
-  { id: 'shinjuku',         zh: '新宿',     en: 'Shinjuku' },
-  { id: 'harajuku',         zh: '原宿',     en: 'Harajuku' },
-  { id: 'omotesando',       zh: '表参道',   en: 'Omotesando' },
-  { id: 'aoyama',           zh: '青山',     en: 'Aoyama' },
-  { id: 'ginza',            zh: '銀座',     en: 'Ginza' },
-  { id: 'roppongi',         zh: '六本木',   en: 'Roppongi' },
-  { id: 'akasaka',          zh: '赤坂',     en: 'Akasaka' },
-  { id: 'azabujuban',       zh: '麻布十番', en: 'Azabu-Juban' },
-  { id: 'hiro',             zh: '広尾',     en: 'Hiro' },
-  { id: 'ebisu',            zh: '恵比寿',   en: 'Ebisu' },
-  { id: 'daikanyama',       zh: '代官山',   en: 'Daikanyama' },
-  { id: 'nakameguro',       zh: '中目黒',   en: 'Nakameguro' },
-  { id: 'shimokitazawa',    zh: '下北沢',   en: 'Shimokitazawa' },
-  { id: 'sangenjaya',       zh: '三軒茶屋', en: 'Sangenjaya' },
-  { id: 'jiyugaoka',        zh: '自由が丘', en: 'Jiyugaoka' },
-  { id: 'futakotamagawa',   zh: '二子玉川', en: 'Futakotamagawa' },
-  { id: 'kichijoji',        zh: '吉祥寺',   en: 'Kichijoji' },
-  { id: 'koenji',           zh: '高円寺',   en: 'Koenji' },
-  { id: 'ogikubo',          zh: '荻窪',     en: 'Ogikubo' },
-  { id: 'ikebukuro',        zh: '池袋',     en: 'Ikebukuro' },
-  { id: 'kagurazaka',       zh: '神楽坂',   en: 'Kagurazaka' },
-  { id: 'iidabashi',        zh: '飯田橋',   en: 'Iidabashi' },
-  { id: 'jimbocho',         zh: '神保町',   en: 'Jimbocho' },
-  { id: 'ochanomizu',       zh: '御茶ノ水', en: 'Ochanomizu' },
-  { id: 'akihabara',        zh: '秋葉原',   en: 'Akihabara' },
-  { id: 'ueno',             zh: '上野',     en: 'Ueno' },
-  { id: 'asakusa',          zh: '浅草',     en: 'Asakusa' },
-  { id: 'yanaka',           zh: '谷根千',   en: 'Yanaka' },
-  { id: 'kuramae',          zh: '蔵前',     en: 'Kuramae' },
-  { id: 'kiyosumishirakawa',zh: '清澄白河', en: 'Kiyosumi-Shirakawa' },
-  { id: 'ryogoku',          zh: '両国',     en: 'Ryogoku' },
-  { id: 'kinshicho',        zh: '錦糸町',   en: 'Kinshicho' },
-  { id: 'kitasenju',        zh: '北千住',   en: 'Kita-Senju' },
-  { id: 'nihonbashi',       zh: '日本橋',   en: 'Nihonbashi' },
-  { id: 'yurakucho',        zh: '有楽町',   en: 'Yurakucho' },
-  { id: 'marunouchi',       zh: '丸の内',   en: 'Marunouchi' },
-  { id: 'otemachi',         zh: '大手町',   en: 'Otemachi' },
-  { id: 'tsukiji',          zh: '築地',     en: 'Tsukiji' },
-  { id: 'shimbashi',        zh: '新橋',     en: 'Shimbashi' },
-  { id: 'toyosu',           zh: '豊洲',     en: 'Toyosu' },
-  { id: 'odaiba',           zh: '台場',     en: 'Odaiba' },
-  { id: 'shinagawa',        zh: '品川',     en: 'Shinagawa' },
-  { id: 'machida',          zh: '町田',     en: 'Machida' },
-  { id: 'tachikawa',        zh: '立川',     en: 'Tachikawa' },
+// Grouped district structure (parent → children)
+const TOKYO_DISTRICTS = [
+  {
+    id: 'east', label: '東東京', en: 'East Tokyo', icon: '🏮',
+    areas: [
+      { id: 'asakusa',          zh: '浅草',     en: 'Asakusa' },
+      { id: 'ueno',             zh: '上野',     en: 'Ueno' },
+      { id: 'akihabara',        zh: '秋葉原',   en: 'Akihabara' },
+      { id: 'yanaka',           zh: '谷根千',   en: 'Yanaka' },
+      { id: 'kuramae',          zh: '蔵前',     en: 'Kuramae' },
+      { id: 'kiyosumishirakawa',zh: '清澄白河', en: 'Kiyosumi-Shirakawa' },
+      { id: 'ryogoku',          zh: '両国',     en: 'Ryogoku' },
+      { id: 'kinshicho',        zh: '錦糸町',   en: 'Kinshicho' },
+      { id: 'kitasenju',        zh: '北千住',   en: 'Kita-Senju' },
+    ],
+  },
+  {
+    id: 'shibuya_area', label: '渋谷エリア', en: 'Shibuya Area', icon: '🛍️',
+    areas: [
+      { id: 'shibuya',          zh: '渋谷',     en: 'Shibuya' },
+      { id: 'harajuku',         zh: '原宿',     en: 'Harajuku' },
+      { id: 'omotesando',       zh: '表参道',   en: 'Omotesando' },
+      { id: 'aoyama',           zh: '青山',     en: 'Aoyama' },
+      { id: 'ebisu',            zh: '恵比寿',   en: 'Ebisu' },
+      { id: 'daikanyama',       zh: '代官山',   en: 'Daikanyama' },
+      { id: 'nakameguro',       zh: '中目黒',   en: 'Nakameguro' },
+    ],
+  },
+  {
+    id: 'shinjuku_area', label: '新宿エリア', en: 'Shinjuku Area', icon: '🌃',
+    areas: [
+      { id: 'shinjuku',         zh: '新宿',     en: 'Shinjuku' },
+      { id: 'shimokitazawa',    zh: '下北沢',   en: 'Shimokitazawa' },
+      { id: 'sangenjaya',       zh: '三軒茶屋', en: 'Sangenjaya' },
+      { id: 'jiyugaoka',        zh: '自由が丘', en: 'Jiyugaoka' },
+      { id: 'futakotamagawa',   zh: '二子玉川', en: 'Futakotamagawa' },
+    ],
+  },
+  {
+    id: 'central', label: '都心', en: 'Central Tokyo', icon: '🏙️',
+    areas: [
+      { id: 'ginza',            zh: '銀座',     en: 'Ginza' },
+      { id: 'tsukiji',          zh: '築地',     en: 'Tsukiji' },
+      { id: 'shimbashi',        zh: '新橋',     en: 'Shimbashi' },
+      { id: 'nihonbashi',       zh: '日本橋',   en: 'Nihonbashi' },
+      { id: 'yurakucho',        zh: '有楽町',   en: 'Yurakucho' },
+      { id: 'marunouchi',       zh: '丸の内',   en: 'Marunouchi' },
+      { id: 'otemachi',         zh: '大手町',   en: 'Otemachi' },
+    ],
+  },
+  {
+    id: 'minato', label: '港区', en: 'Minato', icon: '🌆',
+    areas: [
+      { id: 'roppongi',         zh: '六本木',   en: 'Roppongi' },
+      { id: 'akasaka',          zh: '赤坂',     en: 'Akasaka' },
+      { id: 'azabujuban',       zh: '麻布十番', en: 'Azabu-Juban' },
+      { id: 'hiro',             zh: '広尾',     en: 'Hiro' },
+    ],
+  },
+  {
+    id: 'north', label: '北エリア', en: 'North Area', icon: '🎓',
+    areas: [
+      { id: 'ikebukuro',        zh: '池袋',     en: 'Ikebukuro' },
+      { id: 'kagurazaka',       zh: '神楽坂',   en: 'Kagurazaka' },
+      { id: 'iidabashi',        zh: '飯田橋',   en: 'Iidabashi' },
+      { id: 'jimbocho',         zh: '神保町',   en: 'Jimbocho' },
+      { id: 'ochanomizu',       zh: '御茶ノ水', en: 'Ochanomizu' },
+    ],
+  },
+  {
+    id: 'west', label: '西エリア', en: 'West Area', icon: '🌿',
+    areas: [
+      { id: 'kichijoji',        zh: '吉祥寺',   en: 'Kichijoji' },
+      { id: 'koenji',           zh: '高円寺',   en: 'Koenji' },
+      { id: 'ogikubo',          zh: '荻窪',     en: 'Ogikubo' },
+    ],
+  },
+  {
+    id: 'bay', label: '湾岸', en: 'Bay Area', icon: '🌊',
+    areas: [
+      { id: 'toyosu',           zh: '豊洲',     en: 'Toyosu' },
+      { id: 'odaiba',           zh: '台場',     en: 'Odaiba' },
+      { id: 'shinagawa',        zh: '品川',     en: 'Shinagawa' },
+    ],
+  },
+  {
+    id: 'suburbs', label: '郊外', en: 'Suburbs', icon: '🌸',
+    areas: [
+      { id: 'machida',          zh: '町田',     en: 'Machida' },
+      { id: 'tachikawa',        zh: '立川',     en: 'Tachikawa' },
+    ],
+  },
 ]
+
+// Flat list derived from grouped structure (backwards compatible IDs)
+const TOKYO_AREAS = TOKYO_DISTRICTS.flatMap(d => d.areas)
 
 // Main categories
 const CATEGORIES = [
@@ -233,6 +282,7 @@ export default function WishlistPage() {
   const areaDropdownRef = useRef<HTMLDivElement>(null)
   const [selectedItemPopup, setSelectedItemPopup] = useState<WishlistItem | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [activeAreaFilter, setActiveAreaFilter] = useState('')
 
   // Close area dropdown on outside click
   useEffect(() => {
@@ -465,6 +515,15 @@ export default function WishlistPage() {
       items = wishlist[activeTab] || []
     }
     
+    // Apply district filter
+    if (activeAreaFilter) {
+      const district = TOKYO_DISTRICTS.find(d => d.id === activeAreaFilter)
+      if (district) {
+        const areaIds = new Set(district.areas.map(a => a.id))
+        items = items.filter(item => item.area && areaIds.has(item.area))
+      }
+    }
+
     // Apply search filter if there's a query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
@@ -692,7 +751,10 @@ export default function WishlistPage() {
       <header className="sticky top-0 z-40 bg-white border-b border-gray-100">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-semibold text-gray-800">心願清單</h1>
+            <h1 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+              <img src="/images/gonggu card_1-04-nobg.png" alt="" className="w-7 h-7 object-contain" />
+              心願清單
+            </h1>
             <button
               onClick={() => setShowAddForm(true)}
               className="flex items-center gap-1.5 px-4 py-2 bg-sakura-500 hover:bg-sakura-600 text-white rounded-full text-sm font-medium transition-colors"
@@ -747,6 +809,36 @@ export default function WishlistPage() {
                 )}
               </button>
             ))}
+            </div>
+          </div>
+
+          {/* District Filter Chips */}
+          <div className="-mx-4 overflow-x-auto mt-2">
+            <div className="flex gap-1.5 px-4 pr-4">
+              <button
+                onClick={() => setActiveAreaFilter('')}
+                className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                  !activeAreaFilter
+                    ? 'bg-sakura-500 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                全部地區
+              </button>
+              {TOKYO_DISTRICTS.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => setActiveAreaFilter(activeAreaFilter === d.id ? '' : d.id)}
+                  className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                    activeAreaFilter === d.id
+                      ? 'bg-sakura-500 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <span>{d.icon}</span>
+                  <span>{d.label}</span>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -977,9 +1069,8 @@ export default function WishlistPage() {
                             autoFocus
                           />
                         </div>
-                        {/* Option list */}
-                        <div className="max-h-48 overflow-y-auto">
-                          {/* Clear option */}
+                        {/* Option list — grouped by district */}
+                        <div className="max-h-60 overflow-y-auto">
                           <button
                             type="button"
                             onClick={() => { setNewItemArea(''); setAreaDropdownOpen(false); setAreaSearch('') }}
@@ -987,26 +1078,42 @@ export default function WishlistPage() {
                           >
                             — 不選擇
                           </button>
-                          {TOKYO_AREAS.filter(a => {
+                          {(() => {
                             const q = areaSearch.toLowerCase()
-                            return !q || a.zh.includes(q) || a.en.toLowerCase().includes(q) || a.id.includes(q)
-                          }).map(a => (
-                            <button
-                              key={a.id}
-                              type="button"
-                              onClick={() => { setNewItemArea(a.id); setAreaDropdownOpen(false); setAreaSearch('') }}
-                              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-sakura-50 flex items-center justify-between ${newItemArea === a.id ? 'bg-sakura-50 text-sakura-700 font-medium' : 'text-gray-700'}`}
-                            >
-                              <span>{a.zh}</span>
-                              <span className="text-gray-400 text-xs">{a.en}</span>
-                            </button>
-                          ))}
-                          {TOKYO_AREAS.filter(a => {
-                            const q = areaSearch.toLowerCase()
-                            return !q || a.zh.includes(q) || a.en.toLowerCase().includes(q) || a.id.includes(q)
-                          }).length === 0 && (
-                            <div className="px-4 py-3 text-sm text-gray-400 text-center">沒有結果</div>
-                          )}
+                            const hasResults = TOKYO_DISTRICTS.some(d =>
+                              d.areas.some(a => !q || a.zh.includes(q) || a.en.toLowerCase().includes(q))
+                            )
+                            if (!hasResults) {
+                              return <div className="px-4 py-3 text-sm text-gray-400 text-center">沒有結果</div>
+                            }
+                            return TOKYO_DISTRICTS.map(district => {
+                              const filtered = district.areas.filter(a =>
+                                !q || a.zh.includes(q) || a.en.toLowerCase().includes(q)
+                              )
+                              if (filtered.length === 0) return null
+                              return (
+                                <div key={district.id}>
+                                  <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 bg-gray-50 flex items-center gap-1 sticky top-0">
+                                    <span>{district.icon}</span>
+                                    <span>{district.label}</span>
+                                    <span className="text-gray-300">·</span>
+                                    <span className="font-normal">{district.en}</span>
+                                  </div>
+                                  {filtered.map(a => (
+                                    <button
+                                      key={a.id}
+                                      type="button"
+                                      onClick={() => { setNewItemArea(a.id); setAreaDropdownOpen(false); setAreaSearch('') }}
+                                      className={`w-full text-left px-5 py-2.5 text-sm hover:bg-sakura-50 flex items-center justify-between transition-colors ${newItemArea === a.id ? 'bg-sakura-50 text-sakura-700 font-medium' : 'text-gray-700'}`}
+                                    >
+                                      <span>{a.zh}</span>
+                                      <span className="text-gray-400 text-xs">{a.en}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )
+                            })
+                          })()}
                         </div>
                       </div>
                     )}

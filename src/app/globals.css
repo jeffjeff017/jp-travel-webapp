@@ -15,6 +15,11 @@ html {
   height: -webkit-fill-available;
 }
 
+/* Prevent iOS Safari auto-zoom when focusing inputs (requires font-size >= 16px) */
+input, textarea, select {
+  font-size: 16px;
+}
+
 body {
   color: rgb(var(--foreground-rgb));
   background: linear-gradient(

@@ -999,10 +999,51 @@ export default function MainPage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <div className="text-5xl mb-4">🔍</div>
-                  <p className="text-gray-500">輸入地點名稱開始搜尋</p>
-                  <p className="text-xs text-gray-400 mt-2">例如：東京塔、淺草寺、拉麵...</p>
+                <div>
+                  {wishlistDbItems.length > 0 ? (
+                    <>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 px-1">目的地建議</p>
+                      <div className="space-y-2">
+                        {wishlistDbItems.slice(0, 8).map(item => {
+                          const categoryIcons: Record<string, string> = {
+                            cafe: '☕', restaurant: '🍽️', bakery: '🥐',
+                            shopping: '🛍️', park: '🌳', threads: '🔗',
+                          }
+                          const icon = categoryIcons[item.category] || '📍'
+                          return (
+                            <button
+                              key={`suggest-${item.id}`}
+                              onClick={() => {
+                                setShowSearch(false)
+                                setSearchQuery('')
+                                setSelectedWishlistItem(item)
+                              }}
+                              className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors"
+                            >
+                              <div className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
+                                {item.image_url ? (
+                                  <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-xl">{icon}</span>
+                                )}
+                              </div>
+                              <div className="flex-1 text-left min-w-0">
+                                <p className="font-medium text-gray-800 text-sm truncate">{item.name}</p>
+                                <p className="text-xs text-gray-400 truncate">{item.note || item.category}</p>
+                              </div>
+                              <span className="text-gray-300 text-sm flex-shrink-0">→</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="text-5xl mb-4">🔍</div>
+                      <p className="text-gray-500">輸入地點名稱開始搜尋</p>
+                      <p className="text-xs text-gray-400 mt-2">例如：東京塔、淺草寺、拉麵...</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
