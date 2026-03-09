@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -551,6 +551,22 @@ export default function WishlistPage() {
     return items
   }
   
+  // Districts that have at least one item under the current tab (ignoring area/search filters)
+  const availableDistricts = useMemo(() => {
+    const baseItems: WishlistItem[] =
+      activeTab === 'all' ? Object.values(wishlist).flat() : (wishlist[activeTab] || [])
+    const usedAreaIds = new Set(baseItems.map(i => i.area).filter(Boolean))
+    return TOKYO_DISTRICTS.filter(d => d.areas.some(a => usedAreaIds.has(a.id)))
+  }, [wishlist, activeTab])
+
+  // Reset area filter when the selected district has no items in the new tab
+  useEffect(() => {
+    if (activeAreaFilter) {
+      const stillValid = availableDistricts.some(d => d.id === activeAreaFilter)
+      if (!stillValid) setActiveAreaFilter('')
+    }
+  }, [availableDistricts, activeAreaFilter])
+
   // Get current category for adding
   const getCurrentCategory = () => {
     if (activeTab === 'all') return 'cafe'
@@ -817,6 +833,49 @@ export default function WishlistPage() {
       
       {/* Content - Airbnb grid */}
       <div className="container mx-auto px-4 py-6">
+
+        {/* District filter — only shown when 2+ districts have items */}
+        {!isLoading && availableDistricts.length >= 2 && (
+          <div className="-mx-4 overflow-x-auto mb-4">
+            <div className="flex gap-2 px-4 pr-4 items-center">
+              {/* "全部" clear chip — shown only when a district is active */}
+              {activeAreaFilter && (
+                <button
+                  onClick={() => setActiveAreaFilter('')}
+                  className="flex-shrink-0 flex items-center gap-1 pl-2 pr-3 py-1.5 rounded-full text-xs font-medium bg-gray-900 text-white whitespace-nowrap transition-all"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                  全部
+                </button>
+              )}
+              {availableDistricts.map(d => {
+                const isActive = activeAreaFilter === d.id
+                const count = (() => {
+                  const baseItems: WishlistItem[] =
+                    activeTab === 'all' ? Object.values(wishlist).flat() : (wishlist[activeTab] || [])
+                  const areaIds = new Set(d.areas.map(a => a.id))
+                  return baseItems.filter(i => i.area && areaIds.has(i.area)).length
+                })()
+                return (
+                  <button
+                    key={d.id}
+                    onClick={() => setActiveAreaFilter(isActive ? '' : d.id)}
+                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                      isActive
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-400'
+                    }`}
+                  >
+                    <span>{d.icon}</span>
+                    <span>{d.label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{count}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
