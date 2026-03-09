@@ -548,12 +548,17 @@ export default function WishlistPage() {
   }
   
   // Individual areas that have at least one item under the current tab (ignoring area/search filters)
+  // Read directly from wishlistDbItems (raw TanStack Query data) to avoid stale wishlist state
   const availableAreas = useMemo(() => {
-    const baseItems: WishlistItem[] =
-      activeTab === 'all' ? Object.values(wishlist).flat() : (wishlist[activeTab] || [])
-    const usedAreaIds = new Set(baseItems.map(i => i.area).filter(Boolean))
+    if (!wishlistDbItems || wishlistDbItems.length === 0) return []
+    const relevantDbItems = activeTab === 'all'
+      ? wishlistDbItems
+      : wishlistDbItems.filter(db => db.category === activeTab)
+    const usedAreaIds = new Set(
+      relevantDbItems.map(db => db.map_link).filter(Boolean) as string[]
+    )
     return TOKYO_AREAS.filter(a => usedAreaIds.has(a.id))
-  }, [wishlist, activeTab])
+  }, [wishlistDbItems, activeTab])
 
   // Reset area filter when the selected area has no items in the new tab
   useEffect(() => {
@@ -830,8 +835,8 @@ export default function WishlistPage() {
       {/* Content - Airbnb grid */}
       <div className="container mx-auto px-4 py-6">
 
-        {/* Area filter — shown whenever any items have an area tagged */}
-        {!isLoading && availableAreas.length >= 1 && (
+        {/* Area filter — shown whenever any items in the current tab have an area tagged */}
+        {availableAreas.length >= 1 && (
           <div className="-mx-4 overflow-x-auto mb-4">
             <div className="flex gap-2 px-4 pr-4 items-center">
               {/* "全部" clear chip — shown only when a filter is active */}
@@ -846,9 +851,10 @@ export default function WishlistPage() {
               )}
               {availableAreas.map(area => {
                 const isActive = activeAreaFilter === area.id
-                const baseItems: WishlistItem[] =
-                  activeTab === 'all' ? Object.values(wishlist).flat() : (wishlist[activeTab] || [])
-                const count = baseItems.filter(i => i.area === area.id).length
+                const relevantDbItems = wishlistDbItems
+                  ? (activeTab === 'all' ? wishlistDbItems : wishlistDbItems.filter(db => db.category === activeTab))
+                  : []
+                const count = relevantDbItems.filter(db => db.map_link === area.id).length
                 return (
                   <button
                     key={area.id}
