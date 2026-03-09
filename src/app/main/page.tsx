@@ -438,6 +438,11 @@ export default function MainPage() {
     )
   }
 
+  // Collapse all dropdowns when switching day tabs
+  useEffect(() => {
+    setExpandedTrips([])
+  }, [selectedDay])
+
   // Parse schedule items from description JSON
   const parseScheduleItems = (description: string): ScheduleItem[] => {
     try {
@@ -2032,7 +2037,7 @@ export default function MainPage() {
                   style={{ border: 0 }}
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
-                  src={`https://www.google.com/maps?q=${settings.homeLocation.lat},${settings.homeLocation.lng}&z=15&output=embed`}
+                  src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=${encodeURIComponent(settings.homeLocation.address || `${settings.homeLocation.lat},${settings.homeLocation.lng}`)}&center=${settings.homeLocation.lat},${settings.homeLocation.lng}&zoom=15`}
                   allowFullScreen
                 />
               </div>

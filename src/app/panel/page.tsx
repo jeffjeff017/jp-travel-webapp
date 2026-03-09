@@ -786,6 +786,22 @@ export default function AdminPage() {
     return `#${(0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1)}`
   }
 
+  const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+    try {
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+      )
+      const data = await res.json()
+      if (data.status === 'OK' && data.results?.length > 0) {
+        const { lat, lng } = data.results[0].geometry.location
+        return { lat, lng }
+      }
+    } catch {
+      // fall through to return null
+    }
+    return null
+  }
+
   const handleSaveSettings = async () => {
     // Ensure daySchedules has entries for all days
     const daySchedules = Array.from({ length: settingsForm.totalDays }, (_, i) => {
@@ -793,11 +809,26 @@ export default function AdminPage() {
       return existing || { dayNumber: i + 1, theme: `Day ${i + 1}` }
     })
     
-    // Update home location with name, address and image
+    // Geocode address if it changed
+    const newAddress = settingsForm.homeLocationAddress
+    const oldAddress = siteSettings!.homeLocation?.address
+    let lat = siteSettings!.homeLocation?.lat ?? 35.6969
+    let lng = siteSettings!.homeLocation?.lng ?? 139.8144
+    if (newAddress && newAddress !== oldAddress) {
+      const coords = await geocodeAddress(newAddress)
+      if (coords) {
+        lat = coords.lat
+        lng = coords.lng
+      }
+    }
+
+    // Update home location with name, address, coordinates and image
     const updatedHomeLocation = {
       ...siteSettings!.homeLocation,
       name: settingsForm.homeLocationName || siteSettings!.homeLocation?.name || '我的住所',
       address: settingsForm.homeLocationAddress || siteSettings!.homeLocation?.address || '',
+      lat,
+      lng,
       imageUrl: settingsForm.homeLocationImageUrl || undefined
     }
     
