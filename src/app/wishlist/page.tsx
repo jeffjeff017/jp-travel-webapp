@@ -830,8 +830,8 @@ export default function WishlistPage() {
       {/* Content - Airbnb grid */}
       <div className="container mx-auto px-4 py-6">
 
-        {/* Area filter — only shown when 2+ individual areas have items */}
-        {!isLoading && availableAreas.length >= 2 && (
+        {/* Area filter — shown whenever any items have an area tagged */}
+        {!isLoading && availableAreas.length >= 1 && (
           <div className="-mx-4 overflow-x-auto mb-4">
             <div className="flex gap-2 px-4 pr-4 items-center">
               {/* "全部" clear chip — shown only when a filter is active */}
