@@ -853,7 +853,10 @@ export default function AdminPage() {
       
       {/* Mobile Top Bar */}
       <div className="md:hidden flex items-center justify-between px-4 pt-5 pb-2">
-        <h1 className="text-2xl font-bold text-gray-900">個人資料</h1>
+        <div className="flex items-center gap-2">
+          <img src="/images/gonggu card_1-04-nobg.png" alt="" className="w-8 h-8 object-contain" />
+          <h1 className="text-2xl font-bold text-gray-900">個人資料</h1>
+        </div>
         <LanguageSwitch />
       </div>
 
@@ -1058,12 +1061,7 @@ export default function AdminPage() {
             </button>
           </div>
 
-          {/* Mobile Trip Management Heading */}
-          {isAdminUser && (
-            <div className="flex items-center justify-between pt-2">
-              <h2 className="text-lg font-bold text-gray-900">{t.admin.manageTrips} ({trips.length})</h2>
-            </div>
-          )}
+          {/* Mobile Trip Management Heading — hidden for now */}
         </div>
 
         {/* ===== DESKTOP BENTO GRID ===== */}
@@ -3914,7 +3912,8 @@ export default function AdminPage() {
           )}
         </AnimatePresence>
 
-        {/* Trips List - Grouped by Day */}
+        {/* Trips List - Grouped by Day (desktop only) */}
+        <div className="hidden md:block">
         {(isLoading || isTripsLoading) ? (
           <div className="bg-white rounded-xl border border-gray-200 p-8">
             <div className="flex items-center justify-center">
@@ -4192,6 +4191,7 @@ export default function AdminPage() {
             </div>
           )
         })()}
+        </div>{/* end hidden md:block trips list */}
       </div>
       
       {/* Trip Detail View - Airbnb-style */}
