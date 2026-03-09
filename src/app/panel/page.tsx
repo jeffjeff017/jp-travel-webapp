@@ -851,55 +851,10 @@ export default function AdminPage() {
       {/* Sakura Effect */}
       <SakuraCanvas enabled={isSakuraMode} />
       
-      {/* Mobile Profile Banner */}
-      <div className="md:hidden relative overflow-hidden pb-8"
-        style={{ background: `linear-gradient(135deg, ${themeColor} 0%, ${adjustColor(themeColor, -30)} 100%)` }}
-      >
-        {/* Decorative emoji bg */}
-        <div className="absolute top-0 right-0 text-[130px] opacity-10 -mr-4 -mt-4 select-none pointer-events-none">
-          {currentDestination?.theme?.emoji || '✈️'}
-        </div>
-        {/* Top bar */}
-        <div className="relative flex items-center justify-between px-4 pt-4 pb-5">
-          <h1 className="text-white font-semibold text-base">個人資料</h1>
-          <LanguageSwitch />
-        </div>
-        {/* Profile info */}
-        <div
-          className="relative flex items-center gap-4 px-4 cursor-pointer"
-          onClick={() => {
-            const fullUser = users.find(u => u.username === currentUser?.username)
-            setProfileForm({
-              displayName: fullUser?.displayName || currentUser?.displayName || '',
-              password: '',
-              avatarUrl: fullUser?.avatarUrl || currentUser?.avatarUrl || ''
-            })
-            setShowProfileEdit(true)
-          }}
-        >
-          <div className="w-16 h-16 rounded-full border-2 border-white/60 shadow-xl overflow-hidden bg-white/20 flex items-center justify-center flex-shrink-0">
-            {(() => {
-              const fullUser = users.find(u => u.username === currentUser?.username)
-              const avatarUrl = fullUser?.avatarUrl || currentUser?.avatarUrl
-              return avatarUrl
-                ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                : <span className="text-2xl">👤</span>
-            })()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-white font-bold text-lg leading-tight truncate">
-              {(() => {
-                const fullUser = users.find(u => u.username === currentUser?.username)
-                return fullUser?.displayName || currentUser?.displayName || currentUser?.username || '用戶'
-              })()}
-            </h2>
-            <p className="text-white/70 text-sm mt-0.5">@{currentUser?.username}</p>
-            <span className="mt-1 inline-block bg-white/25 text-white text-xs px-2.5 py-0.5 rounded-full font-medium">
-              {isAdminUser ? '✨ 管理員' : '🌸 成員'}
-            </span>
-          </div>
-          <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white text-xs flex-shrink-0">✏️</div>
-        </div>
+      {/* Mobile Top Bar */}
+      <div className="md:hidden flex items-center justify-between px-4 pt-5 pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">個人資料</h1>
+        <LanguageSwitch />
       </div>
 
       {/* Desktop Header */}
@@ -924,7 +879,7 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <div className="container mx-auto md:px-4 md:py-8">
+      <div className="container mx-auto md:px-4 md:py-8 md:mt-0">
         {/* Message */}
         <AnimatePresence>
           {message && (
@@ -932,7 +887,7 @@ export default function AdminPage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className={`mb-4 mx-4 md:mx-0 md:mb-6 px-4 py-3 rounded-xl ${
+              className={`mb-3 mx-4 md:mx-0 md:mb-6 px-4 py-3 rounded-xl ${
                 message.type === 'success'
                   ? 'bg-green-50 border border-green-200 text-green-700'
                   : 'bg-red-50 border border-red-200 text-red-700'
@@ -943,21 +898,62 @@ export default function AdminPage() {
           )}
         </AnimatePresence>
 
-        {/* ===== MOBILE LAYOUT ===== */}
-        <div className="md:hidden -mt-6 px-4 space-y-3 pb-4">
+        {/* ===== MOBILE LAYOUT (Airbnb style) ===== */}
+        <div className="md:hidden px-4 space-y-4 pb-6">
 
-          {/* Quick Actions */}
-          <div className="bg-white rounded-2xl shadow-sm grid grid-cols-3 overflow-hidden">
-            <a href="/main" className="flex flex-col items-center gap-1.5 py-4 hover:bg-gray-50 border-r border-gray-100 transition-colors">
-              <span className="text-2xl">📋</span>
-              <span className="text-xs text-gray-600 font-medium">行程</span>
+          {/* Profile Card */}
+          <div
+            className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm text-center cursor-pointer active:bg-gray-50 transition-colors"
+            onClick={() => {
+              const fullUser = users.find(u => u.username === currentUser?.username)
+              setProfileForm({
+                displayName: fullUser?.displayName || currentUser?.displayName || '',
+                password: '',
+                avatarUrl: fullUser?.avatarUrl || currentUser?.avatarUrl || ''
+              })
+              setShowProfileEdit(true)
+            }}
+          >
+            <div className="flex justify-center mb-3">
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-900 flex items-center justify-center shadow-sm">
+                {(() => {
+                  const fullUser = users.find(u => u.username === currentUser?.username)
+                  const avatarUrl = fullUser?.avatarUrl || currentUser?.avatarUrl
+                  if (avatarUrl) return <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                  const displayName = fullUser?.displayName || currentUser?.displayName || currentUser?.username || ''
+                  return <span className="text-3xl font-bold text-white">{displayName.charAt(0).toUpperCase() || '?'}</span>
+                })()}
+              </div>
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 leading-tight">
+              {(() => {
+                const fullUser = users.find(u => u.username === currentUser?.username)
+                return fullUser?.displayName || currentUser?.displayName || currentUser?.username || '用戶'
+              })()}
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">{isAdminUser ? '管理員' : '成員'}</p>
+          </div>
+
+          {/* Feature Cards Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <a
+              href="/main"
+              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95"
+            >
+              <span className="text-3xl block mb-2">📋</span>
+              <p className="font-semibold text-gray-900 text-sm">行程管理</p>
+              <p className="text-xs text-gray-400 mt-0.5">查看及編輯旅行行程</p>
             </a>
-            <a href="/wishlist" className="flex flex-col items-center gap-1.5 py-4 hover:bg-gray-50 border-r border-gray-100 transition-colors">
-              <span className="text-2xl">💖</span>
-              <span className="text-xs text-gray-600 font-medium">心願清單</span>
+            <a
+              href="/wishlist"
+              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95"
+            >
+              <span className="text-3xl block mb-2">💖</span>
+              <p className="font-semibold text-gray-900 text-sm">心願清單</p>
+              <p className="text-xs text-gray-400 mt-0.5">收藏喜愛的地點</p>
             </a>
             <button
-              className="flex flex-col items-center gap-1.5 py-4 hover:bg-gray-50 transition-colors"
+              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95 text-left"
               onClick={async () => {
                 await Promise.all([
                   queryClient.invalidateQueries({ queryKey: ['expenses'] }),
@@ -966,82 +962,62 @@ export default function AdminPage() {
                 setShowWallet(true)
               }}
             >
-              <span className="text-2xl">💰</span>
-              <span className="text-xs text-gray-600 font-medium">旅行錢包</span>
+              <span className="text-3xl block mb-2">💰</span>
+              <p className="font-semibold text-gray-900 text-sm">旅行錢包</p>
+              <p className="text-xs text-gray-400 mt-0.5">記錄旅程的消費</p>
             </button>
-          </div>
-
-          {/* Destination Switcher (admin) */}
-          {isAdminUser && (
-            <div className="rounded-2xl p-4 text-white relative overflow-hidden"
-              style={{ background: `linear-gradient(135deg, ${themeColor} 0%, ${adjustColor(themeColor, -30)} 100%)` }}
-            >
-              <div className="absolute top-0 right-0 text-[70px] opacity-15 -mr-2 -mt-2 select-none pointer-events-none">
-                {currentDestination?.theme?.emoji || '✈️'}
-              </div>
-              <div className="relative">
-                <div className="flex items-center justify-between mb-2.5">
-                  <h3 className="font-medium text-sm flex items-center gap-1.5">🌏 旅行目的地</h3>
-                  <button onClick={() => setShowDestinationModal(true)} className="text-xs text-white/70 hover:text-white underline">管理 →</button>
-                </div>
+            {isAdminUser && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+                <p className="text-xs text-gray-400 mb-1.5 flex items-center gap-1">🌏 目的地</p>
                 <select
                   value={currentDestinationId}
                   onChange={(e) => handleDestinationSwitch(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl font-medium bg-white text-gray-800 shadow outline-none cursor-pointer text-sm"
+                  className="w-full text-sm font-semibold text-gray-800 outline-none bg-transparent cursor-pointer truncate"
                 >
                   {destinations.filter(d => d.is_active).map((dest) => (
                     <option key={dest.id} value={dest.id}>{dest.flag} {dest.name}</option>
                   ))}
                 </select>
+                <button onClick={() => setShowDestinationModal(true)} className="mt-1.5 text-xs text-gray-400 hover:text-gray-600 underline">管理目的地</button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* Management Section (admin) */}
+          {/* Management List (admin) */}
           {isAdminUser && (
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-gray-100">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">管理功能</p>
-              </div>
-              {/* Wishlist Management */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <button
                 onClick={() => { loadWishlistItems(); setShowWishlistManagement(true) }}
                 className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors"
               >
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center flex-shrink-0"><span className="text-lg">💝</span></div>
-                <div className="flex-1 text-left"><p className="text-sm font-medium text-gray-800">心願清單管理</p><p className="text-xs text-gray-400">編輯或刪除項目</p></div>
-                <span className="text-gray-300">›</span>
+                <span className="text-lg w-6 text-center">💝</span>
+                <p className="flex-1 text-left text-sm font-medium text-gray-800">心願清單管理</p>
+                <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
-              {/* Chiikawa */}
               <button
                 onClick={() => setShowChiikawaEdit(true)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors"
               >
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#fcdbde' }}>
-                  <img src="/images/chii-widgetlogo.ico" alt="Chiikawa" className="w-6 h-6 object-contain" />
-                </div>
-                <div className="flex-1 text-left"><p className="text-sm font-medium text-gray-800">Chiikawa 對白</p><p className="text-xs text-gray-400">編輯小精靈對話</p></div>
-                <span className="text-gray-300">›</span>
+                <img src="/images/chii-widgetlogo.ico" alt="Chiikawa" className="w-5 h-5 object-contain" />
+                <p className="flex-1 text-left text-sm font-medium text-gray-800">Chiikawa 對白</p>
+                <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
-              {/* Site Settings */}
               <button
                 onClick={() => setShowSettings(true)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors"
               >
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center flex-shrink-0"><span className="text-lg">🎨</span></div>
-                <div className="flex-1 text-left"><p className="text-sm font-medium text-gray-800">網站設定</p><p className="text-xs text-gray-400">{siteSettings?.title || '日本旅遊'}</p></div>
-                <span className="text-gray-300">›</span>
+                <span className="text-lg w-6 text-center">🎨</span>
+                <p className="flex-1 text-left text-sm font-medium text-gray-800">網站設定</p>
+                <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
-              {/* User Management */}
               <button
                 onClick={async () => { const freshUsers = await getUsersAsync(); setUsers(freshUsers); setShowUserManagement(true) }}
                 className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors"
               >
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0"><span className="text-lg">👥</span></div>
-                <div className="flex-1 text-left"><p className="text-sm font-medium text-gray-800">用戶管理</p><p className="text-xs text-gray-400">{users.length > 0 ? `${users.length} 位用戶` : '載入中...'}</p></div>
-                <span className="text-gray-300">›</span>
+                <span className="text-lg w-6 text-center">👥</span>
+                <p className="flex-1 text-left text-sm font-medium text-gray-800">用戶管理</p>
+                <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
-              {/* Travel Notice */}
               <button
                 onClick={async () => {
                   let settings = getSettings()
@@ -1052,40 +1028,40 @@ export default function AdminPage() {
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors"
               >
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center flex-shrink-0"><span className="text-lg">📋</span></div>
-                <div className="flex-1 text-left"><p className="text-sm font-medium text-gray-800">旅遊須知</p><p className="text-xs text-gray-400">必備物品、出發前準備</p></div>
-                <span className="text-gray-300">›</span>
+                <span className="text-lg w-6 text-center">📋</span>
+                <p className="flex-1 text-left text-sm font-medium text-gray-800">旅遊須知</p>
+                <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
-              {/* Trash Bin */}
               <button
                 onClick={() => setShowTrashBin(true)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors"
               >
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center flex-shrink-0"><span className="text-lg">🗑️</span></div>
-                <div className="flex-1 text-left"><p className="text-sm font-medium text-gray-800">垃圾桶</p><p className="text-xs text-gray-400">{trashItems.trips.length + trashItems.users.length + trashItems.destinations.length + (trashItems.wishlist?.length || 0)} 個項目</p></div>
-                <span className="text-gray-300">›</span>
+                <span className="text-lg w-6 text-center">🗑️</span>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-medium text-gray-800">垃圾桶</p>
+                  <p className="text-xs text-gray-400">{trashItems.trips.length + trashItems.users.length + trashItems.destinations.length + (trashItems.wishlist?.length || 0)} 個項目</p>
+                </div>
+                <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
             </div>
           )}
 
           {/* Account */}
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-gray-100">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">帳號</p>
-            </div>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-red-50 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors"
             >
-              <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0"><span className="text-lg">🚪</span></div>
-              <div className="flex-1 text-left"><p className="text-sm font-medium text-red-600">登出帳號</p><p className="text-xs text-gray-400">退出目前登入的帳號</p></div>
+              <span className="text-lg w-6 text-center">🚪</span>
+              <p className="flex-1 text-left text-sm font-medium text-gray-800">登出帳號</p>
+              <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
             </button>
           </div>
 
           {/* Mobile Trip Management Heading */}
           {isAdminUser && (
             <div className="flex items-center justify-between pt-2">
-              <h2 className="text-base font-semibold text-gray-800">{t.admin.manageTrips} ({trips.length})</h2>
+              <h2 className="text-lg font-bold text-gray-900">{t.admin.manageTrips} ({trips.length})</h2>
             </div>
           )}
         </div>

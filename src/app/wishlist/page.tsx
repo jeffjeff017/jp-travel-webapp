@@ -812,36 +812,6 @@ export default function WishlistPage() {
             </div>
           </div>
 
-          {/* District Filter Chips */}
-          <div className="-mx-4 overflow-x-auto mt-2">
-            <div className="flex gap-1.5 px-4 pr-4">
-              <button
-                onClick={() => setActiveAreaFilter('')}
-                className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
-                  !activeAreaFilter
-                    ? 'bg-sakura-500 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                全部地區
-              </button>
-              {TOKYO_DISTRICTS.map((d) => (
-                <button
-                  key={d.id}
-                  onClick={() => setActiveAreaFilter(activeAreaFilter === d.id ? '' : d.id)}
-                  className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
-                    activeAreaFilter === d.id
-                      ? 'bg-sakura-500 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  <span>{d.icon}</span>
-                  <span>{d.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
         </div>
       </header>
       
