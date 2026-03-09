@@ -273,6 +273,21 @@ export default function AdminPage() {
     }
   }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showExpenseForm, showBudgetForm, showTripDetail])
 
+  // Refresh settingsForm from latest siteSettings whenever the dialog opens
+  useEffect(() => {
+    if (showSettings && siteSettings) {
+      setSettingsForm({
+        title: siteSettings.title,
+        tripStartDate: siteSettings.tripStartDate || new Date().toISOString().split('T')[0],
+        totalDays: siteSettings.totalDays || 3,
+        daySchedules: siteSettings.daySchedules || [],
+        homeLocationImageUrl: siteSettings.homeLocation?.imageUrl || '',
+        homeLocationName: siteSettings.homeLocation?.name || '',
+        homeLocationAddress: siteSettings.homeLocation?.address || ''
+      })
+    }
+  }, [showSettings])
+
   // Sync TanStack Query data to local state
   useEffect(() => {
     if (wishlistItemsData) setWishlistItems(wishlistItemsData)

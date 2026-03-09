@@ -164,11 +164,6 @@ export function getSettings(): SiteSettings {
   return getLocalSettings()
 }
 
-// Helper: check if daySchedules contain any custom (non-default) names
-function hasCustomDayNames(daySchedules: DaySchedule[]): boolean {
-  return daySchedules.some((d) => d.theme && d.theme !== `Day ${d.dayNumber}`)
-}
-
 // Async get - fetches from Supabase and updates cache
 export async function getSettingsAsync(): Promise<SiteSettings> {
   // If cache is valid, return local settings
@@ -176,35 +171,23 @@ export async function getSettingsAsync(): Promise<SiteSettings> {
     return getLocalSettings()
   }
   
-  const localSettings = getLocalSettings()
-  
   try {
     const dbSettings = await getSupabaseSiteSettings()
     
     if (dbSettings) {
       const settings = fromSupabaseFormat(dbSettings)
-      // If Supabase has real data, decide which source is more up-to-date
+      // Supabase is the single source of truth — always use it when data exists
       if (settings) {
-        const supabaseHasData = settings.daySchedules && settings.daySchedules.length > 0
-        const supabaseHasCustomNames = supabaseHasData ? hasCustomDayNames(settings.daySchedules!) : false
-        const localHasCustomNames = localSettings.daySchedules ? hasCustomDayNames(localSettings.daySchedules) : false
-
-        // Use Supabase when:
-        // 1. Supabase has custom day names (intentionally saved data), OR
-        // 2. Neither has custom names but Supabase has more/equal total days
-        // Do NOT overwrite local custom names with Supabase defaults (handles save failures)
-        if (supabaseHasData && (supabaseHasCustomNames || (!localHasCustomNames && settings.totalDays >= localSettings.totalDays))) {
-          saveLocalSettings(settings)
-          return settings
-        }
+        saveLocalSettings(settings)
+        return settings
       }
     }
   } catch (err) {
     console.error('Error fetching settings from Supabase:', err)
   }
   
-  // Fallback to local settings (preserves custom names even if Supabase save had failed)
-  return localSettings
+  // Fallback to local settings when Supabase is unreachable
+  return getLocalSettings()
 }
 
 // Synchronous save - saves to localStorage only (for backwards compatibility)
