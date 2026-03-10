@@ -234,6 +234,8 @@ export default function AdminPage() {
   const [editingCharacter, setEditingCharacter] = useState<'chiikawa' | 'hachiware' | 'usagi'>('usagi')
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null)
   const [editingMessageText, setEditingMessageText] = useState('')
+  const [chiikawaDialogueSaving, setChiikawaDialogueSaving] = useState(false)
+  const [chiikawaDialogueSaveStatus, setChiikawaDialogueSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
   // Sakura mode state (synced with localStorage)
   const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [isAdminUser, setIsAdminUser] = useState(false)
@@ -5250,25 +5252,40 @@ export default function AdminPage() {
               </div>
               
               {/* Save Button */}
-              <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0 rounded-b-2xl">
+              <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0 rounded-b-2xl space-y-2">
+                {chiikawaDialogueSaveStatus === 'success' && (
+                  <p className="text-center text-sm text-green-600 font-medium">✓ 已儲存！正在重新載入…</p>
+                )}
+                {chiikawaDialogueSaveStatus === 'error' && (
+                  <p className="text-center text-sm text-red-500 font-medium">✕ 儲存失敗，請再試一次</p>
+                )}
                 <button
+                  disabled={chiikawaDialogueSaving}
                   onClick={async () => {
+                    setChiikawaDialogueSaving(true)
+                    setChiikawaDialogueSaveStatus('idle')
                     try {
                       const result = await saveSettingsAsync({ chiikawaMessages })
                       if (!result.success) {
-                        alert('儲存失敗，請再試一次：' + (result.error || ''))
+                        setChiikawaDialogueSaveStatus('error')
+                        setChiikawaDialogueSaving(false)
                         return
                       }
-                      setShowChiikawaEdit(false)
-                      setMessage({ type: 'success', text: 'Chiikawa 對白已儲存' })
-                      setTimeout(() => window.location.reload(), 500)
-                    } catch (err: any) {
-                      alert('儲存時發生錯誤，請再試一次')
+                      setChiikawaDialogueSaveStatus('success')
+                      setTimeout(() => {
+                        setShowChiikawaEdit(false)
+                        setChiikawaDialogueSaving(false)
+                        setChiikawaDialogueSaveStatus('idle')
+                        window.location.reload()
+                      }, 800)
+                    } catch {
+                      setChiikawaDialogueSaveStatus('error')
+                      setChiikawaDialogueSaving(false)
                     }
                   }}
-                  className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
+                  className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-xl font-medium transition-colors"
                 >
-                  儲存設定
+                  {chiikawaDialogueSaving ? '儲存中…' : '儲存設定'}
                 </button>
               </div>
             </motion.div>
@@ -5475,25 +5492,40 @@ export default function AdminPage() {
               </div>
               
               {/* Footer */}
-              <div className="p-4 border-t border-gray-100 bg-gray-50">
+              <div className="p-4 border-t border-gray-100 bg-gray-50 space-y-2">
+                {chiikawaDialogueSaveStatus === 'success' && (
+                  <p className="text-center text-sm text-green-600 font-medium">✓ 已儲存！正在重新載入…</p>
+                )}
+                {chiikawaDialogueSaveStatus === 'error' && (
+                  <p className="text-center text-sm text-red-500 font-medium">✕ 儲存失敗，請再試一次</p>
+                )}
                 <button
+                  disabled={chiikawaDialogueSaving}
                   onClick={async () => {
+                    setChiikawaDialogueSaving(true)
+                    setChiikawaDialogueSaveStatus('idle')
                     try {
                       const result = await saveSettingsAsync({ chiikawaMessages })
                       if (!result.success) {
-                        alert('儲存失敗，請再試一次：' + (result.error || ''))
+                        setChiikawaDialogueSaveStatus('error')
+                        setChiikawaDialogueSaving(false)
                         return
                       }
-                      setShowChiikawaEditDesktop(false)
-                      setMessage({ type: 'success', text: 'Chiikawa 對白已儲存' })
-                      setTimeout(() => window.location.reload(), 500)
-                    } catch (err: any) {
-                      alert('儲存時發生錯誤，請再試一次')
+                      setChiikawaDialogueSaveStatus('success')
+                      setTimeout(() => {
+                        setShowChiikawaEditDesktop(false)
+                        setChiikawaDialogueSaving(false)
+                        setChiikawaDialogueSaveStatus('idle')
+                        window.location.reload()
+                      }, 800)
+                    } catch {
+                      setChiikawaDialogueSaveStatus('error')
+                      setChiikawaDialogueSaving(false)
                     }
                   }}
-                  className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
+                  className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-xl font-medium transition-colors"
                 >
-                  儲存設定
+                  {chiikawaDialogueSaving ? '儲存中…' : '儲存設定'}
                 </button>
               </div>
             </motion.div>
