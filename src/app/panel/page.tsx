@@ -236,6 +236,7 @@ export default function AdminPage() {
   const [editingMessageText, setEditingMessageText] = useState('')
   const [chiikawaDialogueSaving, setChiikawaDialogueSaving] = useState(false)
   const [chiikawaDialogueSaveStatus, setChiikawaDialogueSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [chiikawaDialogueSaveError, setChiikawaDialogueSaveError] = useState<string | null>(null)
   // Sakura mode state (synced with localStorage)
   const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [isAdminUser, setIsAdminUser] = useState(false)
@@ -5257,16 +5258,20 @@ export default function AdminPage() {
                   <p className="text-center text-sm text-green-600 font-medium">✓ 已儲存！正在重新載入…</p>
                 )}
                 {chiikawaDialogueSaveStatus === 'error' && (
-                  <p className="text-center text-sm text-red-500 font-medium">✕ 儲存失敗，請再試一次</p>
+                  <p className="text-center text-xs text-red-500">✕ 雲端同步失敗：{chiikawaDialogueSaveError || '請確認 Supabase chiikawa_messages 欄位已建立'}</p>
                 )}
                 <button
                   disabled={chiikawaDialogueSaving}
                   onClick={async () => {
                     setChiikawaDialogueSaving(true)
                     setChiikawaDialogueSaveStatus('idle')
+                    setChiikawaDialogueSaveError(null)
+                    // Always save to localStorage first
+                    saveSettings({ ...getSettings(), chiikawaMessages })
                     try {
                       const result = await saveSettingsAsync({ chiikawaMessages })
                       if (!result.success) {
+                        setChiikawaDialogueSaveError(result.error || null)
                         setChiikawaDialogueSaveStatus('error')
                         setChiikawaDialogueSaving(false)
                         return
@@ -5278,7 +5283,8 @@ export default function AdminPage() {
                         setChiikawaDialogueSaveStatus('idle')
                         window.location.reload()
                       }, 800)
-                    } catch {
+                    } catch (err: any) {
+                      setChiikawaDialogueSaveError(err?.message || null)
                       setChiikawaDialogueSaveStatus('error')
                       setChiikawaDialogueSaving(false)
                     }
@@ -5497,16 +5503,19 @@ export default function AdminPage() {
                   <p className="text-center text-sm text-green-600 font-medium">✓ 已儲存！正在重新載入…</p>
                 )}
                 {chiikawaDialogueSaveStatus === 'error' && (
-                  <p className="text-center text-sm text-red-500 font-medium">✕ 儲存失敗，請再試一次</p>
+                  <p className="text-center text-xs text-red-500">✕ 雲端同步失敗：{chiikawaDialogueSaveError || '請確認 Supabase chiikawa_messages 欄位已建立'}</p>
                 )}
                 <button
                   disabled={chiikawaDialogueSaving}
                   onClick={async () => {
                     setChiikawaDialogueSaving(true)
                     setChiikawaDialogueSaveStatus('idle')
+                    setChiikawaDialogueSaveError(null)
+                    saveSettings({ ...getSettings(), chiikawaMessages })
                     try {
                       const result = await saveSettingsAsync({ chiikawaMessages })
                       if (!result.success) {
+                        setChiikawaDialogueSaveError(result.error || null)
                         setChiikawaDialogueSaveStatus('error')
                         setChiikawaDialogueSaving(false)
                         return
@@ -5518,7 +5527,8 @@ export default function AdminPage() {
                         setChiikawaDialogueSaveStatus('idle')
                         window.location.reload()
                       }, 800)
-                    } catch {
+                    } catch (err: any) {
+                      setChiikawaDialogueSaveError(err?.message || null)
                       setChiikawaDialogueSaveStatus('error')
                       setChiikawaDialogueSaving(false)
                     }
