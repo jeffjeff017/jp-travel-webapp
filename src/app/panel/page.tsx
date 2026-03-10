@@ -263,6 +263,12 @@ export default function AdminPage() {
     wishlist: WishlistItemDB[]
   }>({ trips: [], users: [], destinations: [], wishlist: [] })
   const [trashTab, setTrashTab] = useState<'trips' | 'users' | 'destinations' | 'wishlist'>('trips')
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    mode: 'single' | 'all'
+    type?: 'trips' | 'users' | 'destinations' | 'wishlist'
+    id?: number | string
+    label?: string
+  } | null>(null)
   const router = useRouter()
   const { t } = useLanguage()
   
@@ -726,28 +732,36 @@ export default function AdminPage() {
   }
   
   // Permanently delete from trash
-  const handlePermanentDelete = (type: 'trips' | 'users' | 'destinations' | 'wishlist', id: number | string) => {
-    if (!confirm('確定要永久刪除此項目嗎？此操作無法復原！')) return
-    
-    const newTrash = { ...trashItems }
-    if (type === 'trips') {
-      newTrash.trips = newTrash.trips.filter(t => t.id !== id)
-    } else if (type === 'wishlist') {
-      newTrash.wishlist = newTrash.wishlist.filter(w => w.id !== id)
-    } else if (type === 'users') {
-      newTrash.users = newTrash.users.filter(u => u.username !== id)
-    } else if (type === 'destinations') {
-      newTrash.destinations = newTrash.destinations.filter(d => d.id !== id)
+  const handlePermanentDelete = (type: 'trips' | 'users' | 'destinations' | 'wishlist', id: number | string, label?: string) => {
+    setDeleteConfirm({ mode: 'single', type, id, label })
+  }
+
+  const confirmPermanentDelete = () => {
+    if (!deleteConfirm) return
+    if (deleteConfirm.mode === 'all') {
+      saveTrash({ trips: [], users: [], destinations: [], wishlist: [] })
+      setMessage({ type: 'success', text: '垃圾桶已清空！' })
+    } else {
+      const { type, id } = deleteConfirm
+      const newTrash = { ...trashItems }
+      if (type === 'trips') {
+        newTrash.trips = newTrash.trips.filter(t => t.id !== id)
+      } else if (type === 'wishlist') {
+        newTrash.wishlist = newTrash.wishlist.filter(w => w.id !== id)
+      } else if (type === 'users') {
+        newTrash.users = newTrash.users.filter(u => u.username !== id)
+      } else if (type === 'destinations') {
+        newTrash.destinations = newTrash.destinations.filter(d => d.id !== id)
+      }
+      saveTrash(newTrash)
+      setMessage({ type: 'success', text: '項目已永久刪除！' })
     }
-    saveTrash(newTrash)
-    setMessage({ type: 'success', text: '項目已永久刪除！' })
+    setDeleteConfirm(null)
   }
   
   // Clear all trash
   const handleClearTrash = () => {
-    if (!confirm('確定要清空垃圾桶嗎？所有項目將被永久刪除！')) return
-    saveTrash({ trips: [], users: [], destinations: [], wishlist: [] })
-    setMessage({ type: 'success', text: '垃圾桶已清空！' })
+    setDeleteConfirm({ mode: 'all' })
   }
 
   // Handle destination switch
@@ -3652,7 +3666,7 @@ export default function AdminPage() {
                               </p>
                             </div>
                             <button
-                              onClick={() => handlePermanentDelete('trips', trip.id)}
+                              onClick={() => handlePermanentDelete('trips', trip.id, trip.title)}
                               className="ml-2 px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex-shrink-0"
                             >
                               永久刪除
@@ -3682,7 +3696,7 @@ export default function AdminPage() {
                               </div>
                             </div>
                             <button
-                              onClick={() => handlePermanentDelete('users', user.username)}
+                              onClick={() => handlePermanentDelete('users', user.username, user.displayName)}
                               className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
                             >
                               永久刪除
@@ -3711,7 +3725,7 @@ export default function AdminPage() {
                               </div>
                             </div>
                             <button
-                              onClick={() => handlePermanentDelete('destinations', dest.id)}
+                              onClick={() => handlePermanentDelete('destinations', dest.id, dest.name)}
                               className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
                             >
                               永久刪除
@@ -3749,7 +3763,7 @@ export default function AdminPage() {
                               </div>
                             </div>
                             <button
-                              onClick={() => handlePermanentDelete('wishlist', item.id)}
+                              onClick={() => handlePermanentDelete('wishlist', item.id, item.name)}
                               className="ml-2 px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex-shrink-0"
                             >
                               永久刪除
@@ -3776,6 +3790,45 @@ export default function AdminPage() {
                   </div>
                 </div>
               </motion.div>
+
+              {/* Delete Confirmation Dialog */}
+              {deleteConfirm && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.92 }}
+                  className="absolute inset-0 flex items-center justify-center p-6 z-10"
+                >
+                  <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+                    <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full mx-auto mb-4">
+                      <span className="text-2xl">🗑️</span>
+                    </div>
+                    <h3 className="text-center font-bold text-gray-900 text-base mb-1">
+                      {deleteConfirm.mode === 'all' ? '清空垃圾桶' : '永久刪除'}
+                    </h3>
+                    <p className="text-center text-sm text-gray-500 mb-1">
+                      {deleteConfirm.mode === 'all'
+                        ? '確定要清空所有垃圾桶項目嗎？'
+                        : `確定要永久刪除「${deleteConfirm.label || '此項目'}」嗎？`}
+                    </p>
+                    <p className="text-center text-xs text-red-500 font-medium mb-5">此操作無法復原！</p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setDeleteConfirm(null)}
+                        className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-medium text-sm"
+                      >
+                        取消
+                      </button>
+                      <button
+                        onClick={confirmPermanentDelete}
+                        className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors font-medium text-sm"
+                      >
+                        確認刪除
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
