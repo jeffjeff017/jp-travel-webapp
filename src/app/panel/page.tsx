@@ -5253,14 +5253,15 @@ export default function AdminPage() {
               <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0 rounded-b-2xl">
                 <button
                   onClick={async () => {
-                    // Save to settings
-                    const settings = getSettings()
-                    const updatedSettings = { ...settings, chiikawaMessages }
-                    saveSettings(updatedSettings)
-                    await saveSettingsAsync({ chiikawaMessages })
+                    const base = siteSettings || getSettings()
+                    const updatedSettings = { ...base, chiikawaMessages }
+                    const result = await saveSettingsAsync(updatedSettings)
+                    if (!result.success) {
+                      setMessage({ type: 'error', text: '儲存失敗，請再試一次' })
+                      return
+                    }
                     setMessage({ type: 'success', text: 'Chiikawa 對白已儲存' })
                     setShowChiikawaEdit(false)
-                    // Refresh page after save
                     setTimeout(() => window.location.reload(), 500)
                   }}
                   className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
@@ -5475,14 +5476,15 @@ export default function AdminPage() {
               <div className="p-4 border-t border-gray-100 bg-gray-50">
                 <button
                   onClick={async () => {
-                    // Save to settings
-                    const settings = getSettings()
-                    const updatedSettings = { ...settings, chiikawaMessages }
-                    saveSettings(updatedSettings)
-                    await saveSettingsAsync({ chiikawaMessages })
+                    const base = siteSettings || getSettings()
+                    const updatedSettings = { ...base, chiikawaMessages }
+                    const result = await saveSettingsAsync(updatedSettings)
+                    if (!result.success) {
+                      setMessage({ type: 'error', text: '儲存失敗，請再試一次' })
+                      return
+                    }
                     setMessage({ type: 'success', text: 'Chiikawa 對白已儲存' })
                     setShowChiikawaEditDesktop(false)
-                    // Refresh page after save
                     setTimeout(() => window.location.reload(), 500)
                   }}
                   className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
