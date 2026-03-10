@@ -8,7 +8,7 @@ import { createTrip, updateTrip, saveSupabaseChecklistState, subscribeToSettings
 import { useTrips, useCreateTrip, useUpdateTrip, useDeleteTrip, useChecklistStates, useWishlistItems, queryKeys } from '@/hooks/useQueries'
 import { type WishlistItemDB } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
-import { getSettings, getSettingsAsync, saveSettings, saveSettingsAsync, type SiteSettings } from '@/lib/settings'
+import { getSettings, getSettingsAsync, refreshSettings, saveSettings, saveSettingsAsync, type SiteSettings } from '@/lib/settings'
 import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, getUsers, getAuthToken, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
@@ -382,16 +382,17 @@ export default function MainPage() {
 
   useEffect(() => {
     async function initializeData() {
-      // Load settings first to avoid flickering (use cached first, then async)
-      let loadedSettings = getSettings() // Use cached value first for instant display
+      // Show cached data immediately to avoid flickering
+      let loadedSettings = getSettings()
       setSettings(loadedSettings)
       
       // Load users for avatar display
       setUsers(getUsers())
       
-      // Then try to fetch fresh from Supabase (but don't block on failure)
+      // Always fetch fresh from Supabase on every page load (bypass 5-min cache)
+      // so cross-device changes (localhost ↔ Vercel) are always picked up.
       try {
-        const freshSettings = await getSettingsAsync()
+        const freshSettings = await refreshSettings()
         if (freshSettings) {
           loadedSettings = freshSettings
           setSettings(loadedSettings)
@@ -420,17 +421,31 @@ export default function MainPage() {
     // our correctly-saved localStorage.
     const unsubscribeSettings = subscribeToSettingsChanges(async () => {
       if (Date.now() - lastLocalSaveRef.current < 4000) return
-      localStorage.removeItem('site_settings_cache_time') // Invalidate cache
       try {
-        const freshSettings = await getSettingsAsync()
+        const freshSettings = await refreshSettings()
         if (freshSettings) setSettings(freshSettings)
       } catch (err) {
         console.warn('Realtime settings refresh failed:', err)
       }
     })
 
+    // Visibility: re-fetch from Supabase when tab becomes visible again
+    // (handles the case where changes were made on another device while this tab was in background)
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - lastLocalSaveRef.current < 4000) return
+      try {
+        const freshSettings = await refreshSettings()
+        if (freshSettings) setSettings(freshSettings)
+      } catch (err) {
+        console.warn('Visibility refresh failed:', err)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     return () => {
       unsubscribeSettings()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
   

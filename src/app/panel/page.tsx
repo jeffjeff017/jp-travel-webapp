@@ -451,10 +451,10 @@ export default function AdminPage() {
         })))
       }
       
-      // Load site settings (try Supabase, fallback to local)
-      let settings = getSettings() // Use local cache first
+      // Always fetch fresh from Supabase on panel load (bypass cache)
+      let settings = getSettings()
       try {
-        const freshSettings = await getSettingsAsync()
+        const freshSettings = await refreshSettings()
         if (freshSettings) {
           settings = freshSettings
         }
