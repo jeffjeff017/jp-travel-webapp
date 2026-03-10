@@ -382,25 +382,19 @@ export default function MainPage() {
 
   useEffect(() => {
     async function initializeData() {
-      // Show cached data immediately to avoid flickering
-      let loadedSettings = getSettings()
-      setSettings(loadedSettings)
-      
-      // Load users for avatar display
       setUsers(getUsers())
-      
-      // Always fetch fresh from Supabase on every page load (bypass 5-min cache)
-      // so cross-device changes (localhost ↔ Vercel) are always picked up.
+
+      // Always fetch from Supabase first — update localStorage with fresh data
+      // before rendering settings-dependent UI, so users never see stale content.
+      let loadedSettings: SiteSettings
       try {
-        const freshSettings = await refreshSettings()
-        if (freshSettings) {
-          loadedSettings = freshSettings
-          setSettings(loadedSettings)
-        }
+        loadedSettings = await refreshSettings()
       } catch (err) {
         console.warn('Failed to fetch settings from Supabase, using local:', err)
+        loadedSettings = getSettings()
       }
-      
+      setSettings(loadedSettings)
+
       // Auto-select current day based on trip start date
       if (loadedSettings.tripStartDate) {
         const startDate = new Date(loadedSettings.tripStartDate)

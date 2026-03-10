@@ -2689,15 +2689,15 @@ export default function AdminPage() {
                     </button>
                     <button
                       onClick={async () => {
-                        // Save to settings (both localStorage and Supabase)
                         await saveSettingsAsync({
                           travelEssentials,
                           travelPreparations
                         })
-                        setMessage({ type: 'success', text: '旅遊須知已儲存！' })
                         setShowTravelNotice(false)
                         setNewItemText('')
                         setNewItemIcon('📌')
+                        setMessage({ type: 'success', text: '旅遊須知已儲存！' })
+                        setTimeout(() => window.location.reload(), 800)
                       }}
                       className="flex-1 py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors"
                     >
