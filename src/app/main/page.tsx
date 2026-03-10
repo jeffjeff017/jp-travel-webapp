@@ -223,6 +223,7 @@ export default function MainPage() {
   const [dayLabelSaving, setDayLabelSaving] = useState<number | null>(null)
   const [dayLabelSaveError, setDayLabelSaveError] = useState<number | null>(null)
   const dayLabelSavingRef = useRef(false) // prevent double-call from onBlur + onKeyDown(Enter)
+  const lastLocalSaveRef = useRef(0) // timestamp of last settings save — used to block Realtime from overwriting our own data
   const [currentUser, setCurrentUser] = useState<{ username: string; role: string; displayName: string; avatarUrl?: string } | null>(null)
   
   // Mobile map popup state
@@ -413,8 +414,12 @@ export default function MainPage() {
 
     initializeData()
 
-    // Realtime: re-fetch settings whenever another client saves them
+    // Realtime: re-fetch settings whenever another client saves them.
+    // Guard: if WE just saved within the last 4 s, skip the re-fetch to prevent
+    // a read-after-write race where Supabase returns stale data and overwrites
+    // our correctly-saved localStorage.
     const unsubscribeSettings = subscribeToSettingsChanges(async () => {
+      if (Date.now() - lastLocalSaveRef.current < 4000) return
       localStorage.removeItem('site_settings_cache_time') // Invalidate cache
       try {
         const freshSettings = await getSettingsAsync()
@@ -528,6 +533,7 @@ export default function MainPage() {
         daySchedules: previousDaySchedules
       }
       
+      lastLocalSaveRef.current = Date.now()
       saveSettingsAsync(revertedSettings) // Sync to Supabase
       setSettings(revertedSettings)
       setSelectedDay(Math.min(selectedDay, previousTotalDays))
@@ -637,6 +643,7 @@ export default function MainPage() {
       daySchedules: newDaySchedules
     }
     
+    lastLocalSaveRef.current = Date.now()
     saveSettingsAsync(updatedSettings) // Sync to Supabase
     setSettings(updatedSettings)
     
@@ -678,6 +685,7 @@ export default function MainPage() {
     setDayLabelSaving(dayNumber)
     setDayLabelSaveError(null)
     try {
+      lastLocalSaveRef.current = Date.now()
       const result = await saveSettingsAsync(newSettings)
       if (!result.success) {
         console.error('[Day Label] Supabase save failed:', result.error)
@@ -719,6 +727,7 @@ export default function MainPage() {
       daySchedules: newDaySchedules
     }
     
+    lastLocalSaveRef.current = Date.now()
     saveSettingsAsync(updatedSettings) // Sync to Supabase
     setSettings(updatedSettings)
     
@@ -1363,11 +1372,6 @@ export default function MainPage() {
                                 hideArrows
                               />
                             </div>
-                            {images.length > 1 && (
-                              <span className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded z-10">
-                                {images.length}
-                              </span>
-                            )}
                           </div>
                         )
                       })()}
@@ -1698,7 +1702,7 @@ export default function MainPage() {
                 <div className="flex items-start gap-2 bg-gray-50 rounded-xl p-4">
                   <span className="text-xl">📍</span>
                   <div className="flex-1">
-                    <p className="text-gray-700">{detailTrip.location}</p>
+                    <p className="text-sm text-gray-500 font-light">{detailTrip.location}</p>
                     <button
                       onClick={() => setShowTripMapEmbed(true)}
                       className="text-sm text-sakura-500 mt-1 hover:underline"

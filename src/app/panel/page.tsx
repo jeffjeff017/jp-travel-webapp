@@ -41,6 +41,7 @@ import {
 import { 
   getSettings, 
   getSettingsAsync, 
+  refreshSettings,
   saveSettings, 
   saveSettingsAsync, 
   type SiteSettings, 
@@ -231,6 +232,8 @@ export default function AdminPage() {
   })
   const [newChiikawaMessage, setNewChiikawaMessage] = useState('')
   const [editingCharacter, setEditingCharacter] = useState<'chiikawa' | 'hachiware' | 'usagi'>('usagi')
+  const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null)
+  const [editingMessageText, setEditingMessageText] = useState('')
   // Sakura mode state (synced with localStorage)
   const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [isAdminUser, setIsAdminUser] = useState(false)
@@ -273,19 +276,24 @@ export default function AdminPage() {
     }
   }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showExpenseForm, showBudgetForm, showTripDetail])
 
-  // Refresh settingsForm from latest siteSettings whenever the dialog opens
+  // Refresh settingsForm from latest Supabase data whenever the dialog opens
   useEffect(() => {
-    if (showSettings && siteSettings) {
-      setSettingsForm({
-        title: siteSettings.title,
-        tripStartDate: siteSettings.tripStartDate || new Date().toISOString().split('T')[0],
-        totalDays: siteSettings.totalDays || 3,
-        daySchedules: siteSettings.daySchedules || [],
-        homeLocationImageUrl: siteSettings.homeLocation?.imageUrl || '',
-        homeLocationName: siteSettings.homeLocation?.name || '',
-        homeLocationAddress: siteSettings.homeLocation?.address || ''
-      })
-    }
+    if (!showSettings) return
+    ;(async () => {
+      const latest = await refreshSettings()
+      if (latest) {
+        setSiteSettings(prev => ({ ...(prev ?? latest), ...latest }))
+        setSettingsForm({
+          title: latest.title,
+          tripStartDate: latest.tripStartDate || new Date().toISOString().split('T')[0],
+          totalDays: latest.totalDays || 3,
+          daySchedules: latest.daySchedules || [],
+          homeLocationImageUrl: latest.homeLocation?.imageUrl || '',
+          homeLocationName: latest.homeLocation?.name || '',
+          homeLocationAddress: latest.homeLocation?.address || ''
+        })
+      }
+    })()
   }, [showSettings])
 
   // Sync TanStack Query data to local state
@@ -5076,7 +5084,7 @@ export default function AdminPage() {
               {/* Character Tabs */}
               <div className="flex border-b border-gray-100 flex-shrink-0">
                 <button
-                  onClick={() => setEditingCharacter('usagi')}
+                  onClick={() => { setEditingCharacter('usagi'); setEditingMessageIndex(null); setEditingMessageText('') }}
                   className={`flex-1 py-3 text-sm font-medium transition-colors ${
                     editingCharacter === 'usagi' 
                       ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
@@ -5087,7 +5095,7 @@ export default function AdminPage() {
                   兔兔
                 </button>
                 <button
-                  onClick={() => setEditingCharacter('hachiware')}
+                  onClick={() => { setEditingCharacter('hachiware'); setEditingMessageIndex(null); setEditingMessageText('') }}
                   className={`flex-1 py-3 text-sm font-medium transition-colors ${
                     editingCharacter === 'hachiware' 
                       ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
@@ -5098,7 +5106,7 @@ export default function AdminPage() {
                   小八
                 </button>
                 <button
-                  onClick={() => setEditingCharacter('chiikawa')}
+                  onClick={() => { setEditingCharacter('chiikawa'); setEditingMessageIndex(null); setEditingMessageText('') }}
                   className={`flex-1 py-3 text-sm font-medium transition-colors ${
                     editingCharacter === 'chiikawa' 
                       ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
@@ -5155,18 +5163,77 @@ export default function AdminPage() {
                       className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl"
                     >
                       <span className="text-lg">💬</span>
-                      <span className="flex-1 text-sm text-gray-700">{msg}</span>
-                      <button
-                        onClick={() => {
-                          setChiikawaMessages(prev => ({
-                            ...prev,
-                            [editingCharacter]: prev[editingCharacter].filter((_, i) => i !== idx)
-                          }))
-                        }}
-                        className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        🗑️
-                      </button>
+                      {editingMessageIndex === idx ? (
+                        <>
+                          <input
+                            type="text"
+                            value={editingMessageText}
+                            onChange={(e) => setEditingMessageText(e.target.value)}
+                            autoFocus
+                            className="flex-1 px-2 py-1 bg-white border border-sakura-400 rounded-lg text-sm focus:outline-none"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && editingMessageText.trim()) {
+                                setChiikawaMessages(prev => ({
+                                  ...prev,
+                                  [editingCharacter]: prev[editingCharacter].map((m, i) => i === idx ? editingMessageText.trim() : m)
+                                }))
+                                setEditingMessageIndex(null)
+                                setEditingMessageText('')
+                              } else if (e.key === 'Escape') {
+                                setEditingMessageIndex(null)
+                                setEditingMessageText('')
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              if (editingMessageText.trim()) {
+                                setChiikawaMessages(prev => ({
+                                  ...prev,
+                                  [editingCharacter]: prev[editingCharacter].map((m, i) => i === idx ? editingMessageText.trim() : m)
+                                }))
+                              }
+                              setEditingMessageIndex(null)
+                              setEditingMessageText('')
+                            }}
+                            className="w-8 h-8 flex items-center justify-center text-green-500 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors text-xs font-bold"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => { setEditingMessageIndex(null); setEditingMessageText('') }}
+                            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-xs"
+                          >
+                            ✕
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span
+                            className="flex-1 text-sm text-gray-700 cursor-pointer hover:text-sakura-600"
+                            onClick={() => { setEditingMessageIndex(idx); setEditingMessageText(msg) }}
+                          >
+                            {msg}
+                          </span>
+                          <button
+                            onClick={() => { setEditingMessageIndex(idx); setEditingMessageText(msg) }}
+                            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-sakura-500 hover:bg-sakura-50 rounded-lg transition-colors text-xs"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => {
+                              setChiikawaMessages(prev => ({
+                                ...prev,
+                                [editingCharacter]: prev[editingCharacter].filter((_, i) => i !== idx)
+                              }))
+                            }}
+                            className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            🗑️
+                          </button>
+                        </>
+                      )}
                     </div>
                   ))}
                   
@@ -5240,7 +5307,7 @@ export default function AdminPage() {
               {/* Character Tabs */}
               <div className="flex border-b border-gray-100">
                 <button
-                  onClick={() => setEditingCharacter('usagi')}
+                  onClick={() => { setEditingCharacter('usagi'); setEditingMessageIndex(null); setEditingMessageText('') }}
                   className={`flex-1 py-3 text-sm font-medium transition-colors ${
                     editingCharacter === 'usagi' 
                       ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
@@ -5251,7 +5318,7 @@ export default function AdminPage() {
                   兔兔
                 </button>
                 <button
-                  onClick={() => setEditingCharacter('hachiware')}
+                  onClick={() => { setEditingCharacter('hachiware'); setEditingMessageIndex(null); setEditingMessageText('') }}
                   className={`flex-1 py-3 text-sm font-medium transition-colors ${
                     editingCharacter === 'hachiware' 
                       ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
@@ -5262,7 +5329,7 @@ export default function AdminPage() {
                   小八
                 </button>
                 <button
-                  onClick={() => setEditingCharacter('chiikawa')}
+                  onClick={() => { setEditingCharacter('chiikawa'); setEditingMessageIndex(null); setEditingMessageText('') }}
                   className={`flex-1 py-3 text-sm font-medium transition-colors ${
                     editingCharacter === 'chiikawa' 
                       ? 'text-sakura-600 border-b-2 border-sakura-500 bg-sakura-50' 
@@ -5318,18 +5385,77 @@ export default function AdminPage() {
                       className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
                     >
                       <span className="text-lg">💬</span>
-                      <span className="flex-1 text-sm text-gray-700">{msg}</span>
-                      <button
-                        onClick={() => {
-                          setChiikawaMessages(prev => ({
-                            ...prev,
-                            [editingCharacter]: prev[editingCharacter].filter((_, i) => i !== idx)
-                          }))
-                        }}
-                        className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        🗑️
-                      </button>
+                      {editingMessageIndex === idx ? (
+                        <>
+                          <input
+                            type="text"
+                            value={editingMessageText}
+                            onChange={(e) => setEditingMessageText(e.target.value)}
+                            autoFocus
+                            className="flex-1 px-2 py-1 bg-white border border-sakura-400 rounded-lg text-sm focus:outline-none"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && editingMessageText.trim()) {
+                                setChiikawaMessages(prev => ({
+                                  ...prev,
+                                  [editingCharacter]: prev[editingCharacter].map((m, i) => i === idx ? editingMessageText.trim() : m)
+                                }))
+                                setEditingMessageIndex(null)
+                                setEditingMessageText('')
+                              } else if (e.key === 'Escape') {
+                                setEditingMessageIndex(null)
+                                setEditingMessageText('')
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              if (editingMessageText.trim()) {
+                                setChiikawaMessages(prev => ({
+                                  ...prev,
+                                  [editingCharacter]: prev[editingCharacter].map((m, i) => i === idx ? editingMessageText.trim() : m)
+                                }))
+                              }
+                              setEditingMessageIndex(null)
+                              setEditingMessageText('')
+                            }}
+                            className="w-8 h-8 flex items-center justify-center text-green-500 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors text-xs font-bold"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => { setEditingMessageIndex(null); setEditingMessageText('') }}
+                            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-xs"
+                          >
+                            ✕
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span
+                            className="flex-1 text-sm text-gray-700 cursor-pointer hover:text-sakura-600"
+                            onClick={() => { setEditingMessageIndex(idx); setEditingMessageText(msg) }}
+                          >
+                            {msg}
+                          </span>
+                          <button
+                            onClick={() => { setEditingMessageIndex(idx); setEditingMessageText(msg) }}
+                            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-sakura-500 hover:bg-sakura-50 rounded-lg transition-colors text-xs"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => {
+                              setChiikawaMessages(prev => ({
+                                ...prev,
+                                [editingCharacter]: prev[editingCharacter].filter((_, i) => i !== idx)
+                              }))
+                            }}
+                            className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            🗑️
+                          </button>
+                        </>
+                      )}
                     </div>
                   ))}
                   
