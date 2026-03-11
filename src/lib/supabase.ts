@@ -381,6 +381,8 @@ export type WishlistItemDB = {
   added_to_trip: { day: number; time: string } | null
   added_by: { username: string; display_name: string; avatar_url?: string } | null
   is_favorite: boolean
+  /** Per-user likes: usernames who liked. Cancelling does not affect other users. */
+  favorited_by?: string[] | null
   created_at: string
 }
 
@@ -389,7 +391,6 @@ export async function getSupabaseWishlistItems(): Promise<WishlistItemDB[]> {
     const { data, error } = await supabase
       .from('wishlist_items')
       .select('*')
-      .order('is_favorite', { ascending: false })
       .order('created_at', { ascending: false })
 
     if (error) {

@@ -1,7 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['tenor.com', 'media.tenor.com'],
+    remotePatterns: [
+      { protocol: 'https', hostname: 'tenor.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'media.tenor.com', port: '', pathname: '/**' },
+    ],
     unoptimized: false,
   },
   // For Vercel deployment

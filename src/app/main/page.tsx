@@ -1045,7 +1045,7 @@ export default function MainPage() {
                       className="w-full flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
                     >
                       <span className="w-10 h-10 flex items-center justify-center bg-pink-100 text-pink-600 rounded-full">
-                        {item.is_favorite ? '⭐' : '📍'}
+                        {(item.favorited_by || []).includes(getCurrentUser()?.username || '') ? '⭐' : '📍'}
                       </span>
                       <div className="flex-1 text-left">
                         <p className="font-medium text-gray-800">{item.name}</p>
@@ -1890,8 +1890,8 @@ export default function MainPage() {
                   >
                     ✕
                   </button>
-                  {/* Favorite indicator */}
-                  {selectedWishlistItem.is_favorite && (
+                  {/* Favorite indicator (current user's like) */}
+                  {(selectedWishlistItem.favorited_by || []).includes(getCurrentUser()?.username || '') && (
                     <div className="absolute bottom-3 right-3 w-10 h-10 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-lg">
                       <span className="text-lg">❤️</span>
                     </div>

@@ -11,6 +11,7 @@ import {
   type WishlistItemDB 
 } from '@/lib/supabase'
 import { getSettings, getSettingsAsync } from '@/lib/settings'
+import { getCurrentUser } from '@/lib/auth'
 
 // Main categories (tabs)
 const CATEGORIES = [
@@ -37,7 +38,8 @@ type WishlistItem = {
   addedAt: string
   addedToDay?: number
   addedTime?: string
-  isFavorite?: boolean // Heart/favorite status
+  isFavorite?: boolean
+  favoritedBy?: string[] // Per-user likes
 }
 
 type Wishlist = {
@@ -58,6 +60,7 @@ const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
 // Convert from Supabase format to local format
 function fromSupabaseFormat(db: WishlistItemDB): WishlistItem {
+  const favoritedBy = Array.isArray(db.favorited_by) ? db.favorited_by : []
   return {
     id: db.id,
     name: db.name,
@@ -68,12 +71,14 @@ function fromSupabaseFormat(db: WishlistItemDB): WishlistItem {
     addedAt: db.created_at,
     addedToDay: db.added_to_trip?.day,
     addedTime: db.added_to_trip?.time,
-    isFavorite: db.is_favorite,
+    isFavorite: favoritedBy.length > 0 || db.is_favorite,
+    favoritedBy,
   }
 }
 
 // Convert from local format to Supabase format
 function toSupabaseFormat(item: Omit<WishlistItem, 'id' | 'addedAt'>): Omit<WishlistItemDB, 'id' | 'created_at'> {
+  const favoritedBy = item.favoritedBy || []
   return {
     category: item.category,
     name: item.name,
@@ -83,7 +88,8 @@ function toSupabaseFormat(item: Omit<WishlistItem, 'id' | 'addedAt'>): Omit<Wish
     link: item.link || null,
     added_to_trip: item.addedToDay ? { day: item.addedToDay, time: item.addedTime || '12:00' } : null,
     added_by: null,
-    is_favorite: item.isFavorite || false,
+    is_favorite: favoritedBy.length > 0,
+    favorited_by: favoritedBy,
   }
 }
 
@@ -379,15 +385,17 @@ export default function WishlistButton({
       }
     } else {
       // Create new item - first save to Supabase to get the ID
+      const user = getCurrentUser()
       const newItemData = {
         category: catId,
         name: isLinkOnlyCategory 
-          ? (newItemName.trim() || newItemLink.trim()) // Use title if provided, else link
+          ? (newItemName.trim() || newItemLink.trim())
           : newItemName.trim(),
         note: newItemNote.trim() || undefined,
         imageUrl: newItemImage || undefined,
         link: newItemLink.trim() || undefined,
-        isFavorite: false,
+        favoritedBy: user ? [user.username] : [],
+        isFavorite: !!user,
       }
       
       const result = await saveSupabaseWishlistItem(toSupabaseFormat(newItemData))
@@ -445,35 +453,43 @@ export default function WishlistButton({
     }
   }
 
-  // Toggle favorite (moves to top)
+  // Toggle favorite (per-user: add/remove from favoritedBy)
   const toggleFavorite = async (itemId: number | string) => {
     const catId = getActiveCategoryId()
     const item = wishlist[catId].find(i => i.id === itemId)
     if (!item) return
-    
-    const newFavorite = !item.isFavorite
-    
+    const currentUsername = getCurrentUser()?.username
+    if (!currentUsername) return
+    const favoritedBy = item.favoritedBy || []
+    const isLiked = favoritedBy.includes(currentUsername)
+    const newFavoritedBy = isLiked
+      ? favoritedBy.filter(u => u !== currentUsername)
+      : [...favoritedBy, currentUsername]
+    const newFavorite = newFavoritedBy.length > 0
+    if (typeof itemId === 'number') {
+      const { data, error } = await updateSupabaseWishlistItem(itemId, { favorited_by: newFavoritedBy, is_favorite: newFavorite })
+      if (error) {
+        console.error('Failed to save like:', error)
+        return
+      }
+    }
     const newWishlist = {
       ...wishlist,
-      [catId]: wishlist[catId].map(i => 
-        i.id === itemId 
-          ? { ...i, isFavorite: newFavorite }
-          : i
+      [catId]: wishlist[catId].map(i =>
+        i.id === itemId ? { ...i, favoritedBy: newFavoritedBy, isFavorite: newFavorite } : i
       ),
     }
     saveWishlist(newWishlist)
-    
-    // Sync to Supabase
-    if (typeof itemId === 'number') {
-      await updateSupabaseWishlistItem(itemId, { is_favorite: newFavorite })
-    }
   }
 
-  // Get sorted items (favorites first)
+  // Get sorted items (current user's favorites first)
   const getSortedItems = (items: WishlistItem[]) => {
+    const currentUsername = getCurrentUser()?.username || ''
     return [...items].sort((a, b) => {
-      if (a.isFavorite && !b.isFavorite) return -1
-      if (!a.isFavorite && b.isFavorite) return 1
+      const aLiked = (a.favoritedBy || []).includes(currentUsername)
+      const bLiked = (b.favoritedBy || []).includes(currentUsername)
+      if (aLiked && !bLiked) return -1
+      if (!aLiked && bLiked) return 1
       return 0
     })
   }
@@ -970,18 +986,21 @@ export default function WishlistButton({
                                 )}
                               </div>
                               
-                              {/* Heart Button - Right side */}
-                              <button
-                                onClick={() => toggleFavorite(item.id)}
-                                className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                                  item.isFavorite 
-                                    ? 'bg-red-100 text-red-500' 
-                                    : 'bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-400'
-                                }`}
-                                title={item.isFavorite ? '取消置頂' : '置頂'}
-                              >
-                                {item.isFavorite ? '❤️' : '🤍'}
-                              </button>
+                              {/* Heart Button - Right side (per-user like) */}
+                              {(() => {
+                                const isLiked = (item.favoritedBy || []).includes(getCurrentUser()?.username || '')
+                                return (
+                                  <button
+                                    onClick={() => toggleFavorite(item.id)}
+                                    className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                                      isLiked ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-400'
+                                    }`}
+                                    title={isLiked ? '取消置頂' : '置頂'}
+                                  >
+                                    {isLiked ? '❤️' : '🤍'}
+                                  </button>
+                                )
+                              })()}
                             </div>
                             
                             {/* Actions - Different for threads (no add to trip) */}

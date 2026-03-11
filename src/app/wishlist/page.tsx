@@ -141,7 +141,10 @@ type WishlistItem = {
   addedAt: string
   addedToDay?: number
   addedTime?: string
+  /** @deprecated Use favoritedBy. Kept for backward compat during migration. */
   isFavorite?: boolean
+  /** Per-user likes: usernames who liked. Each user's like is independent. */
+  favoritedBy?: string[]
   addedBy?: { username: string; displayName: string; avatarUrl?: string }
 }
 
@@ -183,6 +186,7 @@ const isThreadsCategory = (category: string) => category === 'threads'
 
 // Convert from Supabase format to local format
 function fromSupabaseFormat(db: WishlistItemDB): WishlistItem {
+  const favoritedBy = Array.isArray(db.favorited_by) ? db.favorited_by : []
   return {
     id: db.id,
     name: db.name,
@@ -194,7 +198,8 @@ function fromSupabaseFormat(db: WishlistItemDB): WishlistItem {
     addedAt: db.created_at,
     addedToDay: db.added_to_trip?.day,
     addedTime: db.added_to_trip?.time,
-    isFavorite: db.is_favorite,
+    isFavorite: favoritedBy.length > 0 || db.is_favorite,
+    favoritedBy,
     addedBy: db.added_by ? {
       username: db.added_by.username,
       displayName: db.added_by.display_name,
@@ -205,6 +210,7 @@ function fromSupabaseFormat(db: WishlistItemDB): WishlistItem {
 
 // Convert from local format to Supabase format
 function toSupabaseFormat(item: Omit<WishlistItem, 'id' | 'addedAt'>): Omit<WishlistItemDB, 'id' | 'created_at'> {
+  const favoritedBy = item.favoritedBy || []
   return {
     category: item.category,
     name: item.name,
@@ -218,7 +224,8 @@ function toSupabaseFormat(item: Omit<WishlistItem, 'id' | 'addedAt'>): Omit<Wish
       display_name: item.addedBy.displayName,
       avatar_url: item.addedBy.avatarUrl,
     } : null,
-    is_favorite: item.isFavorite || false,
+    is_favorite: favoritedBy.length > 0,
+    favorited_by: favoritedBy,
   }
 }
 
@@ -552,10 +559,13 @@ export default function WishlistPage() {
       })
     }
     
-    // Sort by favorite (favorites first)
+    // Sort by current user's favorites first
+    const currentUsername = (currentUser || getCurrentUser())?.username
     items = [...items].sort((a, b) => {
-      if (a.isFavorite && !b.isFavorite) return -1
-      if (!a.isFavorite && b.isFavorite) return 1
+      const aLiked = (a.favoritedBy || []).includes(currentUsername || '')
+      const bLiked = (b.favoritedBy || []).includes(currentUsername || '')
+      if (aLiked && !bLiked) return -1
+      if (!aLiked && bLiked) return 1
       return 0
     })
     
@@ -617,7 +627,8 @@ export default function WishlistPage() {
         imageUrl: newItemImage || undefined,
         link: newItemUrl.trim() || undefined,
         area: newItemArea || undefined,
-        isFavorite: false,
+        favoritedBy: user ? [user.username] : [],
+        isFavorite: !!user,
         addedBy: user ? {
           username: user.username,
           displayName: user.displayName,
@@ -798,24 +809,40 @@ export default function WishlistPage() {
     setIsSubmitting(false)
   }
   
-  // Handle toggle favorite
+  // Handle toggle favorite (per-user: add/remove from favoritedBy, does not affect others)
   const handleToggleFavorite = async (item: WishlistItem) => {
-    const willBeFavorite = !item.isFavorite
-    
+    const currentUsername = (currentUser || getCurrentUser())?.username
+    if (!currentUsername) return
+    const favoritedBy = item.favoritedBy || []
+    const isLiked = favoritedBy.includes(currentUsername)
+    const newFavoritedBy = isLiked
+      ? favoritedBy.filter(u => u !== currentUsername)
+      : [...favoritedBy, currentUsername]
     try {
-      const updated = await updateSupabaseWishlistItem(Number(item.id), {
-        is_favorite: willBeFavorite
+      const { data, error } = await updateSupabaseWishlistItem(Number(item.id), {
+        favorited_by: newFavoritedBy,
+        is_favorite: newFavoritedBy.length > 0,
       })
-      
-      if (updated) {
+      if (error) {
+        console.error('Failed to save like:', error)
+        if (error.includes('favorited_by') || error.includes('column')) {
+          alert('請先在 Supabase 執行 migration 新增 favorited_by 欄位。請在 SQL Editor 執行：\nALTER TABLE wishlist_items ADD COLUMN IF NOT EXISTS favorited_by jsonb DEFAULT \'[]\'::jsonb;')
+        }
+        return
+      }
+      if (data) {
         const newWishlist = { ...wishlist }
         const idx = newWishlist[item.category].findIndex(i => i.id === item.id)
         if (idx !== -1) {
-          newWishlist[item.category][idx] = { ...newWishlist[item.category][idx], isFavorite: willBeFavorite }
+          newWishlist[item.category][idx] = {
+            ...newWishlist[item.category][idx],
+            favoritedBy: newFavoritedBy,
+            isFavorite: newFavoritedBy.length > 0,
+          }
           setWishlist(newWishlist)
           safeSetItem(STORAGE_KEY, JSON.stringify(stripImagesForCache(newWishlist)))
         }
-        
+        queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
       }
     } catch (err) {
       console.error('Failed to toggle favorite:', err)
@@ -1026,8 +1053,34 @@ export default function WishlistPage() {
                     ) : null
                   })()}
                   
-                  {/* Favorite indicator - bottom right */}
-                  {item.isFavorite && (
+                  {/* Like bubble - bottom left (avatar + 已讚好 + ❤️) */}
+                  {(item.favoritedBy || []).length > 0 && (() => {
+                    const favoritedBy = (item.favoritedBy || []) as string[]
+                    const loggedInUsername = (currentUser || getCurrentUser())?.username ?? getLoggedInUsername()
+                    const isCurrentUserLiked = favoritedBy.includes(loggedInUsername || '')
+                    const otherUsername = favoritedBy.find(u => u !== loggedInUsername)
+                    const otherAvatar = otherUsername ? getUserAvatar(otherUsername, item.addedBy?.username === otherUsername ? item.addedBy.avatarUrl : users.find(u => u.username === otherUsername)?.avatarUrl) : undefined
+                    const currentUserAvatar = loggedInUsername ? getUserAvatar(loggedInUsername, currentUser?.avatarUrl ?? users.find(u => u.username === loggedInUsername)?.avatarUrl) : undefined
+                    const avatars = isCurrentUserLiked && otherUsername
+                      ? [currentUserAvatar, otherAvatar]
+                      : (isCurrentUserLiked ? [currentUserAvatar] : [otherAvatar])
+                    return (
+                      <div className="absolute bottom-2 left-2 pointer-events-none">
+                        <div className="bg-black/75 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1.5">
+                          <div className="flex -space-x-1">
+                            {avatars.map((url, i) => url ? (
+                              <img key={i} src={url} alt="" className="w-4 h-4 rounded-full object-cover border border-black/75" />
+                            ) : (
+                              <div key={i} className="w-4 h-4 rounded-full bg-white/30 border border-black/75" />
+                            ))}
+                          </div>
+                          <span>已讚好 ❤️</span>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                  {/* Favorite indicator - bottom right (current user's like) */}
+                  {(item.favoritedBy || []).includes((currentUser || getCurrentUser())?.username || '') && (
                     <div className="absolute bottom-2 right-2 w-7 h-7 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-sm">
                       <HeartFilled className="w-4 h-4 text-rose-500" />
                     </div>
@@ -1679,23 +1732,32 @@ export default function WishlistPage() {
                       ✕
                     </button>
                   </div>
-                  {/* Bottom left: Like bubble (show when addedBy exists) */}
-                  {selectedItemPopup.addedBy && (() => {
+                  {/* Bottom left: Like bubble — only show when someone has pressed the like button (favoritedBy) */}
+                  {(() => {
                     const currentUserInfo = getCurrentUser()
                     const loggedInUsername = currentUserInfo?.username ?? getLoggedInUsername()
                     const addedBy = selectedItemPopup.addedBy
-                    const isAddedByCurrentUser = loggedInUsername && addedBy.username === loggedInUsername
-                    const addedByDisplayName = getUserDisplayName(addedBy.username, addedBy.displayName)
-                    const addedByAvatar = getUserAvatar(addedBy.username, addedBy.avatarUrl)
+                    const liveItem = Object.values(wishlist).flat().find(i => String(i.id) === String(selectedItemPopup.id))
+                    const favoritedBy = (liveItem?.favoritedBy ?? selectedItemPopup.favoritedBy ?? []) as string[]
+                    const isCurrentUserLiked = favoritedBy.includes(loggedInUsername || '')
                     const currentUserAvatar = loggedInUsername ? getUserAvatar(loggedInUsername, currentUserInfo?.avatarUrl ?? users.find(u => u.username === loggedInUsername)?.avatarUrl) : undefined
-                    const text = selectedItemPopup.isFavorite
-                      ? (isAddedByCurrentUser ? '你 對此讚好' : `你 和 ${addedByDisplayName} 也對此讚好`)
-                      : `${addedByDisplayName} 對此讚好`
-                    const avatars = selectedItemPopup.isFavorite && !isAddedByCurrentUser
-                      ? [currentUserAvatar, addedByAvatar]
-                      : [addedByAvatar]
+                    if (favoritedBy.length === 0) return null
+                    const otherUsername = favoritedBy.find(u => u !== loggedInUsername)
+                    const otherDisplayName = otherUsername ? getUserDisplayName(otherUsername, addedBy?.username === otherUsername ? addedBy.displayName : users.find(u => u.username === otherUsername)?.displayName) : ''
+                    const otherAvatar = otherUsername ? getUserAvatar(otherUsername, addedBy?.username === otherUsername ? addedBy.avatarUrl : users.find(u => u.username === otherUsername)?.avatarUrl) : undefined
+                    const text = isCurrentUserLiked
+                      ? (otherUsername ? `你 和 ${otherDisplayName} 也對此讚好` : '你 對此讚好')
+                      : `${otherDisplayName} 對此讚好`
+                    const avatars = isCurrentUserLiked && otherUsername
+                      ? [currentUserAvatar, otherAvatar]
+                      : (isCurrentUserLiked ? [currentUserAvatar] : [otherAvatar])
                     return (
-                      <div className="absolute bottom-3 left-3 pointer-events-none">
+                      <motion.div
+                        className="absolute bottom-3 left-3 pointer-events-none"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                      >
                         <div className="bg-black/75 text-white text-xs px-3 py-2 rounded-full backdrop-blur-sm shadow-lg flex items-center gap-2">
                           <div className="flex -space-x-1.5">
                             {avatars.map((url, i) => url ? (
@@ -1706,16 +1768,21 @@ export default function WishlistPage() {
                           </div>
                           <span>{text} ❤️</span>
                         </div>
-                      </div>
+                      </motion.div>
                     )
                   })()}
-                  {/* Bottom right: Favorite button */}
+                  {/* Bottom right: Favorite button (per-user) */}
                   <div className="absolute bottom-3 right-3">
                     <motion.button
                       onClick={() => {
-                        const newFavorite = !selectedItemPopup.isFavorite
+                        const un = (getCurrentUser() || currentUser)?.username ?? getLoggedInUsername()
+                        const isLiked = (selectedItemPopup.favoritedBy || []).includes(un || '')
+                        const newFavorite = !isLiked
                         handleToggleFavorite(selectedItemPopup)
-                        setSelectedItemPopup({ ...selectedItemPopup, isFavorite: newFavorite })
+                        const nextFavoritedBy = newFavorite
+                          ? [...(selectedItemPopup.favoritedBy || []), un].filter(Boolean)
+                          : (selectedItemPopup.favoritedBy || []).filter(u => u !== un)
+                        setSelectedItemPopup({ ...selectedItemPopup, favoritedBy: nextFavoritedBy, isFavorite: newFavorite })
                       }}
                       whileTap={{ scale: 0.85 }}
                       animate={{ scale: 1 }}
@@ -1723,12 +1790,12 @@ export default function WishlistPage() {
                       className="w-10 h-10 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:scale-110 transition-transform"
                     >
                       <motion.span
-                        key={selectedItemPopup.isFavorite ? 'filled' : 'outline'}
+                        key={(selectedItemPopup.favoritedBy || []).includes((getCurrentUser() || currentUser)?.username ?? '') ? 'filled' : 'outline'}
                         initial={{ scale: 1.4 }}
                         animate={{ scale: 1 }}
                         transition={{ type: 'spring', stiffness: 500, damping: 25 }}
                       >
-                        {selectedItemPopup.isFavorite
+                        {(selectedItemPopup.favoritedBy || []).includes((getCurrentUser() || currentUser)?.username ?? '')
                           ? <HeartFilled className="w-5 h-5 text-rose-500" />
                           : <HeartOutline className="w-5 h-5 text-gray-400" />}
                       </motion.span>
@@ -1741,23 +1808,32 @@ export default function WishlistPage() {
               <div className="p-6">
                 {!selectedItemPopup.imageUrl && (
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    {/* Bottom left: Like bubble (show when addedBy exists) */}
-                    {selectedItemPopup.addedBy ? (() => {
+                    {/* Bottom left: Like bubble — only show when someone has pressed the like button (favoritedBy) */}
+                    {(() => {
                       const currentUserInfo = getCurrentUser()
                       const loggedInUsername = currentUserInfo?.username ?? getLoggedInUsername()
                       const addedBy = selectedItemPopup.addedBy
-                      const isAddedByCurrentUser = loggedInUsername && addedBy.username === loggedInUsername
-                      const addedByDisplayName = getUserDisplayName(addedBy.username, addedBy.displayName)
-                      const addedByAvatar = getUserAvatar(addedBy.username, addedBy.avatarUrl)
+                      const liveItem = Object.values(wishlist).flat().find(i => String(i.id) === String(selectedItemPopup.id))
+                      const favoritedBy = (liveItem?.favoritedBy ?? selectedItemPopup.favoritedBy ?? []) as string[]
+                      const isCurrentUserLiked = favoritedBy.includes(loggedInUsername || '')
                       const currentUserAvatar = loggedInUsername ? getUserAvatar(loggedInUsername, currentUserInfo?.avatarUrl ?? users.find(u => u.username === loggedInUsername)?.avatarUrl) : undefined
-                      const text = selectedItemPopup.isFavorite
-                        ? (isAddedByCurrentUser ? '你 對此讚好' : `你 和 ${addedByDisplayName} 也對此讚好`)
-                        : `${addedByDisplayName} 對此讚好`
-                      const avatars = selectedItemPopup.isFavorite && !isAddedByCurrentUser
-                        ? [currentUserAvatar, addedByAvatar]
-                        : [addedByAvatar]
+                      if (favoritedBy.length === 0) return <div />
+                      const otherUsername = favoritedBy.find(u => u !== loggedInUsername)
+                      const otherDisplayName = otherUsername ? getUserDisplayName(otherUsername, addedBy?.username === otherUsername ? addedBy.displayName : users.find(u => u.username === otherUsername)?.displayName) : ''
+                      const otherAvatar = otherUsername ? getUserAvatar(otherUsername, addedBy?.username === otherUsername ? addedBy.avatarUrl : users.find(u => u.username === otherUsername)?.avatarUrl) : undefined
+                      const text = isCurrentUserLiked
+                        ? (otherUsername ? `你 和 ${otherDisplayName} 也對此讚好` : '你 對此讚好')
+                        : `${otherDisplayName} 對此讚好`
+                      const avatars = isCurrentUserLiked && otherUsername
+                        ? [currentUserAvatar, otherAvatar]
+                        : (isCurrentUserLiked ? [currentUserAvatar] : [otherAvatar])
                       return (
-                        <div className="bg-black/75 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-2">
+                        <motion.div
+                          className="bg-black/75 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-2"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.3, ease: 'easeOut' }}
+                        >
                           <div className="flex -space-x-1.5">
                             {avatars.map((url, i) => url ? (
                               <img key={i} src={url} alt="" className="w-5 h-5 rounded-full object-cover border-2 border-black/75" />
@@ -1766,9 +1842,9 @@ export default function WishlistPage() {
                             ))}
                           </div>
                           <span>{text} ❤️</span>
-                        </div>
+                        </motion.div>
                       )
-                    })() : <div />}
+                    })()}
                     <div className="flex items-center gap-2">
                     {canEdit() && (
                       <div className="relative">
@@ -1801,21 +1877,26 @@ export default function WishlistPage() {
                     )}
                     <motion.button
                       onClick={() => {
-                        const newFavorite = !selectedItemPopup.isFavorite
+                        const un = (getCurrentUser() || currentUser)?.username ?? getLoggedInUsername()
+                        const isLiked = (selectedItemPopup.favoritedBy || []).includes(un || '')
+                        const newFavorite = !isLiked
                         handleToggleFavorite(selectedItemPopup)
-                        setSelectedItemPopup({ ...selectedItemPopup, isFavorite: newFavorite })
+                        const nextFavoritedBy = newFavorite
+                          ? [...(selectedItemPopup.favoritedBy || []), un].filter(Boolean)
+                          : (selectedItemPopup.favoritedBy || []).filter(u => u !== un)
+                        setSelectedItemPopup({ ...selectedItemPopup, favoritedBy: nextFavoritedBy, isFavorite: newFavorite })
                       }}
                       whileTap={{ scale: 0.85 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                       className="w-8 h-8 flex items-center justify-center hover:scale-110 transition-transform"
                     >
                       <motion.span
-                        key={selectedItemPopup.isFavorite ? 'filled' : 'outline'}
+                        key={(selectedItemPopup.favoritedBy || []).includes((getCurrentUser() || currentUser)?.username ?? '') ? 'filled' : 'outline'}
                         initial={{ scale: 1.4 }}
                         animate={{ scale: 1 }}
                         transition={{ type: 'spring', stiffness: 500, damping: 25 }}
                       >
-                        {selectedItemPopup.isFavorite
+                        {(selectedItemPopup.favoritedBy || []).includes((getCurrentUser() || currentUser)?.username ?? '')
                           ? <HeartFilled className="w-5 h-5 text-rose-500" />
                           : <HeartOutline className="w-5 h-5 text-gray-400" />}
                       </motion.span>
