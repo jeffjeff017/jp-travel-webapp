@@ -10,12 +10,13 @@ import {
   updateSupabaseWishlistItem, 
   deleteSupabaseWishlistItem,
   saveSupabaseChecklistState,
+  createTrip,
   type WishlistItemDB 
 } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWishlistItems, useChecklistStates, queryKeys } from '@/hooks/useQueries'
 import { getSettings, getSettingsAsync, type SiteSettings } from '@/lib/settings'
-import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, isAuthenticated, logout, getUsers, getUsersAsync, getAuthToken, type User } from '@/lib/auth'
+import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, isAuthenticated, logout, getUsers, getUsersAsync, getAuthToken, getLoggedInUsername, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 import { safeSetItem } from '@/lib/safeStorage'
@@ -263,8 +264,6 @@ export default function WishlistPage() {
   // Users state (for avatar display)
   const [users, setUsers] = useState<User[]>([])
   
-  // Popup "對此讚好" animation state
-  const [showPopupLikeAnim, setShowPopupLikeAnim] = useState(false)
   
   // Add/Edit form state
   const [showAddForm, setShowAddForm] = useState(false)
@@ -283,6 +282,22 @@ export default function WishlistPage() {
   const [selectedItemPopup, setSelectedItemPopup] = useState<WishlistItem | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeAreaFilter, setActiveAreaFilter] = useState('')
+  const [showAddToTripForm, setShowAddToTripForm] = useState(false)
+  const [addToTripDay, setAddToTripDay] = useState(1)
+  const [addToTripTimeStart, setAddToTripTimeStart] = useState('')
+  const [addToTripTimeEnd, setAddToTripTimeEnd] = useState('')
+  const [addToTripSubmitting, setAddToTripSubmitting] = useState(false)
+  const [addToTripSuccess, setAddToTripSuccess] = useState(false)
+  const [popupMoreMenuOpen, setPopupMoreMenuOpen] = useState(false)
+  const [displayCount, setDisplayCount] = useState(12)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  const isLoadingMoreRef = useRef(false)
+
+  // Reset display count when filters change
+  useEffect(() => {
+    setDisplayCount(12)
+  }, [activeTab, activeAreaFilter, searchQuery])
 
   // Close area dropdown on outside click
   useEffect(() => {
@@ -308,7 +323,7 @@ export default function WishlistPage() {
       document.body.style.overflow = ''
     }
   }, [showTravelNotice, showAddForm, selectedItemPopup])
-  
+
   useEffect(() => {
     setIsAdmin(checkIsAdmin())
     setCurrentUser(getCurrentUser())
@@ -674,6 +689,60 @@ export default function WishlistPage() {
     }
   }
   
+  // Handle add wishlist item to itinerary (create trip)
+  const handleAddToTripSubmit = async () => {
+    if (!selectedItemPopup) return
+    setAddToTripSubmitting(true)
+    try {
+      const content = selectedItemPopup.note
+        ? `${selectedItemPopup.name}（${selectedItemPopup.note}）`
+        : selectedItemPopup.name
+      const scheduleItem = {
+        id: `add-${Date.now()}`,
+        content,
+        time_start: addToTripTimeStart || undefined,
+        time_end: addToTripTimeEnd || undefined,
+      }
+      let dateStr = new Date().toISOString().split('T')[0]
+      if (settings?.tripStartDate && settings?.totalDays) {
+        const start = new Date(settings.tripStartDate)
+        const target = new Date(start)
+        target.setDate(start.getDate() + addToTripDay - 1)
+        dateStr = target.toISOString().split('T')[0]
+      }
+      const locationHint = selectedItemPopup.area
+        ? (TOKYO_AREAS.find(a => a.id === selectedItemPopup.area)?.zh || selectedItemPopup.name)
+        : selectedItemPopup.name
+      const { data, error } = await createTrip({
+        title: selectedItemPopup.name,
+        date: dateStr,
+        time_start: addToTripTimeStart || undefined,
+        time_end: addToTripTimeEnd || undefined,
+        description: JSON.stringify([scheduleItem]),
+        location: locationHint,
+        lat: 35.6762,
+        lng: 139.6503,
+      })
+      if (data) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
+        setAddToTripSuccess(true)
+        setTimeout(() => {
+          setShowAddToTripForm(false)
+          setAddToTripSuccess(false)
+          setAddToTripTimeStart('')
+          setAddToTripTimeEnd('')
+          setAddToTripDay(1)
+        }, 800)
+      } else {
+        alert(error || '新增失敗')
+      }
+    } catch (err: any) {
+      alert(err.message || '發生錯誤')
+    } finally {
+      setAddToTripSubmitting(false)
+    }
+  }
+
   // Handle edit item from popup - open the add form pre-filled
   const handleEditItemFromPopup = (item: WishlistItem) => {
     setEditingItem(item)
@@ -747,11 +816,6 @@ export default function WishlistPage() {
           safeSetItem(STORAGE_KEY, JSON.stringify(stripImagesForCache(newWishlist)))
         }
         
-        // Show animation in popup when favoriting
-        if (willBeFavorite) {
-          setShowPopupLikeAnim(true)
-          setTimeout(() => setShowPopupLikeAnim(false), 2500)
-        }
       }
     } catch (err) {
       console.error('Failed to toggle favorite:', err)
@@ -759,7 +823,31 @@ export default function WishlistPage() {
   }
   
   const filteredItems = getFilteredItems()
-  
+  const displayedItems = filteredItems.slice(0, displayCount)
+  const hasMore = displayedItems.length < filteredItems.length
+
+  // IntersectionObserver: load more when sentinel is visible
+  useEffect(() => {
+    if (!hasMore) return
+    const el = loadMoreRef.current
+    if (!el) return
+    const ob = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting || isLoadingMoreRef.current) return
+        isLoadingMoreRef.current = true
+        setIsLoadingMore(true)
+        setDisplayCount((prev) => Math.min(prev + 12, filteredItems.length))
+        setTimeout(() => {
+          isLoadingMoreRef.current = false
+          setIsLoadingMore(false)
+        }, 300)
+      },
+      { rootMargin: '100px', threshold: 0 }
+    )
+    ob.observe(el)
+    return () => ob.disconnect()
+  }, [filteredItems, hasMore])
+
   return (
     <main className={`bg-gray-50 pb-20 ${!isSakuraMode ? 'clean-mode' : ''}`}>
       <SakuraCanvas enabled={isSakuraMode} />
@@ -890,8 +978,9 @@ export default function WishlistPage() {
             </button>
           </div>
         ) : (
+          <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {filteredItems.map((item) => (
+            {displayedItems.map((item) => (
               <motion.div
                 key={item.id}
                 layout
@@ -900,16 +989,7 @@ export default function WishlistPage() {
                 exit={{ opacity: 0, scale: 0.9 }}
                 className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow group cursor-pointer select-none"
                 style={{ touchAction: 'manipulation' }}
-                onClick={() => {
-                  setSelectedItemPopup(item)
-                  // Show "對此讚好" animation if item is favorited
-                  if (item.isFavorite) {
-                    setShowPopupLikeAnim(true)
-                    setTimeout(() => setShowPopupLikeAnim(false), 2500)
-                  } else {
-                    setShowPopupLikeAnim(false)
-                  }
-                }}
+                onClick={() => setSelectedItemPopup(item)}
                 role="button"
                 tabIndex={0}
               >
@@ -1016,6 +1096,16 @@ export default function WishlistPage() {
               </motion.div>
             ))}
           </div>
+          {hasMore && (
+            <div ref={loadMoreRef} className="flex justify-center py-8">
+              {isLoadingMore ? (
+                <span className="text-sm text-gray-500">載入中...</span>
+              ) : (
+                <span className="text-sm text-gray-400">向下捲動載入更多</span>
+              )}
+            </div>
+          )}
+          </>
         )}
       </div>
       
@@ -1532,7 +1622,7 @@ export default function WishlistPage() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overscroll-none"
             style={{ touchAction: 'none' }}
-            onClick={() => setSelectedItemPopup(null)}
+            onClick={() => { setSelectedItemPopup(null); setShowAddToTripForm(false); setPopupMoreMenuOpen(false) }}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -1551,46 +1641,98 @@ export default function WishlistPage() {
                     alt={selectedItemPopup.name}
                     className="w-full h-full object-cover"
                   />
-                  <button
-                    onClick={() => setSelectedItemPopup(null)}
-                    className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-black/50 text-white rounded-full"
-                  >
-                    ✕
-                  </button>
-                  {/* Bottom right: Like bubble + heart button */}
-                  <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                    {/* Instagram-like "對此讚好" animation - left of heart */}
-                    <AnimatePresence>
-                      {showPopupLikeAnim && (() => {
-                        const user = currentUser || getCurrentUser()
-                        const displayName = user ? getUserDisplayName(user.username, user.displayName) : '你'
-                        return (
-                          <motion.div
-                            initial={{ opacity: 0, x: 10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 10 }}
-                            transition={{ duration: 0.35 }}
-                            className="whitespace-nowrap pointer-events-none"
-                          >
-                            <div className="bg-black/75 text-white text-xs px-3 py-2 rounded-full backdrop-blur-sm shadow-lg">
-                              <span className="font-medium">{displayName}</span> 對此讚好 ❤️
+                  <div className="absolute top-4 right-4 flex items-center gap-2">
+                    {/* More menu (Edit/Delete) - only for canEdit users */}
+                    {canEdit() && (
+                      <div className="relative">
+                        <button
+                          onClick={() => setPopupMoreMenuOpen(v => !v)}
+                          className="w-8 h-8 flex items-center justify-center bg-black/50 text-white rounded-full hover:bg-black/70"
+                        >
+                          ⋯
+                        </button>
+                        {popupMoreMenuOpen && (
+                          <>
+                            <div className="fixed inset-0 z-10" onClick={() => setPopupMoreMenuOpen(false)} />
+                            <div className="absolute right-0 top-10 z-20 py-1 bg-white rounded-lg shadow-lg border border-gray-100 min-w-[120px]">
+                              <button
+                                onClick={() => { setPopupMoreMenuOpen(false); handleEditItemFromPopup(selectedItemPopup); setSelectedItemPopup(null) }}
+                                className="w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+                              >
+                                ✏️ 編輯
+                              </button>
+                              <button
+                                onClick={() => { setPopupMoreMenuOpen(false); handleDeleteItem(selectedItemPopup) }}
+                                className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 flex items-center gap-2"
+                              >
+                                🗑️ 刪除
+                              </button>
                             </div>
-                          </motion.div>
-                        )
-                      })()}
-                    </AnimatePresence>
-                    {/* Favorite button */}
+                          </>
+                        )}
+                      </div>
+                    )}
                     <button
+                      onClick={() => { setSelectedItemPopup(null); setShowAddToTripForm(false); setPopupMoreMenuOpen(false) }}
+                      className="w-8 h-8 flex items-center justify-center bg-black/50 text-white rounded-full"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {/* Bottom left: Like bubble (show when addedBy exists) */}
+                  {selectedItemPopup.addedBy && (() => {
+                    const currentUserInfo = getCurrentUser()
+                    const loggedInUsername = currentUserInfo?.username ?? getLoggedInUsername()
+                    const addedBy = selectedItemPopup.addedBy
+                    const isAddedByCurrentUser = loggedInUsername && addedBy.username === loggedInUsername
+                    const addedByDisplayName = getUserDisplayName(addedBy.username, addedBy.displayName)
+                    const addedByAvatar = getUserAvatar(addedBy.username, addedBy.avatarUrl)
+                    const currentUserAvatar = loggedInUsername ? getUserAvatar(loggedInUsername, currentUserInfo?.avatarUrl ?? users.find(u => u.username === loggedInUsername)?.avatarUrl) : undefined
+                    const text = selectedItemPopup.isFavorite
+                      ? (isAddedByCurrentUser ? '你 對此讚好' : `你 和 ${addedByDisplayName} 也對此讚好`)
+                      : `${addedByDisplayName} 對此讚好`
+                    const avatars = selectedItemPopup.isFavorite && !isAddedByCurrentUser
+                      ? [currentUserAvatar, addedByAvatar]
+                      : [addedByAvatar]
+                    return (
+                      <div className="absolute bottom-3 left-3 pointer-events-none">
+                        <div className="bg-black/75 text-white text-xs px-3 py-2 rounded-full backdrop-blur-sm shadow-lg flex items-center gap-2">
+                          <div className="flex -space-x-1.5">
+                            {avatars.map((url, i) => url ? (
+                              <img key={i} src={url} alt="" className="w-5 h-5 rounded-full object-cover border-2 border-black/75" />
+                            ) : (
+                              <div key={i} className="w-5 h-5 rounded-full bg-white/30 border-2 border-black/75" />
+                            ))}
+                          </div>
+                          <span>{text} ❤️</span>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                  {/* Bottom right: Favorite button */}
+                  <div className="absolute bottom-3 right-3">
+                    <motion.button
                       onClick={() => {
+                        const newFavorite = !selectedItemPopup.isFavorite
                         handleToggleFavorite(selectedItemPopup)
-                        setSelectedItemPopup({ ...selectedItemPopup, isFavorite: !selectedItemPopup.isFavorite })
+                        setSelectedItemPopup({ ...selectedItemPopup, isFavorite: newFavorite })
                       }}
+                      whileTap={{ scale: 0.85 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                       className="w-10 h-10 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:scale-110 transition-transform"
                     >
-                      {selectedItemPopup.isFavorite
-                        ? <HeartFilled className="w-5 h-5 text-rose-500" />
-                        : <HeartOutline className="w-5 h-5 text-gray-400" />}
-                    </button>
+                      <motion.span
+                        key={selectedItemPopup.isFavorite ? 'filled' : 'outline'}
+                        initial={{ scale: 1.4 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                      >
+                        {selectedItemPopup.isFavorite
+                          ? <HeartFilled className="w-5 h-5 text-rose-500" />
+                          : <HeartOutline className="w-5 h-5 text-gray-400" />}
+                      </motion.span>
+                    </motion.button>
                   </div>
                 </div>
               )}
@@ -1598,44 +1740,93 @@ export default function WishlistPage() {
               {/* Content */}
               <div className="p-6">
                 {!selectedItemPopup.imageUrl && (
-                  <div className="flex items-center justify-end gap-2 mb-2">
-                    {/* Instagram-like "對此讚好" animation (no-image) - left of heart */}
-                    <AnimatePresence>
-                      {showPopupLikeAnim ? (() => {
-                        const user = currentUser || getCurrentUser()
-                        const displayName = user ? getUserDisplayName(user.username, user.displayName) : '你'
-                        return (
-                          <motion.div
-                            initial={{ opacity: 0, x: 10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 10 }}
-                            transition={{ duration: 0.35 }}
-                            className="whitespace-nowrap pointer-events-none"
-                          >
-                            <div className="bg-black/75 text-white text-xs px-3 py-1.5 rounded-full">
-                              <span className="font-medium">{displayName}</span> 對此讚好 ❤️
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    {/* Bottom left: Like bubble (show when addedBy exists) */}
+                    {selectedItemPopup.addedBy ? (() => {
+                      const currentUserInfo = getCurrentUser()
+                      const loggedInUsername = currentUserInfo?.username ?? getLoggedInUsername()
+                      const addedBy = selectedItemPopup.addedBy
+                      const isAddedByCurrentUser = loggedInUsername && addedBy.username === loggedInUsername
+                      const addedByDisplayName = getUserDisplayName(addedBy.username, addedBy.displayName)
+                      const addedByAvatar = getUserAvatar(addedBy.username, addedBy.avatarUrl)
+                      const currentUserAvatar = loggedInUsername ? getUserAvatar(loggedInUsername, currentUserInfo?.avatarUrl ?? users.find(u => u.username === loggedInUsername)?.avatarUrl) : undefined
+                      const text = selectedItemPopup.isFavorite
+                        ? (isAddedByCurrentUser ? '你 對此讚好' : `你 和 ${addedByDisplayName} 也對此讚好`)
+                        : `${addedByDisplayName} 對此讚好`
+                      const avatars = selectedItemPopup.isFavorite && !isAddedByCurrentUser
+                        ? [currentUserAvatar, addedByAvatar]
+                        : [addedByAvatar]
+                      return (
+                        <div className="bg-black/75 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-2">
+                          <div className="flex -space-x-1.5">
+                            {avatars.map((url, i) => url ? (
+                              <img key={i} src={url} alt="" className="w-5 h-5 rounded-full object-cover border-2 border-black/75" />
+                            ) : (
+                              <div key={i} className="w-5 h-5 rounded-full bg-white/30 border-2 border-black/75" />
+                            ))}
+                          </div>
+                          <span>{text} ❤️</span>
+                        </div>
+                      )
+                    })() : <div />}
+                    <div className="flex items-center gap-2">
+                    {canEdit() && (
+                      <div className="relative">
+                        <button
+                          onClick={() => setPopupMoreMenuOpen(v => !v)}
+                          className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full"
+                        >
+                          ⋯
+                        </button>
+                        {popupMoreMenuOpen && (
+                          <>
+                            <div className="fixed inset-0 z-10" onClick={() => setPopupMoreMenuOpen(false)} />
+                            <div className="absolute right-0 top-10 z-20 py-1 bg-white rounded-lg shadow-lg border border-gray-100 min-w-[120px]">
+                              <button
+                                onClick={() => { setPopupMoreMenuOpen(false); handleEditItemFromPopup(selectedItemPopup); setSelectedItemPopup(null) }}
+                                className="w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+                              >
+                                ✏️ 編輯
+                              </button>
+                              <button
+                                onClick={() => { setPopupMoreMenuOpen(false); handleDeleteItem(selectedItemPopup) }}
+                                className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 flex items-center gap-2"
+                              >
+                                🗑️ 刪除
+                              </button>
                             </div>
-                          </motion.div>
-                        )
-                      })() : null}
-                    </AnimatePresence>
-                    <button
+                          </>
+                        )}
+                      </div>
+                    )}
+                    <motion.button
                       onClick={() => {
+                        const newFavorite = !selectedItemPopup.isFavorite
                         handleToggleFavorite(selectedItemPopup)
-                        setSelectedItemPopup({ ...selectedItemPopup, isFavorite: !selectedItemPopup.isFavorite })
+                        setSelectedItemPopup({ ...selectedItemPopup, isFavorite: newFavorite })
                       }}
+                      whileTap={{ scale: 0.85 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                       className="w-8 h-8 flex items-center justify-center hover:scale-110 transition-transform"
                     >
-                      {selectedItemPopup.isFavorite
-                        ? <HeartFilled className="w-5 h-5 text-rose-500" />
-                        : <HeartOutline className="w-5 h-5 text-gray-400" />}
-                    </button>
+                      <motion.span
+                        key={selectedItemPopup.isFavorite ? 'filled' : 'outline'}
+                        initial={{ scale: 1.4 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                      >
+                        {selectedItemPopup.isFavorite
+                          ? <HeartFilled className="w-5 h-5 text-rose-500" />
+                          : <HeartOutline className="w-5 h-5 text-gray-400" />}
+                      </motion.span>
+                    </motion.button>
                     <button
-                      onClick={() => setSelectedItemPopup(null)}
+                      onClick={() => { setSelectedItemPopup(null); setShowAddToTripForm(false); setPopupMoreMenuOpen(false) }}
                       className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
                     >
                       ✕
                     </button>
+                    </div>
                   </div>
                 )}
                 
@@ -1727,21 +1918,93 @@ export default function WishlistPage() {
                   </div>
                 )}
                 
-                {/* Actions: Favorite + Edit + Delete */}
-                <div className="flex gap-3 mt-4">
+                {/* Add to Itinerary - inline form or button */}
+                {showAddToTripForm ? (
+                  <div className="p-4 bg-sakura-50 rounded-xl border border-sakura-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-sakura-700">📋 新增至行程</span>
+                      <button
+                        onClick={() => { setShowAddToTripForm(false); setAddToTripTimeStart(''); setAddToTripTimeEnd(''); setAddToTripDay(1) }}
+                        className="text-gray-400 hover:text-gray-600 text-lg"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {addToTripSuccess ? (
+                      <div className="py-6 text-center text-sakura-600 font-medium">✓ 已加入行程！</div>
+                    ) : (
+                      <>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">日期</label>
+                            <select
+                              value={addToTripDay}
+                              onChange={(e) => setAddToTripDay(Number(e.target.value))}
+                              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none"
+                            >
+                              {Array.from({ length: Math.max(1, settings?.totalDays || 7) }, (_, i) => i + 1).map(d => (
+                                <option key={d} value={d}>
+                                  Day {d} {settings?.tripStartDate && (() => {
+                                    const start = new Date(settings.tripStartDate)
+                                    const t = new Date(start)
+                                    t.setDate(start.getDate() + d - 1)
+                                    return `(${t.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })})`
+                                  })()}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <label className="block text-xs text-gray-500 mb-1">開始時段</label>
+                              <input
+                                type="time"
+                                value={addToTripTimeStart}
+                                onChange={(e) => setAddToTripTimeStart(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-sakura-400 outline-none"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className="block text-xs text-gray-500 mb-1">結束時段</label>
+                              <input
+                                type="time"
+                                value={addToTripTimeEnd}
+                                onChange={(e) => setAddToTripTimeEnd(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-sakura-400 outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-4">
+                          <button
+                            onClick={() => { setShowAddToTripForm(false); setAddToTripTimeStart(''); setAddToTripTimeEnd(''); setAddToTripDay(1) }}
+                            className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 text-sm font-medium"
+                          >
+                            取消
+                          </button>
+                          <button
+                            onClick={handleAddToTripSubmit}
+                            disabled={addToTripSubmitting}
+                            className="flex-1 py-2.5 bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2"
+                          >
+                            {addToTripSubmitting ? (
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : null}
+                            確認加入
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
                   <button
-                    onClick={() => handleEditItemFromPopup(selectedItemPopup)}
-                    className="flex-1 py-3 rounded-xl font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                    onClick={() => { setShowAddToTripForm(true); setAddToTripDay(1); setAddToTripTimeStart(''); setAddToTripTimeEnd('') }}
+                    className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
                   >
-                    ✏️ 編輯
+                    <span>📋</span>
+                    <span>新增至行程</span>
                   </button>
-                  <button
-                    onClick={() => handleDeleteItem(selectedItemPopup)}
-                    className="flex-1 py-3 rounded-xl font-medium bg-red-50 text-red-500 hover:bg-red-100 transition-colors"
-                  >
-                    🗑️ 刪除
-                  </button>
-                </div>
+                )}
               </div>
             </motion.div>
           </motion.div>

@@ -240,6 +240,10 @@ export async function loginAsync(username: string, password: string): Promise<Us
 export function logout(): void {
   Cookies.remove(AUTH_COOKIE_NAME)
   Cookies.remove(USER_COOKIE_NAME)
+  // Clear Remember Me so we don't auto-login after explicit logout
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('japan_travel_remember_me')
+  }
 }
 
 // Check if any user is authenticated
@@ -295,6 +299,16 @@ export function canAccessAdmin(): boolean {
 
 export function getAuthToken(): string | undefined {
   return Cookies.get(AUTH_COOKIE_NAME)
+}
+
+/** Get logged-in username from auth token (source of truth). Returns null if not authenticated. */
+export function getLoggedInUsername(): string | null {
+  if (typeof window === 'undefined') return null
+  const token = Cookies.get(AUTH_COOKIE_NAME)
+  if (!token || !token.startsWith('japan_travel_')) return null
+  if (token === 'japan_travel_admin_authenticated_2024') return 'admin'
+  const match = token.match(/^japan_travel_user_(.+)_2024$/)
+  return match ? match[1] : null
 }
 
 export const AUTH_TOKEN_VALUE = 'japan_travel_admin_authenticated_2024'

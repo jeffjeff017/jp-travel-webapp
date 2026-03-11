@@ -203,6 +203,15 @@ export default function MainPage() {
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null)
   const [formData, setFormData] = useState<TripFormData>(initialFormData)
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([createEmptyScheduleItem()])
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set())
+  const [showWishlistSchedulePicker, setShowWishlistSchedulePicker] = useState(false)
+  const [wishlistScheduleSearch, setWishlistScheduleSearch] = useState('')
+  const [showWishlistAddToTripForm, setShowWishlistAddToTripForm] = useState(false)
+  const [wishlistAddToTripDay, setWishlistAddToTripDay] = useState(1)
+  const [wishlistAddToTripTimeStart, setWishlistAddToTripTimeStart] = useState('')
+  const [wishlistAddToTripTimeEnd, setWishlistAddToTripTimeEnd] = useState('')
+  const [wishlistAddToTripSubmitting, setWishlistAddToTripSubmitting] = useState(false)
+  const [wishlistAddToTripSuccess, setWishlistAddToTripSuccess] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formMessage, setFormMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   
@@ -276,6 +285,7 @@ export default function MainPage() {
       setIsSakuraMode(true)
     }
   }, [])
+
 
   // Fallback: if currentUser is null but user is authenticated, reconstruct from users list + auth token
   useEffect(() => {
@@ -527,6 +537,9 @@ export default function MainPage() {
     setScheduleItems([createEmptyScheduleItem()])
     setFormMessage(null)
     setPendingNewDay(null)
+    setShowWishlistSchedulePicker(false)
+    setWishlistScheduleSearch('')
+    setPendingDeleteIds(new Set())
   }
 
   // Close form (may revert pending new day if cancelled)
@@ -629,6 +642,57 @@ export default function MainPage() {
       }
     } catch (err: any) {
       alert(err.message || '發生錯誤')
+    }
+  }
+
+  // Add wishlist item to itinerary from popup (inline form)
+  const handleWishlistAddToTripSubmit = async () => {
+    if (!selectedWishlistItem) return
+    setWishlistAddToTripSubmitting(true)
+    try {
+      const content = selectedWishlistItem.note
+        ? `${selectedWishlistItem.name}（${selectedWishlistItem.note}）`
+        : selectedWishlistItem.name
+      const scheduleItem = {
+        id: `add-${Date.now()}`,
+        content,
+        time_start: wishlistAddToTripTimeStart || undefined,
+        time_end: wishlistAddToTripTimeEnd || undefined,
+      }
+      let dateStr = new Date().toISOString().split('T')[0]
+      if (settings?.tripStartDate && settings?.totalDays) {
+        const start = new Date(settings.tripStartDate)
+        const target = new Date(start)
+        target.setDate(start.getDate() + wishlistAddToTripDay - 1)
+        dateStr = target.toISOString().split('T')[0]
+      }
+      const tripData = {
+        title: selectedWishlistItem.name,
+        date: dateStr,
+        time_start: wishlistAddToTripTimeStart || undefined,
+        time_end: wishlistAddToTripTimeEnd || undefined,
+        description: JSON.stringify([scheduleItem]),
+        location: selectedWishlistItem.name,
+        lat: 35.6762,
+        lng: 139.6503,
+      }
+      const result = await createTripMutation.mutateAsync(tripData)
+      if (result.data) {
+        setWishlistAddToTripSuccess(true)
+        setTimeout(() => {
+          setShowWishlistAddToTripForm(false)
+          setWishlistAddToTripSuccess(false)
+          setWishlistAddToTripTimeStart('')
+          setWishlistAddToTripTimeEnd('')
+          setWishlistAddToTripDay(1)
+        }, 800)
+      } else {
+        alert(result.error || '新增失敗')
+      }
+    } catch (err: any) {
+      alert(err.message || '發生錯誤')
+    } finally {
+      setWishlistAddToTripSubmitting(false)
     }
   }
 
@@ -1140,11 +1204,10 @@ export default function MainPage() {
                   <div className="flex gap-2 pb-1" style={{ minWidth: 'max-content' }}>
                     {Array.from({ length: settings.totalDays }, (_, i) => i + 1).map((day) => {
                       const daySchedule = settings.daySchedules?.find(d => d.dayNumber === day)
-                      const isEditingThis = editingDayLabel === day
                       return (
                         <div
                           key={day}
-                          onClick={() => { if (!isEditingThis) setSelectedDay(day) }}
+                          onClick={() => setSelectedDay(day)}
                           className={`flex-shrink-0 w-[100px] py-2 px-3 text-sm font-medium transition-all rounded-lg cursor-pointer text-center ${
                             selectedDay === day
                               ? 'bg-sakura-500 text-white shadow-md'
@@ -1160,44 +1223,10 @@ export default function MainPage() {
                           </div>
                           {/* Day Number */}
                           <div className="font-bold text-center whitespace-nowrap">Day {day}</div>
-                          {/* Theme / Inline Edit */}
-                          {isAdmin && isEditingThis ? (
-                            <input
-                              autoFocus
-                              type="text"
-                              value={editingDayLabelValue}
-                              onChange={(e) => setEditingDayLabelValue(e.target.value)}
-                              onBlur={() => handleSaveDayLabel(day)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') { e.preventDefault(); handleSaveDayLabel(day) }
-                                if (e.key === 'Escape') setEditingDayLabel(null)
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              placeholder={`Day ${day}`}
-                              className="mt-1 w-full text-xs text-center bg-white/30 border border-white/60 rounded px-1 py-0.5 outline-none placeholder-white/60"
-                            />
-                          ) : (
-                            <div
-                              className={`text-xs mt-0.5 truncate text-center ${isAdmin ? 'cursor-text hover:underline' : ''}`}
-                              onClick={(e) => {
-                                if (!isAdmin) return
-                                e.stopPropagation()
-                                setSelectedDay(day)
-                                setEditingDayLabel(day)
-                                setEditingDayLabelValue(
-                                  daySchedule?.theme && daySchedule.theme !== `Day ${day}` ? daySchedule.theme : ''
-                                )
-                              }}
-                            >
-                              {dayLabelSaving === day ? (
-                                <span className="opacity-70">⏳</span>
-                              ) : dayLabelSaveError === day ? (
-                                <span className="text-red-300" title="儲存失敗，請重試">⚠️</span>
-                              ) : daySchedule?.theme && daySchedule.theme !== `Day ${day}` ? (
-                                daySchedule.theme
-                              ) : isAdmin ? (
-                                <span className="opacity-50">+ 名稱</span>
-                              ) : null}
+                          {/* Theme Label */}
+                          {daySchedule?.theme && daySchedule.theme !== `Day ${day}` && (
+                            <div className="text-xs mt-0.5 truncate text-center">
+                              {daySchedule.theme}
                             </div>
                           )}
                         </div>
@@ -1256,44 +1285,10 @@ export default function MainPage() {
                         </div>
                         {/* Day Number */}
                         <div className="font-bold text-center whitespace-nowrap">Day {day}</div>
-                        {/* Theme / Inline Edit */}
-                        {isAdmin && editingDayLabel === day ? (
-                          <input
-                            autoFocus
-                            type="text"
-                            value={editingDayLabelValue}
-                            onChange={(e) => setEditingDayLabelValue(e.target.value)}
-                            onBlur={() => handleSaveDayLabel(day)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') { e.preventDefault(); handleSaveDayLabel(day) }
-                              if (e.key === 'Escape') setEditingDayLabel(null)
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            placeholder={`Day ${day}`}
-                            className="mt-1 w-full text-xs text-center bg-white/30 border border-white/60 rounded px-1 py-0.5 outline-none placeholder-white/60"
-                          />
-                        ) : (
-                          <div
-                            className={`text-xs mt-0.5 truncate text-center max-w-[80px] mx-auto ${isAdmin ? 'cursor-text hover:underline' : ''}`}
-                            onClick={(e) => {
-                              if (!isAdmin) return
-                              e.stopPropagation()
-                              setSelectedDay(day)
-                              setEditingDayLabel(day)
-                              setEditingDayLabelValue(
-                                daySchedule?.theme && daySchedule.theme !== `Day ${day}` ? daySchedule.theme : ''
-                              )
-                            }}
-                          >
-                            {dayLabelSaving === day ? (
-                              <span className="opacity-70">⏳</span>
-                            ) : dayLabelSaveError === day ? (
-                              <span className="text-red-300" title="儲存失敗，請重試">⚠️</span>
-                            ) : daySchedule?.theme && daySchedule.theme !== `Day ${day}` ? (
-                              daySchedule.theme
-                            ) : isAdmin ? (
-                              <span className="opacity-50">+ 名稱</span>
-                            ) : null}
+                        {/* Theme Label */}
+                        {daySchedule?.theme && daySchedule.theme !== `Day ${day}` && (
+                          <div className="text-xs mt-0.5 truncate text-center max-w-[80px] mx-auto">
+                            {daySchedule.theme}
                           </div>
                         )}
                         {/* Remove button - Actual Admin only, show on last day when hovering */}
@@ -1870,7 +1865,7 @@ export default function MainPage() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 overscroll-none"
             style={{ touchAction: 'none' }}
-            onClick={() => setSelectedWishlistItem(null)}
+            onClick={() => { setSelectedWishlistItem(null); setShowWishlistAddToTripForm(false) }}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -1890,7 +1885,7 @@ export default function MainPage() {
                     className="w-full h-full object-cover"
                   />
                   <button
-                    onClick={() => setSelectedWishlistItem(null)}
+                    onClick={() => { setSelectedWishlistItem(null); setShowWishlistAddToTripForm(false) }}
                     className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-black/50 text-white rounded-full"
                   >
                     ✕
@@ -1909,7 +1904,7 @@ export default function MainPage() {
                 {!selectedWishlistItem.image_url && (
                   <div className="flex justify-end mb-2">
                     <button
-                      onClick={() => setSelectedWishlistItem(null)}
+                      onClick={() => { setSelectedWishlistItem(null); setShowWishlistAddToTripForm(false) }}
                       className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
                     >
                       ✕
@@ -1992,6 +1987,94 @@ export default function MainPage() {
                       )
                     })()}
                   </div>
+                )}
+
+                {/* Add to Itinerary - inline form */}
+                {showWishlistAddToTripForm ? (
+                  <div className="p-4 bg-sakura-50 rounded-xl border border-sakura-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-sakura-700">📋 新增至行程</span>
+                      <button
+                        onClick={() => { setShowWishlistAddToTripForm(false); setWishlistAddToTripTimeStart(''); setWishlistAddToTripTimeEnd(''); setWishlistAddToTripDay(1) }}
+                        className="text-gray-400 hover:text-gray-600 text-lg"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {wishlistAddToTripSuccess ? (
+                      <div className="py-6 text-center text-sakura-600 font-medium">✓ 已加入行程！</div>
+                    ) : (
+                      <>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">日期</label>
+                            <select
+                              value={wishlistAddToTripDay}
+                              onChange={(e) => setWishlistAddToTripDay(Number(e.target.value))}
+                              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none"
+                            >
+                              {Array.from({ length: Math.max(1, settings?.totalDays || 7) }, (_, i) => i + 1).map(d => (
+                                <option key={d} value={d}>
+                                  Day {d} {settings?.tripStartDate && (() => {
+                                    const start = new Date(settings.tripStartDate)
+                                    const t = new Date(start)
+                                    t.setDate(start.getDate() + d - 1)
+                                    return `(${t.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })})`
+                                  })()}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <label className="block text-xs text-gray-500 mb-1">開始時段</label>
+                              <input
+                                type="time"
+                                value={wishlistAddToTripTimeStart}
+                                onChange={(e) => setWishlistAddToTripTimeStart(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-sakura-400 outline-none"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className="block text-xs text-gray-500 mb-1">結束時段</label>
+                              <input
+                                type="time"
+                                value={wishlistAddToTripTimeEnd}
+                                onChange={(e) => setWishlistAddToTripTimeEnd(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-sakura-400 outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-4">
+                          <button
+                            onClick={() => { setShowWishlistAddToTripForm(false); setWishlistAddToTripTimeStart(''); setWishlistAddToTripTimeEnd(''); setWishlistAddToTripDay(1) }}
+                            className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 text-sm font-medium"
+                          >
+                            取消
+                          </button>
+                          <button
+                            onClick={handleWishlistAddToTripSubmit}
+                            disabled={wishlistAddToTripSubmitting}
+                            className="flex-1 py-2.5 bg-sakura-500 hover:bg-sakura-600 disabled:bg-sakura-300 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2"
+                          >
+                            {wishlistAddToTripSubmitting ? (
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : null}
+                            確認加入
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setShowWishlistAddToTripForm(true); setWishlistAddToTripDay(1); setWishlistAddToTripTimeStart(''); setWishlistAddToTripTimeEnd('') }}
+                    className="w-full py-3 bg-sakura-500 hover:bg-sakura-600 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    <span>📋</span>
+                    <span>新增至行程</span>
+                  </button>
                 )}
               </div>
             </motion.div>
@@ -2554,7 +2637,7 @@ export default function MainPage() {
                       </label>
                       <div className="space-y-3">
                         {scheduleItems.map((item, index) => (
-                          <div key={item.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <div key={item.id} className={`p-3 rounded-lg border transition-colors ${pendingDeleteIds.has(item.id) ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'}`}>
                             <div className="flex items-center gap-2 mb-2 flex-wrap">
                               <span className="text-xs font-medium text-gray-500 bg-white px-2 py-0.5 rounded">
                                 #{index + 1}
@@ -2583,16 +2666,30 @@ export default function MainPage() {
                                 className="px-2 py-1 text-sm rounded border border-gray-200 focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none w-[90px]"
                                 placeholder="結束"
                               />
-                              {/* Delete button (only show if more than 1 item) */}
-                              {scheduleItems.length > 1 && (
+                              {/* Delete button - two-step: first click shows ✓, second click removes */}
+                              {pendingDeleteIds.has(item.id) ? (
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setScheduleItems(scheduleItems.filter((_, i) => i !== index))
+                                    setPendingDeleteIds(prev => { const s = new Set(prev); s.delete(item.id); return s })
                                   }}
-                                  className="ml-auto text-red-400 hover:text-red-600 transition-colors p-1"
+                                  className="ml-auto flex items-center gap-1 px-2 py-1 rounded bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition-colors"
+                                  title="確認移除"
                                 >
-                                  ✕
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  確認
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setPendingDeleteIds(prev => new Set(prev).add(item.id))}
+                                  className="ml-auto text-gray-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50"
+                                  title="移除此項目"
+                                >
+                                  🗑️
                                 </button>
                               )}
                             </div>
@@ -2610,15 +2707,96 @@ export default function MainPage() {
                             />
                           </div>
                         ))}
-                        {/* Add Item Button */}
-                        <button
-                          type="button"
-                          onClick={() => setScheduleItems([...scheduleItems, createEmptyScheduleItem()])}
-                          className="w-full py-2 border-2 border-dashed border-gray-300 hover:border-sakura-400 text-gray-500 hover:text-sakura-600 rounded-lg transition-colors flex items-center justify-center gap-2"
-                        >
-                          <span className="text-lg">+</span>
-                          <span className="text-sm">新增項目</span>
-                        </button>
+                        {/* Add Item Buttons */}
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setScheduleItems([...scheduleItems, createEmptyScheduleItem()])}
+                            className="flex-1 py-2 border-2 border-dashed border-gray-300 hover:border-sakura-400 text-gray-500 hover:text-sakura-600 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-sm"
+                          >
+                            <span>+</span>
+                            <span>新增項目</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setShowWishlistSchedulePicker(true); setWishlistScheduleSearch('') }}
+                            className="flex-1 py-2 border-2 border-dashed border-pink-300 hover:border-sakura-500 text-pink-400 hover:text-sakura-600 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-sm"
+                          >
+                            <span>💝</span>
+                            <span>從心願清單選擇</span>
+                          </button>
+                        </div>
+
+                        {/* Wishlist Picker */}
+                        {showWishlistSchedulePicker && (
+                          <div className="border border-sakura-200 rounded-xl bg-white shadow-lg overflow-hidden">
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-3 py-2.5 bg-sakura-50 border-b border-sakura-100">
+                              <span className="text-sm font-medium text-sakura-700">💝 心願清單</span>
+                              <button
+                                type="button"
+                                onClick={() => setShowWishlistSchedulePicker(false)}
+                                className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+                              >✕</button>
+                            </div>
+                            {/* Search */}
+                            <div className="px-3 py-2 border-b border-gray-100">
+                              <input
+                                type="text"
+                                value={wishlistScheduleSearch}
+                                onChange={(e) => setWishlistScheduleSearch(e.target.value)}
+                                placeholder="搜尋心願清單..."
+                                className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none"
+                                autoFocus
+                              />
+                            </div>
+                            {/* List */}
+                            <div className="max-h-52 overflow-y-auto">
+                              {wishlistDbItems
+                                .filter(w =>
+                                  !wishlistScheduleSearch ||
+                                  w.name.toLowerCase().includes(wishlistScheduleSearch.toLowerCase()) ||
+                                  (w.note || '').toLowerCase().includes(wishlistScheduleSearch.toLowerCase()) ||
+                                  (w.category || '').toLowerCase().includes(wishlistScheduleSearch.toLowerCase())
+                                )
+                                .map(w => (
+                                  <button
+                                    key={w.id}
+                                    type="button"
+                                    onClick={() => {
+                                      const content = w.note ? `${w.name}（${w.note}）` : w.name
+                                      setScheduleItems([...scheduleItems, { ...createEmptyScheduleItem(), content }])
+                                      setShowWishlistSchedulePicker(false)
+                                    }}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-sakura-50 transition-colors text-left border-b border-gray-50 last:border-0"
+                                  >
+                                    {w.image_url ? (
+                                      <img src={w.image_url} alt={w.name} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
+                                    ) : (
+                                      <div className="w-9 h-9 rounded-lg bg-sakura-100 flex items-center justify-center flex-shrink-0 text-lg">💝</div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-medium text-gray-800 truncate">{w.name}</div>
+                                      {w.note && <div className="text-xs text-gray-400 truncate">{w.note}</div>}
+                                      {w.category && <div className="text-[10px] text-sakura-400">{w.category}</div>}
+                                    </div>
+                                    <span className="text-sakura-400 text-lg flex-shrink-0">+</span>
+                                  </button>
+                                ))
+                              }
+                              {wishlistDbItems.filter(w =>
+                                !wishlistScheduleSearch ||
+                                w.name.toLowerCase().includes(wishlistScheduleSearch.toLowerCase()) ||
+                                (w.note || '').toLowerCase().includes(wishlistScheduleSearch.toLowerCase()) ||
+                                (w.category || '').toLowerCase().includes(wishlistScheduleSearch.toLowerCase())
+                              ).length === 0 && (
+                                <div className="px-4 py-6 text-center text-sm text-gray-400">
+                                  {wishlistDbItems.length === 0 ? '心願清單是空的' : '找不到符合的項目'}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
