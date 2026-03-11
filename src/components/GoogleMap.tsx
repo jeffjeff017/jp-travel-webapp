@@ -370,6 +370,10 @@ export default function GoogleMapComponent({
     setShowHomeInfo(true)
     setSelectedTrip(null)
     onTripSelect?.(-1)
+    if (map && homeLocation) {
+      map.panTo({ lat: homeLocation.lat, lng: homeLocation.lng })
+      map.setZoom(15)
+    }
   }
 
   // Open Google Maps for navigation from current location
@@ -536,8 +540,9 @@ export default function GoogleMapComponent({
           <InfoWindow
             position={{ lat: homeLocation.lat, lng: homeLocation.lng }}
             options={{ 
-              pixelOffset: new google.maps.Size(0, -10),
-              maxWidth: 280
+              pixelOffset: new google.maps.Size(0, -52),
+              maxWidth: 280,
+              disableAutoPan: true,
             }}
           >
             <div style={{ width: '250px', overflow: 'hidden' }} className="relative">

@@ -1,14 +1,17 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import { GoogleReCaptchaProvider, useGoogleReCaptcha } from 'react-google-recaptcha-v3'
-import { login, loginAsync, isAuthenticated } from '@/lib/auth'
+import { loginAsync, isAuthenticated } from '@/lib/auth'
 import { useLanguage } from '@/lib/i18n'
 import { getSettingsAsync } from '@/lib/settings'
 import SakuraCanvas from '@/components/SakuraCanvas'
+
+const REMEMBER_ME_KEY = 'japan_travel_remember_me'
+const REMEMBER_ME_DURATION = 7 * 24 * 60 * 60 * 1000 // 7 days in ms
 
 const RECAPTCHA_SITE_KEY = '6LftaFcsAAAAAKAtFdRCCWOCPdJ1c9kvGHqkTSAV'
 
@@ -30,44 +33,24 @@ const PET_IMAGES = [
 function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [characterImage, setCharacterImage] = useState('')
   const [petImage, setPetImage] = useState('')
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const autoLoginFired = useRef(false)
   const { t } = useLanguage()
   const { executeRecaptcha } = useGoogleReCaptcha()
 
-  useEffect(() => {
-    // Select random character and pet on mount
-    const randomIndex = Math.floor(Math.random() * LOGIN_CHARACTER_IMAGES.length)
-    setCharacterImage(LOGIN_CHARACTER_IMAGES[randomIndex])
-    
-    const randomPetIndex = Math.floor(Math.random() * PET_IMAGES.length)
-    setPetImage(PET_IMAGES[randomPetIndex])
-  }, [])
-
-  // Mouse follow effect
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePosition({ x: e.clientX, y: e.clientY })
-    }
-    
-    window.addEventListener('mousemove', handleMouseMove)
-    return () => window.removeEventListener('mousemove', handleMouseMove)
-  }, [])
-
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Core login logic, callable with explicit credentials (for auto-login)
+  const performLogin = useCallback(async (uname: string, pwd: string) => {
     setError('')
     setIsLoading(true)
 
     try {
-      // Execute reCAPTCHA v3 if enabled
       if (recaptchaEnabled && executeRecaptcha) {
         const token = await executeRecaptcha('login')
-        // In a production app, you would send this token to your backend
-        // to verify with Google. For now, we just check if we got a token.
         if (!token) {
           setError('驗證失敗，請重試')
           setIsLoading(false)
@@ -75,14 +58,14 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
         }
       }
 
-      const user = await loginAsync(username, password)
-      
+      const user = await loginAsync(uname, pwd)
+
       if (user) {
-        // Small delay to ensure cookie is set before redirect
         await new Promise(resolve => setTimeout(resolve, 100))
-        // All users redirect to main page after login
         window.location.href = '/main'
       } else {
+        // Saved credentials are now invalid — clear them
+        localStorage.removeItem(REMEMBER_ME_KEY)
         setError(t.login.invalidCredentials)
         setIsLoading(false)
       }
@@ -90,7 +73,62 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
       setError('發生錯誤，請重試')
       setIsLoading(false)
     }
-  }, [username, password, recaptchaEnabled, executeRecaptcha, t.login.invalidCredentials])
+  }, [recaptchaEnabled, executeRecaptcha, t.login.invalidCredentials])
+
+  useEffect(() => {
+    // Select random character and pet on mount
+    const randomIndex = Math.floor(Math.random() * LOGIN_CHARACTER_IMAGES.length)
+    setCharacterImage(LOGIN_CHARACTER_IMAGES[randomIndex])
+
+    const randomPetIndex = Math.floor(Math.random() * PET_IMAGES.length)
+    setPetImage(PET_IMAGES[randomPetIndex])
+
+    // Check for saved "Remember Me" credentials
+    try {
+      const saved = localStorage.getItem(REMEMBER_ME_KEY)
+      if (saved) {
+        const data = JSON.parse(saved) as { username: string; password: string; savedAt: number }
+        if (Date.now() - data.savedAt < REMEMBER_ME_DURATION) {
+          setUsername(data.username)
+          setPassword(data.password)
+          setRememberMe(true)
+          // Auto-login after a short delay so the page shows briefly
+          if (!autoLoginFired.current) {
+            autoLoginFired.current = true
+            setTimeout(() => performLogin(data.username, data.password), 600)
+          }
+        } else {
+          localStorage.removeItem(REMEMBER_ME_KEY)
+        }
+      }
+    } catch {
+      localStorage.removeItem(REMEMBER_ME_KEY)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Mouse follow effect
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY })
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => window.removeEventListener('mousemove', handleMouseMove)
+  }, [])
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    // Persist or clear saved credentials before logging in
+    if (rememberMe) {
+      localStorage.setItem(REMEMBER_ME_KEY, JSON.stringify({ username, password, savedAt: Date.now() }))
+    } else {
+      localStorage.removeItem(REMEMBER_ME_KEY)
+    }
+
+    await performLogin(username, password)
+  }, [username, password, rememberMe, performLogin])
 
   return (
     <main className="h-[100dvh] bg-gradient-to-b from-sakura-50 to-white flex items-center justify-center px-4 relative overflow-hidden">
@@ -240,6 +278,34 @@ function LoginForm({ recaptchaEnabled }: { recaptchaEnabled: boolean }) {
                 required
               />
             </div>
+          </div>
+
+          {/* Remember Me checkbox */}
+          <div className="flex items-center gap-2 mt-4">
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={rememberMe}
+              onClick={() => setRememberMe(v => !v)}
+              className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors flex-shrink-0 ${
+                rememberMe
+                  ? 'bg-sakura-500 border-sakura-500'
+                  : 'bg-white border-gray-300'
+              }`}
+            >
+              {rememberMe && (
+                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+            <span
+              className="text-sm text-gray-600 cursor-pointer select-none"
+              onClick={() => setRememberMe(v => !v)}
+            >
+              {t.login.rememberMe}
+              <span className="text-xs text-gray-400 ml-1">（7天）</span>
+            </span>
           </div>
 
           {/* reCAPTCHA v3 indicator - shown above login button */}

@@ -1654,8 +1654,10 @@ export default function MainPage() {
                         <ImageSlider 
                           images={images} 
                           className="w-full h-full"
-                          autoPlay={false}
+                          autoPlay={true}
+                          interval={3000}
                           showCounter={true}
+                          largeArrows={true}
                         />
                       </div>
                     )

@@ -54,6 +54,7 @@ interface Translations {
     signingIn: string
     backToMain: string
     invalidCredentials: string
+    rememberMe: string
   }
   // Travel Notice
   notice: {
@@ -126,6 +127,7 @@ const translations: Record<Language, Translations> = {
       signingIn: '登入中...',
       backToMain: '← 返回主頁',
       invalidCredentials: '使用者名稱或密碼錯誤',
+      rememberMe: '記住我',
     },
     notice: {
       title: '旅遊須知',
@@ -195,6 +197,7 @@ const translations: Record<Language, Translations> = {
       signingIn: 'Signing in...',
       backToMain: '← Back to main page',
       invalidCredentials: 'Invalid username or password',
+      rememberMe: 'Remember me',
     },
     notice: {
       title: 'Travel Notice',
@@ -264,6 +267,7 @@ const translations: Record<Language, Translations> = {
       signingIn: 'ログイン中...',
       backToMain: '← メインページに戻る',
       invalidCredentials: 'ユーザー名またはパスワードが無効です',
+      rememberMe: 'ログイン情報を保存',
     },
     notice: {
       title: '旅行のお知らせ',
