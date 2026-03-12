@@ -136,6 +136,8 @@ export function useWishlistItems(options?: { enabled?: boolean }) {
     queryKey: queryKeys.wishlistItems,
     queryFn: getSupabaseWishlistItems,
     enabled: options?.enabled,
+    staleTime: 10 * 1000,
+    refetchOnWindowFocus: true,
   })
 }
 
