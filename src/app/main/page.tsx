@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { createTrip, updateTrip, saveSupabaseChecklistState, subscribeToSettingsChanges, type Trip } from '@/lib/supabase'
+import { useSearchParams } from 'next/navigation'
+import { createTrip, updateTrip, saveSupabaseChecklistState, subscribeToSettingsChanges, updateSupabaseWishlistItem, removeWishlistItemFromItinerary, type Trip } from '@/lib/supabase'
 import { useTrips, useCreateTrip, useUpdateTrip, useDeleteTrip, useChecklistStates, useWishlistItems, queryKeys } from '@/hooks/useQueries'
 import { type WishlistItemDB } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
@@ -19,6 +20,7 @@ import ImageSlider from '@/components/ImageSlider'
 import WishlistButton from '@/components/WishlistButton'
 import { useLanguage } from '@/lib/i18n'
 import { safeSetItem } from '@/lib/safeStorage'
+import { geocodePlaceName } from '@/lib/geocode'
 
 const GoogleMapComponent = dynamic(
   () => import('@/components/GoogleMap'),
@@ -180,7 +182,7 @@ const getWeatherIcon = (dayNum: number) => {
   return icons[dayNum % icons.length]
 }
 
-export default function MainPage() {
+function MainPageContent() {
   // TanStack Query hooks for data fetching
   const queryClient = useQueryClient()
   const { data: trips = [], isLoading, error: tripsError } = useTrips({ refetchInterval: 30000 })
@@ -193,9 +195,22 @@ export default function MainPage() {
   const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [settings, setSettings] = useState<SiteSettings | null>(null)
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null)
+  const searchParams = useSearchParams()
   const [selectedDay, setSelectedDay] = useState<number>(1)
   const [visibleStartDay, setVisibleStartDay] = useState<number>(1)
   const { t } = useLanguage()
+
+  // Support ?day=X to open with specific day selected (e.g. from wishlist "已新增至 Day X")
+  useEffect(() => {
+    const dayParam = searchParams.get('day')
+    if (dayParam) {
+      const d = parseInt(dayParam, 10)
+      if (d >= 1) {
+        setSelectedDay(d)
+        setVisibleStartDay(d)
+      }
+    }
+  }, [searchParams])
   
   // Trip form state
   const [showTripForm, setShowTripForm] = useState(false)
@@ -212,6 +227,7 @@ export default function MainPage() {
   const [wishlistAddToTripTimeEnd, setWishlistAddToTripTimeEnd] = useState('')
   const [wishlistAddToTripSubmitting, setWishlistAddToTripSubmitting] = useState(false)
   const [wishlistAddToTripSuccess, setWishlistAddToTripSuccess] = useState(false)
+  const [wishlistRemoveSubmitting, setWishlistRemoveSubmitting] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formMessage, setFormMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   
@@ -639,60 +655,102 @@ export default function MainPage() {
       const result = await deleteTripMutation.mutateAsync(tripId)
       if (!result.success) {
         alert(result.error || '刪除失敗')
+        return
       }
+      window.location.reload()
     } catch (err: any) {
       alert(err.message || '發生錯誤')
     }
   }
 
-  // Add wishlist item to itinerary from popup (inline form)
+  // Add wishlist item to itinerary from popup (inline form) or 更改 day
   const handleWishlistAddToTripSubmit = async () => {
     if (!selectedWishlistItem) return
     setWishlistAddToTripSubmitting(true)
+    const isChange = !!selectedWishlistItem.added_to_trip
     try {
-      const content = selectedWishlistItem.note
-        ? `${selectedWishlistItem.name}（${selectedWishlistItem.note}）`
-        : selectedWishlistItem.name
-      const scheduleItem = {
-        id: `add-${Date.now()}`,
-        content,
-        time_start: wishlistAddToTripTimeStart || undefined,
-        time_end: wishlistAddToTripTimeEnd || undefined,
+      if (!isChange) {
+        const content = selectedWishlistItem.note
+          ? `${selectedWishlistItem.name}（${selectedWishlistItem.note}）`
+          : selectedWishlistItem.name
+        const scheduleItem = {
+          id: `add-${Date.now()}`,
+          content,
+          time_start: wishlistAddToTripTimeStart || undefined,
+          time_end: wishlistAddToTripTimeEnd || undefined,
+        }
+        let dateStr = new Date().toISOString().split('T')[0]
+        if (settings?.tripStartDate && settings?.totalDays) {
+          const start = new Date(settings.tripStartDate)
+          const target = new Date(start)
+          target.setDate(start.getDate() + wishlistAddToTripDay - 1)
+          dateStr = target.toISOString().split('T')[0]
+        }
+        const coords = await geocodePlaceName(selectedWishlistItem.name)
+        const lat = coords?.lat ?? 35.6762
+        const lng = coords?.lng ?? 139.6503
+        const wishlistImages = parseImages(selectedWishlistItem.image_url || undefined)
+        const imageUrlForTrip = wishlistImages.length > 0 ? JSON.stringify(wishlistImages) : undefined
+        const tripData = {
+          title: selectedWishlistItem.name,
+          date: dateStr,
+          time_start: wishlistAddToTripTimeStart || undefined,
+          time_end: wishlistAddToTripTimeEnd || undefined,
+          description: JSON.stringify([scheduleItem]),
+          location: selectedWishlistItem.name,
+          lat,
+          lng,
+          image_url: imageUrlForTrip,
+          wishlist_item_id: selectedWishlistItem.id,
+        }
+        const result = await createTripMutation.mutateAsync(tripData)
+        if (!result.data) {
+          alert(result.error || '新增失敗')
+          return
+        }
+        queryClient.invalidateQueries({ queryKey: queryKeys.trips })
       }
-      let dateStr = new Date().toISOString().split('T')[0]
-      if (settings?.tripStartDate && settings?.totalDays) {
-        const start = new Date(settings.tripStartDate)
-        const target = new Date(start)
-        target.setDate(start.getDate() + wishlistAddToTripDay - 1)
-        dateStr = target.toISOString().split('T')[0]
-      }
-      const tripData = {
-        title: selectedWishlistItem.name,
-        date: dateStr,
-        time_start: wishlistAddToTripTimeStart || undefined,
-        time_end: wishlistAddToTripTimeEnd || undefined,
-        description: JSON.stringify([scheduleItem]),
-        location: selectedWishlistItem.name,
-        lat: 35.6762,
-        lng: 139.6503,
-      }
-      const result = await createTripMutation.mutateAsync(tripData)
-      if (result.data) {
-        setWishlistAddToTripSuccess(true)
-        setTimeout(() => {
-          setShowWishlistAddToTripForm(false)
-          setWishlistAddToTripSuccess(false)
-          setWishlistAddToTripTimeStart('')
-          setWishlistAddToTripTimeEnd('')
-          setWishlistAddToTripDay(1)
-        }, 800)
-      } else {
-        alert(result.error || '新增失敗')
-      }
+      await updateSupabaseWishlistItem(selectedWishlistItem.id, {
+        added_to_trip: { day: wishlistAddToTripDay, time: wishlistAddToTripTimeStart || wishlistAddToTripTimeEnd || '12:00' },
+      })
+      queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
+      setSelectedWishlistItem(prev => prev ? { ...prev, added_to_trip: { day: wishlistAddToTripDay, time: wishlistAddToTripTimeStart || wishlistAddToTripTimeEnd || '12:00' } } : null)
+      setWishlistAddToTripSuccess(true)
+      setTimeout(() => {
+        setShowWishlistAddToTripForm(false)
+        setWishlistAddToTripSuccess(false)
+        setWishlistAddToTripTimeStart('')
+        setWishlistAddToTripTimeEnd('')
+        setWishlistAddToTripDay(1)
+      }, 800)
     } catch (err: any) {
       alert(err.message || '發生錯誤')
     } finally {
       setWishlistAddToTripSubmitting(false)
+    }
+  }
+
+  // Remove wishlist item from itinerary (from main page popup)
+  const handleRemoveWishlistFromItinerary = async () => {
+    if (!selectedWishlistItem) return
+    if (!confirm('確定要從行程中移除此心願嗎？')) return
+    setWishlistRemoveSubmitting(true)
+    try {
+      const res = await removeWishlistItemFromItinerary(selectedWishlistItem.id, {
+        name: selectedWishlistItem.name,
+        addedToDay: selectedWishlistItem.added_to_trip?.day,
+      })
+      if (!res.success) {
+        alert(res.error || '移除失敗')
+        return
+      }
+      await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
+      window.location.reload()
+    } catch (err: any) {
+      alert(err?.message || '移除時發生錯誤')
+    } finally {
+      setWishlistRemoveSubmitting(false)
     }
   }
 
@@ -1876,14 +1934,28 @@ export default function MainPage() {
               style={{ WebkitOverflowScrolling: 'touch' }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Image */}
-              {selectedWishlistItem.image_url && (
+              {/* Image - slider when multiple */}
+              {(() => {
+                const images = parseImages(selectedWishlistItem.image_url || undefined)
+                if (images.length === 0) return null
+                return (
                 <div className="relative aspect-video bg-gray-100">
-                  <img
-                    src={selectedWishlistItem.image_url}
-                    alt={selectedWishlistItem.name}
-                    className="w-full h-full object-cover"
-                  />
+                  {images.length === 1 ? (
+                    <img
+                      src={images[0]}
+                      alt={selectedWishlistItem.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <ImageSlider
+                      images={images}
+                      className="w-full h-full"
+                      autoPlay={true}
+                      interval={5000}
+                      hideArrows={false}
+                      largeArrows={true}
+                    />
+                  )}
                   <button
                     onClick={() => { setSelectedWishlistItem(null); setShowWishlistAddToTripForm(false) }}
                     className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-black/50 text-white rounded-full"
@@ -1897,11 +1969,12 @@ export default function MainPage() {
                     </div>
                   )}
                 </div>
-              )}
+                )
+              })()}
               
               {/* Content */}
               <div className="p-6">
-                {!selectedWishlistItem.image_url && (
+                {!parseImages(selectedWishlistItem.image_url || undefined).length && (
                   <div className="flex justify-end mb-2">
                     <button
                       onClick={() => { setSelectedWishlistItem(null); setShowWishlistAddToTripForm(false) }}
@@ -1989,7 +2062,7 @@ export default function MainPage() {
                   </div>
                 )}
 
-                {/* Add to Itinerary - inline form */}
+                {/* Add to Itinerary - inline form, button, or "already added" info */}
                 {showWishlistAddToTripForm ? (
                   <div className="p-4 bg-sakura-50 rounded-xl border border-sakura-200">
                     <div className="flex items-center justify-between mb-3">
@@ -2066,6 +2139,52 @@ export default function MainPage() {
                         </div>
                       </>
                     )}
+                  </div>
+                ) : selectedWishlistItem.added_to_trip ? (
+                  <div className="p-4 bg-green-50 rounded-xl border border-green-200">
+                    <div className="flex items-center justify-between gap-2">
+                      <Link
+                        href={`/main?day=${selectedWishlistItem.added_to_trip.day}`}
+                        onClick={() => { setSelectedWishlistItem(null); setShowWishlistAddToTripForm(false) }}
+                        className="flex-1 flex items-center gap-2 text-green-700 hover:text-green-800 font-medium min-w-0"
+                      >
+                        <span>📋</span>
+                        <span className="truncate">已新增至 Day {selectedWishlistItem.added_to_trip.day}</span>
+                        {selectedWishlistItem.added_to_trip.time && (
+                          <span className="text-green-600 text-sm font-normal shrink-0">
+                            {selectedWishlistItem.added_to_trip.time}
+                          </span>
+                        )}
+                      </Link>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => {
+                            setShowWishlistAddToTripForm(true)
+                            setWishlistAddToTripDay(selectedWishlistItem.added_to_trip?.day ?? 1)
+                            setWishlistAddToTripTimeStart(selectedWishlistItem.added_to_trip?.time || '')
+                            setWishlistAddToTripTimeEnd('')
+                          }}
+                          className="text-green-600 hover:text-green-700 text-sm px-2 py-1 underline"
+                        >
+                          更改
+                        </button>
+                        <span className="text-green-300">|</span>
+                        <button
+                          onClick={handleRemoveWishlistFromItinerary}
+                          disabled={wishlistRemoveSubmitting}
+                          className="text-red-600 hover:text-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-sm px-2 py-1 underline flex items-center gap-1"
+                        >
+                          {wishlistRemoveSubmitting ? (
+                            <>
+                              <span className="w-3.5 h-3.5 border-2 border-red-400/30 border-t-red-600 rounded-full animate-spin" />
+                              移除中...
+                            </>
+                          ) : (
+                            '移除'
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <button
@@ -2177,15 +2296,21 @@ export default function MainPage() {
           targetDate.setDate(startDate.getDate() + day - 1)
           const dateStr = targetDate.toISOString().split('T')[0]
           
-          // Create a new trip from wishlist item
+          // Create a new trip from wishlist item - use wishlist name for map positioning
           const categoryIcon = category === 'cafe' ? '☕' : category === 'restaurant' ? '🍽️' : category === 'shopping' ? '🛍️' : '🌳'
+          const coords = await geocodePlaceName(item.name)
+          const lat = coords?.lat ?? 35.6762
+          const lng = coords?.lng ?? 139.6503
+          const wishlistImages = parseImages(item.imageUrl || undefined)
+          const imageUrlForTrip = wishlistImages.length > 0 ? JSON.stringify(wishlistImages) : undefined
           const tripData = {
             title: `⭐ ${item.name}`,
             date: dateStr,
             location: item.name,
-            lat: 35.6762, // Default Tokyo coordinates - will be updated when user searches
-            lng: 139.6503,
-            image_url: item.imageUrl ? JSON.stringify([item.imageUrl]) : undefined,
+            lat,
+            lng,
+            image_url: imageUrlForTrip,
+            wishlist_item_id: typeof item.id === 'number' ? item.id : undefined,
             description: JSON.stringify([{ 
               id: Date.now().toString(), 
               time_start: time, 
@@ -2770,9 +2895,13 @@ export default function MainPage() {
                                     }}
                                     className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-sakura-50 transition-colors text-left border-b border-gray-50 last:border-0"
                                   >
-                                    {w.image_url ? (
-                                      <img src={w.image_url} alt={w.name} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
-                                    ) : (
+                                    {(() => {
+                                      const imgs = parseImages(w.image_url || undefined)
+                                      const src = imgs[0]
+                                      return src ? (
+                                        <img src={src} alt={w.name} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
+                                      ) : null
+                                    })() ?? (
                                       <div className="w-9 h-9 rounded-lg bg-sakura-100 flex items-center justify-center flex-shrink-0 text-lg">💝</div>
                                     )}
                                     <div className="flex-1 min-w-0">
@@ -2844,5 +2973,17 @@ export default function MainPage() {
         </p>
       </div>
     </main>
+  )
+}
+
+export default function MainPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-sakura-50">
+        <div className="w-10 h-10 border-2 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
+      </div>
+    }>
+      <MainPageContent />
+    </Suspense>
   )
 }

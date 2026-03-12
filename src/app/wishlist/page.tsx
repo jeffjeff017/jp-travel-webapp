@@ -11,14 +11,19 @@ import {
   deleteSupabaseWishlistItem,
   saveSupabaseChecklistState,
   createTrip,
+  syncTripsFromWishlistItem,
+  removeWishlistItemFromItinerary,
   type WishlistItemDB 
 } from '@/lib/supabase'
+import { geocodePlaceName } from '@/lib/geocode'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWishlistItems, useChecklistStates, queryKeys } from '@/hooks/useQueries'
 import { getSettings, getSettingsAsync, type SiteSettings } from '@/lib/settings'
 import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, isAuthenticated, logout, getUsers, getUsersAsync, getAuthToken, getLoggedInUsername, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
+import MultiMediaUpload from '@/components/MultiMediaUpload'
+import ImageSlider from '@/components/ImageSlider'
 import { safeSetItem } from '@/lib/safeStorage'
 
 // Tokyo district areas
@@ -159,13 +164,21 @@ const CACHE_DURATION = 5 * 60 * 1000
 
 // Strip base64 image data from wishlist before caching to save localStorage space
 function stripImagesForCache(wishlist: Wishlist): Wishlist {
+  const stripImg = (url: string | undefined): string | undefined => {
+    if (!url) return undefined
+    if (url.startsWith('data:')) return undefined
+    return url
+  }
   const stripped: Wishlist = {}
   for (const [key, items] of Object.entries(wishlist)) {
-    stripped[key] = items.map(item => ({
-      ...item,
-      // Only strip base64 data URIs, keep regular URL references
-      imageUrl: item.imageUrl?.startsWith('data:') ? undefined : item.imageUrl,
-    }))
+    stripped[key] = items.map(item => {
+      const imgs = parseWishlistImages(item.imageUrl)
+      const kept = imgs.filter(u => !u.startsWith('data:'))
+      return {
+        ...item,
+        imageUrl: kept.length > 0 ? (kept.length === 1 ? kept[0] : JSON.stringify(kept)) : undefined,
+      }
+    })
   }
   return stripped
 }
@@ -173,6 +186,18 @@ function stripImagesForCache(wishlist: Wishlist): Wishlist {
 // Helper function for Google Maps URL
 const getGoogleMapsUrl = (placeName: string) => {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeName + ' Japan')}`
+}
+
+// Parse images from image_url (handles JSON array or legacy single string)
+function parseWishlistImages(imageUrl: string | undefined): string[] {
+  if (!imageUrl) return []
+  try {
+    const parsed = JSON.parse(imageUrl)
+    if (Array.isArray(parsed)) return parsed.filter((s: unknown) => typeof s === 'string' && s.trim())
+  } catch {
+    if (imageUrl.trim()) return [imageUrl]
+  }
+  return []
 }
 
 // Check if a link is a Google Maps URL
@@ -294,14 +319,13 @@ export default function WishlistPage() {
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null)
   const [newItemName, setNewItemName] = useState('')
   const [newItemNote, setNewItemNote] = useState('')
-  const [newItemImage, setNewItemImage] = useState('')
+  const [newItemImages, setNewItemImages] = useState<string[]>([])
   const [newItemUrl, setNewItemUrl] = useState('')
   const [newItemCategory, setNewItemCategory] = useState('cafe')
   const [newItemArea, setNewItemArea] = useState('')
   const [areaDropdownOpen, setAreaDropdownOpen] = useState(false)
   const [areaSearch, setAreaSearch] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const areaDropdownRef = useRef<HTMLDivElement>(null)
   const [selectedItemPopup, setSelectedItemPopup] = useState<WishlistItem | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -312,6 +336,7 @@ export default function WishlistPage() {
   const [addToTripTimeEnd, setAddToTripTimeEnd] = useState('')
   const [addToTripSubmitting, setAddToTripSubmitting] = useState(false)
   const [addToTripSuccess, setAddToTripSuccess] = useState(false)
+  const [removeFromItinerarySubmitting, setRemoveFromItinerarySubmitting] = useState(false)
   const [popupMoreMenuOpen, setPopupMoreMenuOpen] = useState(false)
   const [displayCount, setDisplayCount] = useState(12)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -610,23 +635,26 @@ export default function WishlistPage() {
     }
   }, [availableAreas, activeAreaFilter])
 
+  // Sync selectedItemPopup when wishlist data changes (e.g. after trip deleted elsewhere → added_to_trip cleared)
+  useEffect(() => {
+    if (!selectedItemPopup || !wishlistDbItems?.length) return
+    const freshDb = wishlistDbItems.find(db => String(db.id) === String(selectedItemPopup.id))
+    if (!freshDb) return
+    const freshAddedDay = freshDb.added_to_trip?.day
+    const freshAddedTime = freshDb.added_to_trip?.time
+    const currentAddedDay = selectedItemPopup.addedToDay
+    const currentAddedTime = selectedItemPopup.addedTime
+    if (freshAddedDay !== currentAddedDay || freshAddedTime !== currentAddedTime) {
+      setSelectedItemPopup(prev => prev ? { ...prev, addedToDay: freshAddedDay, addedTime: freshAddedTime } : null)
+    }
+  }, [wishlistDbItems, selectedItemPopup?.id])
+
   // Get current category for adding
   const getCurrentCategory = () => {
     if (activeTab === 'all') return 'cafe'
     return activeTab
   }
   
-  // Handle image upload
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      setNewItemImage(event.target?.result as string)
-    }
-    reader.readAsDataURL(file)
-  }
   
   // Handle add item
   const handleAddItem = async () => {
@@ -637,11 +665,12 @@ export default function WishlistPage() {
     try {
       const category = newItemCategory
       const user = currentUser || getCurrentUser()
+      const imageUrlValue = newItemImages.length > 0 ? JSON.stringify(newItemImages) : undefined
       const newItem: Omit<WishlistItem, 'id' | 'addedAt'> = {
         category,
         name: newItemName.trim(),
         note: newItemNote.trim() || undefined,
-        imageUrl: newItemImage || undefined,
+        imageUrl: imageUrlValue,
         link: newItemUrl.trim() || undefined,
         area: newItemArea || undefined,
         favoritedBy: [], // Only show bubble when user presses like — not when adding
@@ -669,7 +698,7 @@ export default function WishlistPage() {
       // Reset form
       setNewItemName('')
       setNewItemNote('')
-      setNewItemImage('')
+      setNewItemImages([])
       setNewItemUrl('')
       setNewItemCategory('cafe')
       setNewItemArea('')
@@ -717,57 +746,106 @@ export default function WishlistPage() {
     }
   }
   
-  // Handle add wishlist item to itinerary (create trip)
+  // Handle add wishlist item to itinerary (create trip) or 更改 day (update only)
   const handleAddToTripSubmit = async () => {
     if (!selectedItemPopup) return
     setAddToTripSubmitting(true)
+    const isChange = !!selectedItemPopup.addedToDay
     try {
-      const content = selectedItemPopup.note
-        ? `${selectedItemPopup.name}（${selectedItemPopup.note}）`
-        : selectedItemPopup.name
-      const scheduleItem = {
-        id: `add-${Date.now()}`,
-        content,
-        time_start: addToTripTimeStart || undefined,
-        time_end: addToTripTimeEnd || undefined,
-      }
-      let dateStr = new Date().toISOString().split('T')[0]
-      if (settings?.tripStartDate && settings?.totalDays) {
-        const start = new Date(settings.tripStartDate)
-        const target = new Date(start)
-        target.setDate(start.getDate() + addToTripDay - 1)
-        dateStr = target.toISOString().split('T')[0]
-      }
-      const locationHint = selectedItemPopup.area
-        ? (TOKYO_AREAS.find(a => a.id === selectedItemPopup.area)?.zh || selectedItemPopup.name)
-        : selectedItemPopup.name
-      const { data, error } = await createTrip({
-        title: selectedItemPopup.name,
-        date: dateStr,
-        time_start: addToTripTimeStart || undefined,
-        time_end: addToTripTimeEnd || undefined,
-        description: JSON.stringify([scheduleItem]),
-        location: locationHint,
-        lat: 35.6762,
-        lng: 139.6503,
-      })
-      if (data) {
+      if (!isChange) {
+        const content = selectedItemPopup.note
+          ? `${selectedItemPopup.name}（${selectedItemPopup.note}）`
+          : selectedItemPopup.name
+        const scheduleItem = {
+          id: `add-${Date.now()}`,
+          content,
+          time_start: addToTripTimeStart || undefined,
+          time_end: addToTripTimeEnd || undefined,
+        }
+        let dateStr = new Date().toISOString().split('T')[0]
+        if (settings?.tripStartDate && settings?.totalDays) {
+          const start = new Date(settings.tripStartDate)
+          const target = new Date(start)
+          target.setDate(start.getDate() + addToTripDay - 1)
+          dateStr = target.toISOString().split('T')[0]
+        }
+        // Use wishlist name for map positioning (geocode) and display
+        const coords = await geocodePlaceName(selectedItemPopup.name)
+        const lat = coords?.lat ?? 35.6762
+        const lng = coords?.lng ?? 139.6503
+        const wishlistImages = parseWishlistImages(selectedItemPopup.imageUrl)
+        const imageUrlForTrip = wishlistImages.length > 0 ? JSON.stringify(wishlistImages) : undefined
+        const { data, error } = await createTrip({
+          title: selectedItemPopup.name,
+          date: dateStr,
+          time_start: addToTripTimeStart || undefined,
+          time_end: addToTripTimeEnd || undefined,
+          description: JSON.stringify([scheduleItem]),
+          location: selectedItemPopup.name,
+          lat,
+          lng,
+          image_url: imageUrlForTrip,
+          wishlist_item_id: Number(selectedItemPopup.id),
+        })
+        if (!data) {
+          alert(error || '新增失敗')
+          return
+        }
         await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
-        setAddToTripSuccess(true)
-        setTimeout(() => {
-          setShowAddToTripForm(false)
-          setAddToTripSuccess(false)
-          setAddToTripTimeStart('')
-          setAddToTripTimeEnd('')
-          setAddToTripDay(1)
-        }, 800)
-      } else {
-        alert(error || '新增失敗')
       }
+      // Update wishlist item with added_to_trip (both new add and 更改)
+      await updateSupabaseWishlistItem(Number(selectedItemPopup.id), {
+        added_to_trip: { day: addToTripDay, time: addToTripTimeStart || addToTripTimeEnd || '12:00' },
+      })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
+      // Optimistically update popup & local wishlist so button shows "已新增" immediately
+      const updatedItem = { ...selectedItemPopup, addedToDay: addToTripDay, addedTime: addToTripTimeStart || addToTripTimeEnd || '12:00' }
+      setSelectedItemPopup(updatedItem)
+      setWishlist(prev => {
+        const cat = selectedItemPopup.category
+        const items = prev[cat] || []
+        const idx = items.findIndex(i => String(i.id) === String(selectedItemPopup.id))
+        if (idx < 0) return prev
+        const next = [...items]
+        next[idx] = updatedItem
+        return { ...prev, [cat]: next }
+      })
+      setAddToTripSuccess(true)
+      setTimeout(() => {
+        setShowAddToTripForm(false)
+        setAddToTripSuccess(false)
+        setAddToTripTimeStart('')
+        setAddToTripTimeEnd('')
+        setAddToTripDay(1)
+      }, 800)
     } catch (err: any) {
       alert(err.message || '發生錯誤')
     } finally {
       setAddToTripSubmitting(false)
+    }
+  }
+
+  // Handle remove wishlist item from itinerary
+  const handleRemoveFromItinerary = async () => {
+    if (!selectedItemPopup) return
+    if (!confirm('確定要從行程中移除此心願嗎？')) return
+    setRemoveFromItinerarySubmitting(true)
+    try {
+      const res = await removeWishlistItemFromItinerary(Number(selectedItemPopup.id), {
+        name: selectedItemPopup.name,
+        addedToDay: selectedItemPopup.addedToDay,
+      })
+      if (!res.success) {
+        alert(res.error || '移除失敗')
+        return
+      }
+      await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
+      window.location.reload()
+    } catch (err: any) {
+      alert(err?.message || '移除時發生錯誤')
+    } finally {
+      setRemoveFromItinerarySubmitting(false)
     }
   }
 
@@ -776,7 +854,7 @@ export default function WishlistPage() {
     setEditingItem(item)
     setNewItemName(item.name)
     setNewItemNote(item.note || '')
-    setNewItemImage(item.imageUrl || '')
+    setNewItemImages(parseWishlistImages(item.imageUrl))
     setNewItemUrl(item.link || '')
     setNewItemCategory(item.category)
     setNewItemArea(item.area || '')
@@ -792,10 +870,11 @@ export default function WishlistPage() {
     setIsSubmitting(true)
     
     try {
+      const imageUrlValue = newItemImages.length > 0 ? JSON.stringify(newItemImages) : null
       const { error } = await updateSupabaseWishlistItem(Number(editingItem.id), {
         name: newItemName.trim(),
         note: newItemNote.trim() || null,
-        image_url: newItemImage || null,
+        image_url: imageUrlValue,
         link: newItemUrl.trim() || null,
         category: newItemCategory,
         map_link: newItemArea || null,
@@ -807,11 +886,23 @@ export default function WishlistPage() {
         return
       }
       
+      // Sync name/note/images to linked trips (行程明細)
+      const imageUrlForSync = newItemImages.length > 0 ? JSON.stringify(newItemImages) : null
+      const { updated } = await syncTripsFromWishlistItem(
+        Number(editingItem.id),
+        newItemName.trim(),
+        newItemNote.trim() || '',
+        imageUrlForSync
+      )
+      if (updated > 0) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
+      }
+      
       // Reset form and refresh via TanStack Query
       setEditingItem(null)
       setNewItemName('')
       setNewItemNote('')
-      setNewItemImage('')
+      setNewItemImages([])
       setNewItemUrl('')
       setNewItemCategory('cafe')
       setNewItemArea('')
@@ -1039,9 +1130,12 @@ export default function WishlistPage() {
               >
                 {/* Image */}
                 <div className="relative aspect-[4/3] bg-gray-100">
-                  {item.imageUrl ? (
+                  {(() => {
+                    const imgs = parseWishlistImages(item.imageUrl)
+                    const src = imgs[0]
+                    return src ? (
                     <img
-                      src={item.imageUrl}
+                      src={src}
                       alt={item.name}
                       className="w-full h-full object-cover"
                     />
@@ -1051,7 +1145,8 @@ export default function WishlistPage() {
                         {CATEGORIES.find(c => c.id === item.category)?.icon || '📌'}
                       </span>
                     </div>
-                  )}
+                  )
+                  })()}
                   
                   {/* Top-left: trip day badge */}
                   {item.addedToDay && (
@@ -1306,36 +1401,14 @@ export default function WishlistPage() {
                     )}
                   </div>
 
-                  {/* Image */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">圖片</label>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleImageUpload}
-                      accept="image/*"
-                      className="hidden"
-                    />
-                    {newItemImage ? (
-                      <div className="relative w-full h-32 rounded-xl overflow-hidden">
-                        <img src={newItemImage} alt="" className="w-full h-full object-cover" />
-                        <button
-                          onClick={() => setNewItemImage('')}
-                          className="absolute top-2 right-2 w-6 h-6 bg-black/50 text-white rounded-full text-xs"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full h-24 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:border-sakura-300 hover:text-sakura-500 transition-colors flex flex-col items-center justify-center"
-                      >
-                        <span className="text-2xl mb-1">📷</span>
-                        <span className="text-sm">上傳圖片</span>
-                      </button>
-                    )}
-                  </div>
+                  {/* Image - max 5 */}
+                  <MultiMediaUpload
+                    value={newItemImages}
+                    onChange={setNewItemImages}
+                    label="圖片"
+                    maxImages={5}
+                    className="mb-4"
+                  />
                   
                   {/* Name */}
                   <div>
@@ -1703,14 +1776,28 @@ export default function WishlistPage() {
               style={{ WebkitOverflowScrolling: 'touch' }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Image */}
-              {selectedItemPopup.imageUrl && (
+              {/* Image - slider when multiple */}
+              {(() => {
+                const images = parseWishlistImages(selectedItemPopup.imageUrl)
+                if (images.length === 0) return null
+                return (
                 <div className="relative aspect-video bg-gray-100">
-                  <img
-                    src={selectedItemPopup.imageUrl}
-                    alt={selectedItemPopup.name}
-                    className="w-full h-full object-cover"
-                  />
+                  {images.length === 1 ? (
+                    <img
+                      src={images[0]}
+                      alt={selectedItemPopup.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <ImageSlider
+                      images={images}
+                      className="w-full h-full"
+                      autoPlay={true}
+                      interval={5000}
+                      hideArrows={false}
+                      largeArrows={true}
+                    />
+                  )}
                   <div className="absolute top-4 right-4 flex items-center gap-2">
                     {/* More menu (Edit/Delete) - only for canEdit users */}
                     {canEdit() && (
@@ -1819,11 +1906,12 @@ export default function WishlistPage() {
                     </motion.button>
                   </div>
                 </div>
-              )}
+                )
+              })()}
               
               {/* Content */}
               <div className="p-6">
-                {!selectedItemPopup.imageUrl && (
+                {!parseWishlistImages(selectedItemPopup.imageUrl).length && (
                   <div className="flex items-center justify-between gap-2 mb-2">
                     {/* Bottom left: Like bubble — only show when someone has pressed the like button (favoritedBy) */}
                     {(() => {
@@ -2016,7 +2104,7 @@ export default function WishlistPage() {
                   </div>
                 )}
                 
-                {/* Add to Itinerary - inline form or button */}
+                {/* Add to Itinerary - inline form, button, or "already added" info */}
                 {showAddToTripForm ? (
                   <div className="p-4 bg-sakura-50 rounded-xl border border-sakura-200">
                     <div className="flex items-center justify-between mb-3">
@@ -2093,6 +2181,52 @@ export default function WishlistPage() {
                         </div>
                       </>
                     )}
+                  </div>
+                ) : selectedItemPopup.addedToDay ? (
+                  <div className="p-4 bg-green-50 rounded-xl border border-green-200">
+                    <div className="flex items-center justify-between gap-2">
+                      <Link
+                        href={`/main?day=${selectedItemPopup.addedToDay}`}
+                        onClick={() => { setSelectedItemPopup(null); setShowAddToTripForm(false) }}
+                        className="flex-1 flex items-center gap-2 text-green-700 hover:text-green-800 font-medium min-w-0"
+                      >
+                        <span>📋</span>
+                        <span className="truncate">已新增至 Day {selectedItemPopup.addedToDay}</span>
+                        {selectedItemPopup.addedTime && (
+                          <span className="text-green-600 text-sm font-normal shrink-0">
+                            {selectedItemPopup.addedTime}
+                          </span>
+                        )}
+                      </Link>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => {
+                            setShowAddToTripForm(true)
+                            setAddToTripDay(selectedItemPopup.addedToDay ?? 1)
+                            setAddToTripTimeStart(selectedItemPopup.addedTime || '')
+                            setAddToTripTimeEnd('')
+                          }}
+                          className="text-green-600 hover:text-green-700 text-sm px-2 py-1 underline"
+                        >
+                          更改
+                        </button>
+                        <span className="text-green-300">|</span>
+                        <button
+                          onClick={handleRemoveFromItinerary}
+                          disabled={removeFromItinerarySubmitting}
+                          className="text-red-600 hover:text-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-sm px-2 py-1 underline flex items-center gap-1"
+                        >
+                          {removeFromItinerarySubmitting ? (
+                            <>
+                              <span className="w-3.5 h-3.5 border-2 border-red-400/30 border-t-red-600 rounded-full animate-spin" />
+                              移除中...
+                            </>
+                          ) : (
+                            '移除'
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <button

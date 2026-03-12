@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
+import MultiMediaUpload from '@/components/MultiMediaUpload'
 import { 
   getSupabaseWishlistItems, 
   saveSupabaseWishlistItem, 
@@ -52,6 +53,17 @@ interface WishlistButtonProps {
   onNavigateToDay?: (day: number) => void
   isOpen?: boolean // Controlled open state (for mobile bottom nav)
   onOpenChange?: (open: boolean) => void // Callback when open state changes
+}
+
+function parseWishlistImages(imageUrl: string | undefined): string[] {
+  if (!imageUrl) return []
+  try {
+    const parsed = JSON.parse(imageUrl)
+    if (Array.isArray(parsed)) return parsed.filter((s: unknown) => typeof s === 'string' && s.trim())
+  } catch {
+    if (imageUrl.trim()) return [imageUrl]
+  }
+  return []
 }
 
 const STORAGE_KEY = 'japan_travel_wishlist'
@@ -164,14 +176,13 @@ export default function WishlistButton({
   }
   const [newItemName, setNewItemName] = useState('')
   const [newItemNote, setNewItemNote] = useState('')
-  const [newItemImage, setNewItemImage] = useState('')
+  const [newItemImages, setNewItemImages] = useState<string[]>([])
   const [newItemLink, setNewItemLink] = useState('')
   const [isAdding, setIsAdding] = useState(false)
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null)
   const [showAddToTrip, setShowAddToTrip] = useState<string | null>(null)
   const [selectedDay, setSelectedDay] = useState(1)
   const [selectedTime, setSelectedTime] = useState('12:00')
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [tripStartDate, setTripStartDate] = useState<string>('')
 
@@ -345,18 +356,6 @@ export default function WishlistButton({
     localStorage.setItem(CACHE_KEY, Date.now().toString())
   }, [])
 
-  // Handle image upload
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      setNewItemImage(event.target?.result as string)
-    }
-    reader.readAsDataURL(file)
-  }
-
   // Check if current category is link-only (threads)
   const isLinkOnlyCategory = CATEGORIES.find(c => c.id === activeTab)?.linkOnly
 
@@ -379,7 +378,7 @@ export default function WishlistButton({
           ? (newItemName.trim() || newItemLink.trim()) // Use title if provided, else link
           : newItemName.trim(), 
         note: newItemNote.trim() || undefined,
-        imageUrl: newItemImage || editingItem.imageUrl,
+        imageUrl: newItemImages.length > 0 ? JSON.stringify(newItemImages) : editingItem.imageUrl,
         link: newItemLink.trim() || undefined
       }
       
@@ -409,7 +408,7 @@ export default function WishlistButton({
           ? (newItemName.trim() || newItemLink.trim())
           : newItemName.trim(),
         note: newItemNote.trim() || undefined,
-        imageUrl: newItemImage || undefined,
+        imageUrl: newItemImages.length > 0 ? JSON.stringify(newItemImages) : undefined,
         link: newItemLink.trim() || undefined,
         favoritedBy: [], // Only show bubble when user presses like — not when adding
         isFavorite: false,
@@ -437,7 +436,7 @@ export default function WishlistButton({
   const resetForm = () => {
     setNewItemName('')
     setNewItemNote('')
-    setNewItemImage('')
+    setNewItemImages([])
     setNewItemLink('')
     setIsAdding(false)
     setEditingItem(null)
@@ -450,7 +449,7 @@ export default function WishlistButton({
     const isThreadsCategory = item.category === 'threads'
     setNewItemName(isThreadsCategory && item.name === item.link ? '' : item.name)
     setNewItemNote(item.note || '')
-    setNewItemImage(item.imageUrl || '')
+    setNewItemImages(parseWishlistImages(item.imageUrl))
     setNewItemLink(item.link || '')
     setIsAdding(true)
   }
@@ -772,38 +771,14 @@ export default function WishlistButton({
                         </>
                       ) : (
                         <>
-                          {/* Regular form with image, name, note */}
-                          {/* Image Upload */}
+                          {/* Regular form with image, name, note - max 5 images */}
                           <div className="mb-3">
-                            <input
-                              type="file"
-                              ref={fileInputRef}
-                              onChange={handleImageUpload}
-                              accept="image/*"
-                              className="hidden"
+                            <MultiMediaUpload
+                              value={newItemImages}
+                              onChange={setNewItemImages}
+                              label="圖片"
+                              maxImages={5}
                             />
-                            {newItemImage ? (
-                              <div className="relative w-full h-24 rounded-lg overflow-hidden">
-                                <img 
-                                  src={newItemImage} 
-                                  alt="Preview" 
-                                  className="w-full h-full object-cover"
-                                />
-                                <button
-                                  onClick={() => setNewItemImage('')}
-                                  className="absolute top-1 right-1 w-6 h-6 bg-black/50 text-white rounded-full text-xs flex items-center justify-center"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="w-full py-3 border border-dashed border-pink-300 rounded-lg text-pink-400 text-sm hover:bg-pink-100 transition-colors"
-                              >
-                                📷 上載圖片 (選填)
-                              </button>
-                            )}
                           </div>
                           
                           <input
@@ -922,15 +897,19 @@ export default function WishlistButton({
                                     className="object-contain"
                                   />
                                 </span>
-                              ) : item.imageUrl ? (
-                                <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0">
-                                  <img 
-                                    src={item.imageUrl} 
-                                    alt={item.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                              ) : (
+                              ) : (() => {
+                                const imgs = parseWishlistImages(item.imageUrl)
+                                const src = imgs[0]
+                                return src ? (
+                                  <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0">
+                                    <img 
+                                      src={src} 
+                                      alt={item.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                ) : null
+                              })() ?? (
                                 <span className="text-2xl w-14 h-14 flex items-center justify-center bg-white rounded-lg flex-shrink-0">
                                   {activeTab === 'food'
                                     ? FOOD_SUBTABS.find(s => s.id === activeFoodSubTab)?.icon

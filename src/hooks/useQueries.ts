@@ -97,6 +97,7 @@ export function useDeleteTrip() {
     onSuccess: (result) => {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: queryKeys.trips })
+        queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems }) // Sync: trip may have been from wishlist
       }
     },
   })

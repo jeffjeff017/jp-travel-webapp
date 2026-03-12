@@ -16,6 +16,7 @@ export type Trip = {
   lat: number
   lng: number
   image_url?: string // Optional image URL
+  wishlist_item_id?: number // Link to wishlist item for syncing name/note updates
   created_at?: string
   updated_at?: string
 }
@@ -66,21 +67,40 @@ export async function getTrips(): Promise<Trip[]> {
 
 export async function createTrip(trip: Omit<Trip, 'id' | 'created_at' | 'updated_at'>): Promise<{ data: Trip | null; error: string | null }> {
   try {
-    const { data, error } = await supabase
+    const insertPayload: Record<string, unknown> = {
+      title: trip.title,
+      date: trip.date,
+      time_start: trip.time_start || null,
+      time_end: trip.time_end || null,
+      description: trip.description,
+      location: trip.location,
+      lat: trip.lat,
+      lng: trip.lng,
+      image_url: trip.image_url || null,
+    }
+    if (trip.wishlist_item_id != null) {
+      insertPayload.wishlist_item_id = trip.wishlist_item_id
+    }
+
+    let { data, error } = await supabase
       .from('trips')
-      .insert([{
-        title: trip.title,
-        date: trip.date,
-        time_start: trip.time_start || null,
-        time_end: trip.time_end || null,
-        description: trip.description,
-        location: trip.location,
-        lat: trip.lat,
-        lng: trip.lng,
-        image_url: trip.image_url || null,
-      }])
+      .insert([insertPayload])
       .select()
       .single()
+
+    // If column doesn't exist (migration not run), retry without wishlist_item_id
+    if (error && insertPayload.wishlist_item_id != null && (
+      error.message?.includes('wishlist_item_id') || error.message?.includes('column')
+    )) {
+      delete insertPayload.wishlist_item_id
+      const retry = await supabase
+        .from('trips')
+        .insert([insertPayload])
+        .select()
+        .single()
+      data = retry.data
+      error = retry.error
+    }
 
     if (error) {
       console.error('Error creating trip:', error)
@@ -115,8 +135,80 @@ export async function updateTrip(id: number, trip: Partial<Trip>): Promise<{ dat
   }
 }
 
+/** Sync trip when wishlist item is updated (name, note, images). Requires wishlist_item_id column on trips. */
+export async function syncTripsFromWishlistItem(
+  wishlistItemId: number,
+  name: string,
+  note: string,
+  imageUrl?: string | null
+): Promise<{ updated: number; error: string | null }> {
+  try {
+    const { data: trips, error: fetchError } = await supabase
+      .from('trips')
+      .select('id, description, time_start, time_end')
+      .eq('wishlist_item_id', wishlistItemId)
+
+    if (fetchError) {
+      if (fetchError.message?.includes('column') && fetchError.message?.includes('wishlist_item_id')) {
+        return { updated: 0, error: null } // Column doesn't exist, skip silently
+      }
+      console.error('syncTripsFromWishlistItem fetch:', fetchError)
+      return { updated: 0, error: fetchError.message }
+    }
+    if (!trips || trips.length === 0) return { updated: 0, error: null }
+
+    const content = note ? `${name}（${note}）` : name
+    let updatedCount = 0
+    for (const trip of trips) {
+      let scheduleItems: { id: string; time_start?: string; time_end?: string; content: string }[]
+      try {
+        const parsed = JSON.parse(trip.description || '[]')
+        scheduleItems = Array.isArray(parsed) ? parsed : []
+      } catch {
+        scheduleItems = []
+      }
+      const updated = scheduleItems.length > 0
+        ? scheduleItems.map((s, i) => (i === 0 ? { ...s, content } : s))
+        : [{ id: Date.now().toString(), content }]
+      const updatePayload: Record<string, unknown> = {
+        title: name,
+        location: name,
+        description: JSON.stringify(updated),
+        updated_at: new Date().toISOString(),
+      }
+      if (imageUrl !== undefined) {
+        updatePayload.image_url = imageUrl || null
+      }
+      const { error: updateError } = await supabase
+        .from('trips')
+        .update(updatePayload)
+        .eq('id', trip.id)
+      if (!updateError) updatedCount++
+    }
+    return { updated: updatedCount, error: null }
+  } catch (err: any) {
+    console.error('syncTripsFromWishlistItem:', err)
+    return { updated: 0, error: err?.message || 'Sync failed' }
+  }
+}
+
 export async function deleteTrip(id: number): Promise<{ success: boolean; error: string | null }> {
   try {
+    let wishlistItemId: number | undefined
+    let tripTitle: string | undefined
+    let tripDate: string | undefined
+    const { data: trip, error: fetchErr } = await supabase
+      .from('trips')
+      .select('wishlist_item_id, title, date')
+      .eq('id', id)
+      .maybeSingle()
+    if (!fetchErr && trip) {
+      const t = trip as { wishlist_item_id?: number; title?: string; date?: string }
+      wishlistItemId = t.wishlist_item_id
+      tripTitle = t.title
+      tripDate = t.date
+    }
+
     const { error } = await supabase
       .from('trips')
       .delete()
@@ -127,10 +219,87 @@ export async function deleteTrip(id: number): Promise<{ success: boolean; error:
       return { success: false, error: error.message }
     }
 
+    if (wishlistItemId != null) {
+      await updateSupabaseWishlistItem(wishlistItemId, { added_to_trip: null })
+    } else if (tripTitle && tripDate) {
+      // Fallback for trips without wishlist_item_id (created before migration or from legacy flow)
+      try {
+        const wishlistItems = await getSupabaseWishlistItems()
+        const settings = await getSupabaseSiteSettings()
+        const startDate = settings?.trip_start_date
+        if (startDate) {
+          const start = new Date(startDate)
+          const tripDateObj = new Date(tripDate)
+          const diffDays = Math.round((tripDateObj.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+          const dayNum = Math.max(1, diffDays + 1)
+          const normalizedTitle = tripTitle.replace(/^⭐\s*/, '').trim().replace(/\s+/g, ' ')
+          const namesMatch = (a: string, b: string) => {
+            const na = (a || '').trim().replace(/\s+/g, ' ')
+            const nb = (b || '').trim().replace(/\s+/g, ' ')
+            if (!na || !nb) return false
+            if (na === nb) return true
+            return na.includes(nb) || nb.includes(na)
+          }
+          for (const w of wishlistItems) {
+            if (w.added_to_trip?.day === dayNum && namesMatch(normalizedTitle, w.name || '')) {
+              await updateSupabaseWishlistItem(w.id, { added_to_trip: null })
+              break
+            }
+          }
+        }
+      } catch {
+        // Fallback failed, ignore
+      }
+    }
+
     return { success: true, error: null }
   } catch (err: any) {
     console.error('Delete trip error:', err)
     return { success: false, error: err.message || '刪除行程時發生錯誤' }
+  }
+}
+
+/** Remove wishlist item from itinerary: clear added_to_trip and delete the corresponding trip(s). */
+export async function removeWishlistItemFromItinerary(
+  wishlistItemId: number,
+  options?: { name: string; addedToDay?: number }
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    await updateSupabaseWishlistItem(wishlistItemId, { added_to_trip: null })
+
+    const { data: tripsWithWishlist } = await supabase
+      .from('trips')
+      .select('id')
+      .eq('wishlist_item_id', wishlistItemId)
+
+    if (!tripsWithWishlist?.length && options?.name && options?.addedToDay != null) {
+      const settings = await getSupabaseSiteSettings()
+      const startDate = settings?.trip_start_date
+      if (startDate) {
+        const start = new Date(startDate)
+        const target = new Date(start)
+        target.setDate(start.getDate() + options.addedToDay - 1)
+        const dateStr = target.toISOString().split('T')[0]
+        const normalizedName = options.name.trim().replace(/\s+/g, ' ')
+        const allTrips = await getTrips()
+        const match = allTrips.find(
+          t => t.date?.startsWith(dateStr.split('T')[0]) &&
+            (t.title?.trim().replace(/\s+/g, ' ') === normalizedName || (t.title || '').includes(normalizedName) || normalizedName.includes(t.title || ''))
+        )
+        if (match?.id) {
+          await deleteTrip(match.id)
+        }
+      }
+    } else if (tripsWithWishlist?.length) {
+      for (const t of tripsWithWishlist) {
+        await deleteTrip((t as { id: number }).id)
+      }
+    }
+
+    return { success: true, error: null }
+  } catch (err: any) {
+    console.error('Remove wishlist from itinerary error:', err)
+    return { success: false, error: err.message || '移除時發生錯誤' }
   }
 }
 

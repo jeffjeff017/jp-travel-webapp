@@ -723,6 +723,7 @@ export default function AdminPage() {
       if (success) {
         setMessage({ type: 'success', text: '行程已移至垃圾桶！' })
         await fetchTrips()
+        await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
       } else {
         setMessage({ type: 'error', text: error || '刪除行程失敗' })
       }
