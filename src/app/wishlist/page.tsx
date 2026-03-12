@@ -184,9 +184,26 @@ const isGoogleMapsLink = (link?: string) => {
 // Check if an item is a threads item (should not show Google Maps link)
 const isThreadsCategory = (category: string) => category === 'threads'
 
+// Parse favorited_by safely — only non-empty usernames count as real likes.
+// Handles null, undefined, non-array, JSON string, and invalid entries like "" or null.
+function parseFavoritedBy(raw: unknown): string[] {
+  let arr: unknown[] = []
+  if (Array.isArray(raw)) {
+    arr = raw
+  } else if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      arr = Array.isArray(parsed) ? parsed : []
+    } catch {
+      arr = []
+    }
+  }
+  return arr.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+}
+
 // Convert from Supabase format to local format
 function fromSupabaseFormat(db: WishlistItemDB): WishlistItem {
-  const favoritedBy = Array.isArray(db.favorited_by) ? db.favorited_by : []
+  const favoritedBy = parseFavoritedBy(db.favorited_by)
   return {
     id: db.id,
     name: db.name,
