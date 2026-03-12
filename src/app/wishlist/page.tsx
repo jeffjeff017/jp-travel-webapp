@@ -1797,7 +1797,7 @@ export default function WishlistPage() {
                         const newFavorite = !isLiked
                         handleToggleFavorite(selectedItemPopup)
                         const nextFavoritedBy = newFavorite
-                          ? [...(selectedItemPopup.favoritedBy || []), un].filter(Boolean)
+                          ? (un ? [...(selectedItemPopup.favoritedBy || []), un] : (selectedItemPopup.favoritedBy || []))
                           : (selectedItemPopup.favoritedBy || []).filter(u => u !== un)
                         setSelectedItemPopup({ ...selectedItemPopup, favoritedBy: nextFavoritedBy, isFavorite: newFavorite })
                       }}
@@ -1899,7 +1899,7 @@ export default function WishlistPage() {
                         const newFavorite = !isLiked
                         handleToggleFavorite(selectedItemPopup)
                         const nextFavoritedBy = newFavorite
-                          ? [...(selectedItemPopup.favoritedBy || []), un].filter(Boolean)
+                          ? (un ? [...(selectedItemPopup.favoritedBy || []), un] : (selectedItemPopup.favoritedBy || []))
                           : (selectedItemPopup.favoritedBy || []).filter(u => u !== un)
                         setSelectedItemPopup({ ...selectedItemPopup, favoritedBy: nextFavoritedBy, isFavorite: newFavorite })
                       }}
