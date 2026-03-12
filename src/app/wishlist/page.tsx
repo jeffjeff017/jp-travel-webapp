@@ -644,8 +644,8 @@ export default function WishlistPage() {
         imageUrl: newItemImage || undefined,
         link: newItemUrl.trim() || undefined,
         area: newItemArea || undefined,
-        favoritedBy: user ? [user.username] : [],
-        isFavorite: !!user,
+        favoritedBy: [], // Only show bubble when user presses like — not when adding
+        isFavorite: false,
         addedBy: user ? {
           username: user.username,
           displayName: user.displayName,

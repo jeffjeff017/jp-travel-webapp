@@ -411,8 +411,8 @@ export default function WishlistButton({
         note: newItemNote.trim() || undefined,
         imageUrl: newItemImage || undefined,
         link: newItemLink.trim() || undefined,
-        favoritedBy: user ? [user.username] : [],
-        isFavorite: !!user,
+        favoritedBy: [], // Only show bubble when user presses like — not when adding
+        isFavorite: false,
       }
       
       const result = await saveSupabaseWishlistItem(toSupabaseFormat(newItemData))
