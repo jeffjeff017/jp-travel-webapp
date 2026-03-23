@@ -225,7 +225,9 @@ export default function AdminPage() {
   const [chiikawaDialogueSaveError, setChiikawaDialogueSaveError] = useState<string | null>(null)
   // Sakura mode state (synced with localStorage)
   const [isSakuraMode, setIsSakuraMode] = useState(false)
-  const [isAdminUser, setIsAdminUser] = useState(false)
+  const [isAdminUser, setIsAdminUser] = useState(() =>
+    typeof window !== 'undefined' ? isAdmin() : false
+  )
   // Travel Wallet state
   const [showWallet, setShowWallet] = useState(false)
   const [trashItems, setTrashItems] = useState<{
@@ -292,10 +294,13 @@ export default function AdminPage() {
         console.error('Failed to parse trash:', e)
       }
     }
-    // Load sakura mode from localStorage
+    // 摸摸 Chiikawa：無紀錄時預設開啟（與主頁一致，所有使用者裝置上預設為開）
     const savedSakuraMode = localStorage.getItem('sakura_mode')
-    if (savedSakuraMode === 'true') {
+    if (savedSakuraMode === null) {
+      safeSetItem('sakura_mode', 'true')
       setIsSakuraMode(true)
+    } else {
+      setIsSakuraMode(savedSakuraMode === 'true')
     }
     // Check if user is admin
     setIsAdminUser(isAdmin())
@@ -1752,36 +1757,43 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  {/* Sakura Mode Toggle */}
+                  {/* Sakura Mode Toggle — 僅管理員可切換；預設開啟由 localStorage 決定 */}
                   <div className="border-t border-gray-100 pt-6">
                     <h4 className="text-sm font-medium text-gray-800 mb-4 flex items-center gap-2">
                       🌸 寵物設定
                     </h4>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <img src="/images/chii-widgetlogo.ico" alt="Chiikawa" className="w-8 h-8 object-contain" />
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">摸摸 Chiikawa</p>
-                          <p className="text-xs text-gray-500">首頁顯示浮動角色</p>
+                    <div className="p-3 bg-gray-50 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img src="/images/chii-widgetlogo.ico" alt="Chiikawa" className="w-8 h-8 object-contain shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">摸摸 Chiikawa</p>
+                            <p className="text-xs text-gray-500">首頁顯示浮動角色（預設開啟）</p>
+                          </div>
                         </div>
+                        <button
+                          type="button"
+                          disabled={!isAdminUser}
+                          title={!isAdminUser ? '僅管理員可調整' : undefined}
+                          aria-label={isSakuraMode ? '關閉摸摸 Chiikawa' : '開啟摸摸 Chiikawa'}
+                          onClick={() => {
+                            if (!isAdmin()) return
+                            const newValue = !isSakuraMode
+                            setIsSakuraMode(newValue)
+                            safeSetItem('sakura_mode', String(newValue))
+                          }}
+                          className={`relative w-12 h-6 rounded-full shrink-0 transition-colors ${
+                            isSakuraMode ? 'bg-pink-400' : 'bg-gray-300'
+                          } ${!isAdminUser ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <span
+                            className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                              isSakuraMode ? 'left-7' : 'left-1'
+                            }`}
+                          />
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newValue = !isSakuraMode
-                          setIsSakuraMode(newValue)
-                          safeSetItem('sakura_mode', String(newValue))
-                        }}
-                        className={`relative w-12 h-6 rounded-full transition-colors ${
-                          isSakuraMode ? 'bg-pink-400' : 'bg-gray-300'
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                            isSakuraMode ? 'left-7' : 'left-1'
-                          }`}
-                        />
-                      </button>
+                      <p className="text-[11px] text-gray-400">僅管理員可變更此開關；一般成員仍可享受預設開啟效果。</p>
                     </div>
                   </div>
 
