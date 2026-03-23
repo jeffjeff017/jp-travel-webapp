@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow, DirectionsRenderer, TrafficLayer } from '@react-google-maps/api'
 import type { Trip } from '@/lib/supabase'
+import HomeStayLinks from '@/components/HomeStayLinks'
 
 const containerStyle = {
   width: '100%',
@@ -571,6 +572,7 @@ export default function GoogleMapComponent({
                   🏠 {homeLocation.name}
                 </h3>
                 <p className="text-sm text-gray-600">{homeLocation.address}</p>
+                <HomeStayLinks variant="map" />
                 <p className="text-xs text-blue-500 mt-1">點擊行程可查看導航路線</p>
               </div>
             </div>

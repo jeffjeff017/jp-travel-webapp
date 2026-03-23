@@ -26,6 +26,9 @@ import ChiikawaPet from '@/components/ChiikawaPet'
 import MultiMediaUpload from '@/components/MultiMediaUpload'
 import ImageSlider from '@/components/ImageSlider'
 import { safeSetItem } from '@/lib/safeStorage'
+import { EMPTY_PLATE_JSON, extractPlainTextFromPlateJson, isPlateJsonEffectivelyEmpty } from '@/lib/plateRich'
+import PlateRichEditor from '@/components/PlateRichEditor'
+import PlateRichView from '@/components/PlateRichView'
 
 // Tokyo district areas
 // Grouped district structure (parent → children)
@@ -320,7 +323,7 @@ export default function WishlistPage() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null)
   const [newItemName, setNewItemName] = useState('')
-  const [newItemNote, setNewItemNote] = useState('')
+  const [newItemNote, setNewItemNote] = useState(EMPTY_PLATE_JSON)
   const [newItemImages, setNewItemImages] = useState<string[]>([])
   const [newItemUrl, setNewItemUrl] = useState('')
   const [newItemCategory, setNewItemCategory] = useState('cafe')
@@ -348,6 +351,30 @@ export default function WishlistPage() {
   const [bulkSelectMode, setBulkSelectMode] = useState(false)
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<number>>(() => new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [wishlistPlateSession, setWishlistPlateSession] = useState(0)
+
+  const resetWishlistFormFields = useCallback(() => {
+    setNewItemName('')
+    setNewItemNote(EMPTY_PLATE_JSON)
+    setNewItemImages([])
+    setNewItemUrl('')
+    setNewItemCategory('cafe')
+    setNewItemArea('')
+    setAreaSearch('')
+  }, [])
+
+  const openNewWishlistForm = useCallback(() => {
+    setEditingItem(null)
+    resetWishlistFormFields()
+    setWishlistPlateSession((s) => s + 1)
+    setShowAddForm(true)
+  }, [resetWishlistFormFields])
+
+  const closeWishlistForm = useCallback(() => {
+    setShowAddForm(false)
+    setEditingItem(null)
+    resetWishlistFormFields()
+  }, [resetWishlistFormFields])
 
   // Reset display count when filters change
   useEffect(() => {
@@ -594,7 +621,11 @@ export default function WishlistPage() {
       const query = searchQuery.toLowerCase().trim()
       items = items.filter(item => {
         if (item.name.toLowerCase().includes(query)) return true
-        if (item.note && item.note.toLowerCase().includes(query)) return true
+        if (
+          item.note &&
+          extractPlainTextFromPlateJson(item.note).toLowerCase().includes(query)
+        )
+          return true
         if (item.area) {
           const areaData = TOKYO_AREAS.find(a => a.id === item.area)
           if (areaData) {
@@ -686,7 +717,7 @@ export default function WishlistPage() {
       const newItem: Omit<WishlistItem, 'id' | 'addedAt'> = {
         category,
         name: newItemName.trim(),
-        note: newItemNote.trim() || undefined,
+        note: isPlateJsonEffectivelyEmpty(newItemNote) ? undefined : newItemNote.trim(),
         imageUrl: imageUrlValue,
         link: newItemUrl.trim() || undefined,
         area: newItemArea || undefined,
@@ -713,13 +744,7 @@ export default function WishlistPage() {
       }
       
       // Reset form
-      setNewItemName('')
-      setNewItemNote('')
-      setNewItemImages([])
-      setNewItemUrl('')
-      setNewItemCategory('cafe')
-      setNewItemArea('')
-      setAreaSearch('')
+      resetWishlistFormFields()
       setShowAddForm(false)
     } catch (err: any) {
       console.error('Failed to add item:', err)
@@ -836,8 +861,11 @@ export default function WishlistPage() {
     const isChange = !!selectedItemPopup.addedToDay
     try {
       if (!isChange) {
-        const content = selectedItemPopup.note
-          ? `${selectedItemPopup.name}（${selectedItemPopup.note}）`
+        const notePlain = selectedItemPopup.note
+          ? extractPlainTextFromPlateJson(selectedItemPopup.note)
+          : ''
+        const content = notePlain
+          ? `${selectedItemPopup.name}（${notePlain}）`
           : selectedItemPopup.name
         const scheduleItem = {
           id: `add-${Date.now()}`,
@@ -950,13 +978,14 @@ export default function WishlistPage() {
   const handleEditItemFromPopup = (item: WishlistItem) => {
     setEditingItem(item)
     setNewItemName(item.name)
-    setNewItemNote(item.note || '')
+    setNewItemNote(item.note?.trim() ? item.note : EMPTY_PLATE_JSON)
     setNewItemImages(parseWishlistImages(item.imageUrl))
     setNewItemUrl(item.link || '')
     setNewItemCategory(item.category)
     setNewItemArea(item.area || '')
     setAreaSearch('')
     setSelectedItemPopup(null)
+    setWishlistPlateSession((s) => s + 1)
     setShowAddForm(true)
   }
   
@@ -970,7 +999,7 @@ export default function WishlistPage() {
       const imageUrlValue = newItemImages.length > 0 ? JSON.stringify(newItemImages) : null
       const { error } = await updateSupabaseWishlistItem(Number(editingItem.id), {
         name: newItemName.trim(),
-        note: newItemNote.trim() || null,
+        note: isPlateJsonEffectivelyEmpty(newItemNote) ? null : newItemNote.trim(),
         image_url: imageUrlValue,
         link: newItemUrl.trim() || null,
         category: newItemCategory,
@@ -988,7 +1017,7 @@ export default function WishlistPage() {
       const { updated } = await syncTripsFromWishlistItem(
         Number(editingItem.id),
         newItemName.trim(),
-        newItemNote.trim() || '',
+        extractPlainTextFromPlateJson(newItemNote.trim()),
         imageUrlForSync
       )
       if (updated > 0) {
@@ -997,13 +1026,7 @@ export default function WishlistPage() {
       
       // Reset form and refresh via TanStack Query
       setEditingItem(null)
-      setNewItemName('')
-      setNewItemNote('')
-      setNewItemImages([])
-      setNewItemUrl('')
-      setNewItemCategory('cafe')
-      setNewItemArea('')
-      setAreaSearch('')
+      resetWishlistFormFields()
       setShowAddForm(false)
       await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
     } catch (err: any) {
@@ -1108,7 +1131,7 @@ export default function WishlistPage() {
               )}
               <button
                 type="button"
-                onClick={() => setShowAddForm(true)}
+                onClick={openNewWishlistForm}
                 className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-sakura-500 hover:bg-sakura-600 text-white rounded-full text-xs sm:text-sm font-medium transition-colors"
               >
                 <span>+</span>
@@ -1219,7 +1242,7 @@ export default function WishlistPage() {
             <div className="text-6xl mb-4">💝</div>
             <p className="text-gray-500 mb-4">還沒有收藏項目</p>
             <button
-              onClick={() => setShowAddForm(true)}
+              onClick={openNewWishlistForm}
               className="px-6 py-2 bg-sakura-500 hover:bg-sakura-600 text-white rounded-full text-sm font-medium transition-colors"
             >
               新增第一個心願
@@ -1345,8 +1368,10 @@ export default function WishlistPage() {
                 {/* Content */}
                 <div className="p-3">
                   <h3 className="font-medium text-gray-800 truncate">{item.name}</h3>
-                  {item.note && (
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.note}</p>
+                  {item.note && !isPlateJsonEffectivelyEmpty(item.note) && (
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                      {extractPlainTextFromPlateJson(item.note)}
+                    </p>
                   )}
                   
                   {/* Link - Google Maps or custom link (not for threads) */}
@@ -1463,7 +1488,7 @@ export default function WishlistPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-            onClick={() => { setShowAddForm(false); setEditingItem(null) }}
+            onClick={closeWishlistForm}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -1477,7 +1502,7 @@ export default function WishlistPage() {
               <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-100 flex-shrink-0">
                 <h3 className="text-lg font-semibold text-gray-800">{editingItem ? '編輯心願' : '新增心願'}</h3>
                 <button
-                  onClick={() => { setShowAddForm(false); setEditingItem(null) }}
+                  onClick={closeWishlistForm}
                   className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
                 >
                   ✕
@@ -1615,17 +1640,15 @@ export default function WishlistPage() {
                     />
                   </div>
 
-                  {/* Note */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
-                    <textarea
-                      value={newItemNote}
-                      onChange={(e) => setNewItemNote(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sakura-400 focus:ring-2 focus:ring-sakura-100 outline-none resize-none"
-                      placeholder="輸入備註..."
-                      rows={2}
-                    />
-                  </div>
+                  {/* Note — Plate 富文本 */}
+                  <PlateRichEditor
+                    key={`${editingItem ? `wish-${editingItem.id}` : 'wish-new'}-s${wishlistPlateSession}`}
+                    instanceKey={`${editingItem ? `wish-${editingItem.id}` : 'wish-new'}-s${wishlistPlateSession}`}
+                    label="備註"
+                    value={newItemNote}
+                    onChange={setNewItemNote}
+                    minHeight="120px"
+                  />
                 </div>
               </div>
               
@@ -2207,8 +2230,10 @@ export default function WishlistPage() {
                 <h2 className="text-xl font-semibold text-gray-800 mb-2">{selectedItemPopup.name}</h2>
                 
                 {/* Note */}
-                {selectedItemPopup.note && (
-                  <p className="text-gray-600 mb-4">{selectedItemPopup.note}</p>
+                {selectedItemPopup.note && !isPlateJsonEffectivelyEmpty(selectedItemPopup.note) && (
+                  <div className="text-gray-600 mb-4 rounded-xl border border-gray-100 p-3 bg-gray-50/50">
+                    <PlateRichView json={selectedItemPopup.note} />
+                  </div>
                 )}
                 
                 {/* Link - Google Maps or custom link (not for threads) */}

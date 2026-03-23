@@ -12,6 +12,8 @@ export type Trip = {
   time_start?: string // Start time (HH:mm)
   time_end?: string // End time (HH:mm)
   description: string // HTML content
+  /** Plate / Slate JSON 字串：行程富文本說明（與 description 行程明細 JSON 分開） */
+  trip_notes_rich?: string | null
   location: string
   lat: number
   lng: number
@@ -81,6 +83,9 @@ export async function createTrip(trip: Omit<Trip, 'id' | 'created_at' | 'updated
     if (trip.wishlist_item_id != null) {
       insertPayload.wishlist_item_id = trip.wishlist_item_id
     }
+    if (trip.trip_notes_rich != null && String(trip.trip_notes_rich).trim() !== '') {
+      insertPayload.trip_notes_rich = trip.trip_notes_rich
+    }
 
     let { data, error } = await supabase
       .from('trips')
@@ -102,6 +107,20 @@ export async function createTrip(trip: Omit<Trip, 'id' | 'created_at' | 'updated
       error = retry.error
     }
 
+    // Retry without trip_notes_rich if column missing
+    if (error && insertPayload.trip_notes_rich != null && (
+      error.message?.includes('trip_notes_rich') || error.message?.includes('column')
+    )) {
+      delete insertPayload.trip_notes_rich
+      const retry2 = await supabase
+        .from('trips')
+        .insert([insertPayload])
+        .select()
+        .single()
+      data = retry2.data
+      error = retry2.error
+    }
+
     if (error) {
       console.error('Error creating trip:', error)
       return { data: null, error: error.message }
@@ -116,12 +135,28 @@ export async function createTrip(trip: Omit<Trip, 'id' | 'created_at' | 'updated
 
 export async function updateTrip(id: number, trip: Partial<Trip>): Promise<{ data: Trip | null; error: string | null }> {
   try {
-    const { data, error } = await supabase
+    const payload: Record<string, unknown> = { ...trip, updated_at: new Date().toISOString() }
+
+    let { data, error } = await supabase
       .from('trips')
-      .update({ ...trip, updated_at: new Date().toISOString() })
+      .update(payload)
       .eq('id', id)
       .select()
       .single()
+
+    if (error && payload.trip_notes_rich !== undefined && (
+      error.message?.includes('trip_notes_rich') || error.message?.includes('column')
+    )) {
+      delete payload.trip_notes_rich
+      const retry = await supabase
+        .from('trips')
+        .update(payload)
+        .eq('id', id)
+        .select()
+        .single()
+      data = retry.data
+      error = retry.error
+    }
 
     if (error) {
       console.error('Error updating trip:', error)

@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@platejs/basic-nodes": "^52.0.11",
     "@react-google-maps/api": "^2.19.3",
     "@supabase/supabase-js": "^2.91.0",
     "@tanstack/react-query": "^5.90.20",
@@ -16,6 +17,7 @@
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.562.0",
     "next": "^14.2.0",
+    "platejs": "^52.3.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-easy-crop": "^5.5.6",

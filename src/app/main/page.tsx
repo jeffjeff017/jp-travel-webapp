@@ -22,8 +22,12 @@ import { safeSetItem } from '@/lib/safeStorage'
 import { isTravelWalletHomeBubbleEnabled } from '@/lib/travelWalletUi'
 import TravelWalletModal from '@/components/TravelWalletModal'
 import TripListingAddress from '@/components/TripListingAddress'
+import HomeStayLinks from '@/components/HomeStayLinks'
+import PlateRichEditor from '@/components/PlateRichEditor'
+import PlateRichView from '@/components/PlateRichView'
 import { geocodePlaceName } from '@/lib/geocode'
 import { formatTripDaySelectOption, formatTripDayAttachedSummary } from '@/lib/tripDayLabels'
+import { EMPTY_PLATE_JSON, extractPlainTextFromPlateJson, isPlateJsonEffectivelyEmpty } from '@/lib/plateRich'
 
 const GoogleMapComponent = dynamic(
   () => import('@/components/GoogleMap'),
@@ -45,15 +49,6 @@ const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
   loading: () => (
     <div className="p-4 text-center">
       <div className="w-8 h-8 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin mx-auto" />
-    </div>
-  ),
-})
-
-const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), {
-  ssr: false,
-  loading: () => (
-    <div className="h-40 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center">
-      <div className="w-6 h-6 border-2 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
     </div>
   ),
 })
@@ -222,6 +217,10 @@ function MainPageContent() {
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null)
   const [formData, setFormData] = useState<TripFormData>(initialFormData)
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([createEmptyScheduleItem()])
+  /** Plate JSON：行程富文本（另存 trip_notes_rich，與行程明細 description 分開） */
+  const [tripNotesRich, setTripNotesRich] = useState<string>(EMPTY_PLATE_JSON)
+  /** 每次開啟行程表單遞增，讓 Plate 編輯器 id/deps 變化並以最新 tripNotesRich 重建 */
+  const [tripFormPlateSession, setTripFormPlateSession] = useState(0)
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set())
   const [showWishlistSchedulePicker, setShowWishlistSchedulePicker] = useState(false)
   const [wishlistScheduleSearch, setWishlistScheduleSearch] = useState('')
@@ -523,7 +522,9 @@ function MainPageContent() {
     
     setFormData({ ...initialFormData, date: defaultDate })
     setScheduleItems([createEmptyScheduleItem()])
+    setTripNotesRich(EMPTY_PLATE_JSON)
     setEditingTrip(null)
+    setTripFormPlateSession((s) => s + 1)
     setShowTripForm(true)
     setFormMessage(null)
   }
@@ -531,16 +532,23 @@ function MainPageContent() {
   // Open form to edit existing trip
   const openEditForm = (trip: Trip, e: React.MouseEvent) => {
     e.stopPropagation()
+    const t = trips.find((x) => x.id === trip.id) ?? trip
     setFormData({
-      title: trip.title,
-      date: trip.date,
-      location: trip.location,
-      lat: trip.lat,
-      lng: trip.lng,
-      images: parseImages(trip.image_url),
+      title: t.title,
+      date: t.date,
+      location: t.location,
+      lat: t.lat,
+      lng: t.lng,
+      images: parseImages(t.image_url),
     })
-    setScheduleItems(parseScheduleItems(trip.description))
-    setEditingTrip(trip)
+    setScheduleItems(parseScheduleItems(t.description))
+    setTripNotesRich(
+      t.trip_notes_rich?.trim()
+        ? t.trip_notes_rich
+        : EMPTY_PLATE_JSON
+    )
+    setEditingTrip(t)
+    setTripFormPlateSession((s) => s + 1)
     setShowTripForm(true)
     setFormMessage(null)
   }
@@ -552,6 +560,7 @@ function MainPageContent() {
     setEditingTrip(null)
     setFormData(initialFormData)
     setScheduleItems([createEmptyScheduleItem()])
+    setTripNotesRich(EMPTY_PLATE_JSON)
     setFormMessage(null)
     setPendingNewDay(null)
     setShowWishlistSchedulePicker(false)
@@ -619,6 +628,15 @@ function MainPageContent() {
         lat: formData.lat,
         lng: formData.lng,
         image_url: formData.images.length > 0 ? JSON.stringify(formData.images) : undefined,
+        ...(editingTrip
+          ? {
+              trip_notes_rich: isPlateJsonEffectivelyEmpty(tripNotesRich)
+                ? null
+                : tripNotesRich,
+            }
+          : isPlateJsonEffectivelyEmpty(tripNotesRich)
+            ? {}
+            : { trip_notes_rich: tripNotesRich }),
       }
 
       if (editingTrip) {
@@ -795,7 +813,10 @@ function MainPageContent() {
     }
     
     setFormData({ ...initialFormData, date: defaultDate })
+    setScheduleItems([createEmptyScheduleItem()])
+    setTripNotesRich(EMPTY_PLATE_JSON)
     setEditingTrip(null)
+    setTripFormPlateSession((s) => s + 1)
     setShowTripForm(true)
     setFormMessage(null)
   }
@@ -938,6 +959,20 @@ function MainPageContent() {
       return a.time_start.localeCompare(b.time_start)
     })
   }, [trips, settings?.tripStartDate, selectedDay])
+
+  // 行程單頁：列表 refetch 後同步 detailTrip（例如補上 trip_notes_rich）
+  useEffect(() => {
+    setDetailTrip((prev) => {
+      if (!prev) return prev
+      const fresh = trips.find((t) => t.id === prev.id)
+      if (!fresh) return prev
+      const notesSame = (fresh.trip_notes_rich ?? '') === (prev.trip_notes_rich ?? '')
+      const descSame = fresh.description === prev.description
+      const titleSame = fresh.title === prev.title
+      if (notesSame && descSame && titleSame) return prev
+      return fresh
+    })
+  }, [trips])
 
   // Get date for a specific day
   const getDayDate = (dayNum: number) => {
@@ -1229,6 +1264,7 @@ function MainPageContent() {
                     <h3 className="font-medium text-gray-800">{settings.homeLocation.name}</h3>
                   </div>
                   <p className="text-sm text-gray-500 ml-7">{settings.homeLocation.address}</p>
+                  <HomeStayLinks variant="card" />
                   <p className="text-xs text-blue-500 ml-7 mt-1">點擊查看位置及路線</p>
                 </div>
               </motion.div>
@@ -1704,6 +1740,19 @@ function MainPageContent() {
                     </button>
                   </div>
                 </div>
+
+                {detailTrip.trip_notes_rich &&
+                  !isPlateJsonEffectivelyEmpty(detailTrip.trip_notes_rich) && (
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-medium text-gray-700">行程備註</h3>
+                    <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+                      <PlateRichView
+                        key={`${detailTrip.id}-${(detailTrip.trip_notes_rich ?? '').length}`}
+                        json={detailTrip.trip_notes_rich}
+                      />
+                    </div>
+                  </div>
+                )}
                 
                 {/* Divider */}
                 <div className="border-t border-gray-100" />
@@ -2184,9 +2233,10 @@ function MainPageContent() {
                   allowFullScreen
                 />
               </div>
-              {/* Address */}
+              {/* Address + 入住連結 */}
               <div className="px-4 py-3 border-t border-gray-100">
                 <p className="text-sm text-gray-600">{settings.homeLocation.address}</p>
+                <HomeStayLinks variant="modal" />
               </div>
             </motion.div>
           </motion.div>
@@ -2843,7 +2893,9 @@ function MainPageContent() {
                                 .filter(w =>
                                   !wishlistScheduleSearch ||
                                   w.name.toLowerCase().includes(wishlistScheduleSearch.toLowerCase()) ||
-                                  (w.note || '').toLowerCase().includes(wishlistScheduleSearch.toLowerCase()) ||
+                                  extractPlainTextFromPlateJson(w.note || '')
+                                    .toLowerCase()
+                                    .includes(wishlistScheduleSearch.toLowerCase()) ||
                                   (w.category || '').toLowerCase().includes(wishlistScheduleSearch.toLowerCase())
                                 )
                                 .map(w => (
@@ -2851,7 +2903,10 @@ function MainPageContent() {
                                     key={w.id}
                                     type="button"
                                     onClick={() => {
-                                      const content = w.note ? `${w.name}（${w.note}）` : w.name
+                                      const notePlain = w.note
+                                        ? extractPlainTextFromPlateJson(w.note)
+                                        : ''
+                                      const content = notePlain ? `${w.name}（${notePlain}）` : w.name
                                       setScheduleItems([...scheduleItems, { ...createEmptyScheduleItem(), content }])
                                       // 第一次從心願清單選入明細時，將該筆名稱與圖片帶入表單「標題」「圖片」（不覆蓋已填寫內容）
                                       if (!wishlistFirstPickAutofillDoneRef.current) {
@@ -2878,7 +2933,11 @@ function MainPageContent() {
                                     )}
                                     <div className="flex-1 min-w-0">
                                       <div className="text-sm font-medium text-gray-800 truncate">{w.name}</div>
-                                      {w.note && <div className="text-xs text-gray-400 truncate">{w.note}</div>}
+                                      {w.note && (
+                                        <div className="text-xs text-gray-400 truncate">
+                                          {extractPlainTextFromPlateJson(w.note)}
+                                        </div>
+                                      )}
                                       {w.category && <div className="text-[10px] text-sakura-400">{w.category}</div>}
                                     </div>
                                     <span className="text-sakura-400 text-lg flex-shrink-0">+</span>
@@ -2888,7 +2947,9 @@ function MainPageContent() {
                               {wishlistDbItems.filter(w =>
                                 !wishlistScheduleSearch ||
                                 w.name.toLowerCase().includes(wishlistScheduleSearch.toLowerCase()) ||
-                                (w.note || '').toLowerCase().includes(wishlistScheduleSearch.toLowerCase()) ||
+                                extractPlainTextFromPlateJson(w.note || '')
+                                  .toLowerCase()
+                                  .includes(wishlistScheduleSearch.toLowerCase()) ||
                                 (w.category || '').toLowerCase().includes(wishlistScheduleSearch.toLowerCase())
                               ).length === 0 && (
                                 <div className="px-4 py-6 text-center text-sm text-gray-400">
@@ -2900,6 +2961,15 @@ function MainPageContent() {
                         )}
                       </div>
                     </div>
+
+                    <PlateRichEditor
+                      key={`${editingTrip ? `trip-${editingTrip.id}` : 'trip-new'}-s${tripFormPlateSession}`}
+                      instanceKey={`${editingTrip ? `trip-${editingTrip.id}` : 'trip-new'}-s${tripFormPlateSession}`}
+                      label="行程備註（選填）"
+                      value={tripNotesRich}
+                      onChange={setTripNotesRich}
+                      minHeight="160px"
+                    />
                   </div>
 
                   {/* Fixed Footer with Submit Buttons */}

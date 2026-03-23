@@ -51,6 +51,9 @@ import ImageSlider from '@/components/ImageSlider'
 import TravelWalletModal from '@/components/TravelWalletModal'
 import { safeSetItem } from '@/lib/safeStorage'
 import { OPEN_TRAVEL_WALLET_QUERY } from '@/lib/travelWalletUi'
+import { EMPTY_PLATE_JSON, isPlateJsonEffectivelyEmpty } from '@/lib/plateRich'
+import PlateRichEditor from '@/components/PlateRichEditor'
+import PlateRichView from '@/components/PlateRichView'
 
 const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
   ssr: false,
@@ -137,6 +140,7 @@ export default function AdminPage() {
   // TanStack Query hooks
   const queryClient = useQueryClient()
   const { data: trips = [], isLoading: isTripsLoading } = useTrips()
+
   const { data: wishlistItemsData } = useWishlistItems()
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -145,6 +149,8 @@ export default function AdminPage() {
   const [showSettings, setShowSettings] = useState(false)
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null)
   const [formData, setFormData] = useState<FormData>(initialFormData)
+  const [tripNotesRich, setTripNotesRich] = useState<string>(EMPTY_PLATE_JSON)
+  const [tripFormPlateSession, setTripFormPlateSession] = useState(0)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null)
   const [settingsForm, setSettingsForm] = useState({ 
@@ -199,6 +205,20 @@ export default function AdminPage() {
   // Trip detail view state (Airbnb-style)
   const [showTripDetail, setShowTripDetail] = useState(false)
   const [detailTrip, setDetailTrip] = useState<Trip | null>(null)
+
+  useEffect(() => {
+    setDetailTrip((prev) => {
+      if (!prev) return prev
+      const fresh = trips.find((t) => t.id === prev.id)
+      if (!fresh) return prev
+      const notesSame = (fresh.trip_notes_rich ?? '') === (prev.trip_notes_rich ?? '')
+      const descSame = fresh.description === prev.description
+      const titleSame = fresh.title === prev.title
+      if (notesSame && descSame && titleSame) return prev
+      return fresh
+    })
+  }, [trips])
+
   // Wishlist management state
   const [showWishlistManagement, setShowWishlistManagement] = useState(false)
   const [wishlistItems, setWishlistItems] = useState<WishlistItemDB[]>([])
@@ -568,6 +588,7 @@ export default function AdminPage() {
 
   const resetForm = () => {
     setFormData(initialFormData)
+    setTripNotesRich(EMPTY_PLATE_JSON)
     setEditingTrip(null)
     setShowForm(false)
     setShowPlacePicker(false)
@@ -608,6 +629,15 @@ export default function AdminPage() {
         image_url: formData.images.length > 0 ? JSON.stringify(formData.images) : undefined,
         time_start: firstItem?.time_start || undefined,
         time_end: firstItem?.time_end || undefined,
+        ...(editingTrip
+          ? {
+              trip_notes_rich: isPlateJsonEffectivelyEmpty(tripNotesRich)
+                ? null
+                : tripNotesRich,
+            }
+          : isPlateJsonEffectivelyEmpty(tripNotesRich)
+            ? {}
+            : { trip_notes_rich: tripNotesRich }),
       }
 
       if (editingTrip) {
@@ -637,16 +667,21 @@ export default function AdminPage() {
   }
 
   const handleEdit = (trip: Trip) => {
-    setEditingTrip(trip)
+    const t = trips.find((x) => x.id === trip.id) ?? trip
+    setEditingTrip(t)
     setFormData({
-      title: trip.title,
-      date: trip.date,
-      location: trip.location,
-      lat: trip.lat,
-      lng: trip.lng,
-      images: parseImages(trip.image_url),
-      scheduleItems: parseScheduleItems(trip.description),
+      title: t.title,
+      date: t.date,
+      location: t.location,
+      lat: t.lat,
+      lng: t.lng,
+      images: parseImages(t.image_url),
+      scheduleItems: parseScheduleItems(t.description),
     })
+    setTripNotesRich(
+      t.trip_notes_rich?.trim() ? t.trip_notes_rich : EMPTY_PLATE_JSON
+    )
+    setTripFormPlateSession((s) => s + 1)
     setShowForm(true)
   }
 
@@ -1693,6 +1728,7 @@ export default function AdminPage() {
             <button
               onClick={() => {
                 resetForm()
+                setTripFormPlateSession((s) => s + 1)
                 setShowForm(true)
               }}
               className="flex px-4 py-2 text-white rounded-lg font-medium transition-colors items-center gap-2"
@@ -3389,6 +3425,15 @@ export default function AdminPage() {
                       </div>
                     </div>
 
+                    <PlateRichEditor
+                      key={`${editingTrip ? `panel-trip-${editingTrip.id}` : 'panel-trip-new'}-s${tripFormPlateSession}`}
+                      instanceKey={`${editingTrip ? `panel-trip-${editingTrip.id}` : 'panel-trip-new'}-s${tripFormPlateSession}`}
+                      label="行程備註（選填）"
+                      value={tripNotesRich}
+                      onChange={setTripNotesRich}
+                      minHeight="160px"
+                    />
+
                     <div className="flex gap-3 pt-4">
                       <button
                         type="button"
@@ -3838,6 +3883,19 @@ export default function AdminPage() {
                       )}
                     </div>
                   </div>
+
+                  {detailTrip.trip_notes_rich &&
+                    !isPlateJsonEffectivelyEmpty(detailTrip.trip_notes_rich) && (
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-medium text-gray-700">行程備註</h3>
+                      <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+                        <PlateRichView
+                          key={`${detailTrip.id}-${(detailTrip.trip_notes_rich ?? '').length}`}
+                          json={detailTrip.trip_notes_rich}
+                        />
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Divider */}
                   <div className="border-t border-gray-100" />
