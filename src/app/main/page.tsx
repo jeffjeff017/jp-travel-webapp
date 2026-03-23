@@ -10,7 +10,7 @@ import { useTrips, useCreateTrip, useUpdateTrip, useDeleteTrip, useChecklistStat
 import { type WishlistItemDB } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { getSettings, getSettingsAsync, refreshSettings, saveSettings, saveSettingsAsync, type SiteSettings } from '@/lib/settings'
-import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, getUsers, getAuthToken, type User } from '@/lib/auth'
+import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, getUsers, getAuthToken, isAuthenticated, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 import DailyPopup from '@/components/DailyPopup'
@@ -20,6 +20,8 @@ import ImageSlider from '@/components/ImageSlider'
 import WishlistButton from '@/components/WishlistButton'
 import { useLanguage } from '@/lib/i18n'
 import { safeSetItem } from '@/lib/safeStorage'
+import { isTravelWalletHomeBubbleEnabled } from '@/lib/travelWalletUi'
+import TravelWalletModal from '@/components/TravelWalletModal'
 import { geocodePlaceName } from '@/lib/geocode'
 
 const GoogleMapComponent = dynamic(
@@ -274,13 +276,22 @@ function MainPageContent() {
   
   // Home location map popup state
   const [showHomeMapPopup, setShowHomeMapPopup] = useState(false)
+
+  /** 主頁左側垂直置中旅行錢包浮球（僅客戶端掛載後顯示，避免 SSR hydration 不一致） */
+  const [mainClientMounted, setMainClientMounted] = useState(false)
+  const [travelWalletBubbleOn, setTravelWalletBubbleOn] = useState(false)
+  const [showTravelWallet, setShowTravelWallet] = useState(false)
+  useEffect(() => {
+    setTravelWalletBubbleOn(isTravelWalletHomeBubbleEnabled())
+    setMainClientMounted(true)
+  }, [])
   
   // Travel notice checklist state
   const [checkedItems, setCheckedItems] = useState<Record<string, { username: string; displayName: string; avatarUrl?: string }[]>>({})
   
   // Disable background scrolling when any popup/modal is active
   useEffect(() => {
-    const anyPopupOpen = showTripForm || showMapPopup || showWishlistPopup || showInfoPopup || showSearch || showTripDetail || !!selectedWishlistItem || showHomeMapPopup
+    const anyPopupOpen = showTripForm || showMapPopup || showWishlistPopup || showInfoPopup || showSearch || showTripDetail || !!selectedWishlistItem || showHomeMapPopup || showTravelWallet
     if (anyPopupOpen) {
       document.body.style.overflow = 'hidden'
     } else {
@@ -289,16 +300,19 @@ function MainPageContent() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [showTripForm, showMapPopup, showWishlistPopup, showInfoPopup, showSearch, showTripDetail, selectedWishlistItem, showHomeMapPopup])
+  }, [showTripForm, showMapPopup, showWishlistPopup, showInfoPopup, showSearch, showTripDetail, selectedWishlistItem, showHomeMapPopup, showTravelWallet])
 
   useEffect(() => {
     setIsAdmin(canEdit())
     setIsActualAdmin(checkIsAdmin())
     setCurrentUser(getCurrentUser())
-    // Load sakura mode from localStorage
+    // 摸摸 Chiikawa：首次進站無紀錄時預設開啟；若曾儲存則依使用者選擇
     const savedSakuraMode = localStorage.getItem('sakura_mode')
-    if (savedSakuraMode === 'true') {
+    if (savedSakuraMode === null) {
+      safeSetItem('sakura_mode', 'true')
       setIsSakuraMode(true)
+    } else {
+      setIsSakuraMode(savedSakuraMode === 'true')
     }
   }, [])
 
@@ -1024,7 +1038,7 @@ function MainPageContent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-white z-50"
+            className="fixed inset-0 bg-white z-[56]"
           >
             {/* Search Header */}
             <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-3">
@@ -1554,65 +1568,40 @@ function MainPageContent() {
       </div>
       
       {/* Mobile: Airbnb-style Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-area-bottom">
-        <div className="flex items-center justify-around h-16 px-2">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[55] pointer-events-auto bg-white border-t border-gray-200 safe-area-bottom">
+        <div className="flex items-stretch justify-around h-16 px-2">
           {/* 行程 Tab - Active on main page */}
           <button
+            type="button"
             onClick={() => setActiveBottomTab('home')}
-            className="flex flex-col items-center justify-center flex-1 h-full text-sakura-500"
+            className="flex flex-col items-center justify-center flex-1 min-w-0 h-full text-sakura-500 touch-manipulation"
           >
             <span className="text-xl mb-0.5">📋</span>
             <span className="text-[10px] font-medium">行程</span>
           </button>
           
-          {/* 心願清單 Tab */}
-          <Link
+          {/* 心願清單：硬導向避免 App Router / 遮擋導致無法進頁 */}
+          <a
             href="/wishlist"
-            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-sakura-500 transition-colors"
+            className="flex flex-col items-center justify-center flex-1 min-w-0 h-full text-gray-400 hover:text-sakura-500 transition-colors touch-manipulation no-underline"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              window.location.assign('/wishlist')
+            }}
           >
             <span className="text-xl mb-0.5">💖</span>
             <span className="text-[10px] font-medium">心願清單</span>
-          </Link>
-          
-          {/* Chiikawa Tab */}
-          <button
-            onClick={() => {
-              toggleSakuraMode()
-              if (typeof window !== 'undefined') {
-                safeSetItem('mode_toggle_clicked', 'true')
-              }
-            }}
-            className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-300 ${
-              isSakuraMode ? 'text-pink-500' : 'text-gray-400'
-            }`}
-          >
-            <motion.span 
-              className="text-xl mb-0.5"
-              animate={{ 
-                scale: isSakuraMode ? [1, 1.3, 1] : 1,
-                rotate: isSakuraMode ? [0, 15, -15, 0] : 0
-              }}
-              transition={{ duration: 0.4 }}
-            >
-              {isSakuraMode ? '🌸' : '🔘'}
-            </motion.span>
-            <motion.span 
-              className="text-[10px] font-medium"
-              initial={false}
-              animate={{ opacity: 1, y: 0 }}
-              key={isSakuraMode ? 'sakura' : 'normal'}
-            >
-              {isSakuraMode ? '摸摸Chiikawa' : '點擊'}
-            </motion.span>
-          </button>
+          </a>
           
           {/* 旅遊須知 Tab */}
           <button
+            type="button"
             onClick={() => {
               setActiveBottomTab('info')
               setShowInfoPopup(true)
             }}
-            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+            className={`flex flex-col items-center justify-center flex-1 min-w-0 h-full transition-colors touch-manipulation ${
               activeBottomTab === 'info' ? 'text-sakura-500' : 'text-gray-400'
             }`}
           >
@@ -1620,14 +1609,19 @@ function MainPageContent() {
             <span className="text-[10px] font-medium">旅遊須知</span>
           </button>
           
-          {/* 個人資料 Tab */}
-          <Link
+          {/* 個人資料 */}
+          <a
             href="/panel"
-            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-sakura-500 transition-colors"
+            className="flex flex-col items-center justify-center flex-1 min-w-0 h-full text-gray-400 hover:text-sakura-500 transition-colors touch-manipulation no-underline"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              window.location.assign('/panel')
+            }}
           >
             <span className="text-xl mb-0.5">👤</span>
             <span className="text-[10px] font-medium">個人資料</span>
-          </Link>
+          </a>
         </div>
       </nav>
       
@@ -2267,6 +2261,42 @@ function MainPageContent() {
         )}
       </AnimatePresence>
 
+      {/* Travel Wallet — 左下角（桌面/手機皆靠左、置底）；低於底欄 z-55 */}
+      {mainClientMounted && travelWalletBubbleOn && isAuthenticated() && (
+        <div className="fixed z-[48] pointer-events-none left-4 bottom-[calc(env(safe-area-inset-bottom,0px)+4.5rem)] md:left-6 md:bottom-8">
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            whileTap={{ scale: 0.92 }}
+            whileHover={{ scale: 1.05 }}
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: ['expenses'] })
+              void queryClient.invalidateQueries({ queryKey: queryKeys.walletSettings })
+              setShowTravelWallet(true)
+            }}
+            className="pointer-events-auto w-14 h-14 rounded-full shadow-lg border-2 border-white/90 bg-gradient-to-br from-amber-400 to-orange-500 flex flex-col items-center justify-center text-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 touch-manipulation"
+            title="旅行錢包"
+            aria-label="開啟旅行錢包"
+          >
+            <span className="text-xl leading-none drop-shadow-sm" aria-hidden>
+              💰
+            </span>
+            <span className="text-[8px] font-bold leading-tight mt-0.5 opacity-95">錢包</span>
+          </motion.button>
+        </div>
+      )}
+
+      <TravelWalletModal
+        open={showTravelWallet}
+        onClose={(reason) => {
+          setShowTravelWallet(false)
+          if (reason?.dataChanged) window.location.reload()
+        }}
+        themeColor="#F472B6"
+        isAdminUser={isActualAdmin}
+      />
+
       {/* Chiikawa Pet - Floating character when sakura mode is on */}
       <ChiikawaPet enabled={isSakuraMode} />
 
@@ -2638,7 +2668,7 @@ function MainPageContent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
             onClick={(e) => {
               if (e.target === e.currentTarget) closeForm()
             }}

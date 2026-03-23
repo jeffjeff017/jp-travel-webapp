@@ -342,11 +342,20 @@ export default function WishlistPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const isLoadingMoreRef = useRef(false)
+  /** Admin only: multi-select duplicates for batch delete */
+  const [bulkSelectMode, setBulkSelectMode] = useState(false)
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<number>>(() => new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   // Reset display count when filters change
   useEffect(() => {
     setDisplayCount(12)
   }, [activeTab, activeAreaFilter, searchQuery])
+
+  // Exit bulk mode clears selection
+  useEffect(() => {
+    if (!bulkSelectMode) setBulkSelectedIds(new Set())
+  }, [bulkSelectMode])
 
   // Close area dropdown on outside click
   useEffect(() => {
@@ -635,19 +644,18 @@ export default function WishlistPage() {
     }
   }, [availableAreas, activeAreaFilter])
 
-  // Sync selectedItemPopup when wishlist data changes (e.g. after trip deleted elsewhere → added_to_trip cleared)
+  // Sync selectedItemPopup when wishlist changes (e.g. after toggleFavorite from popup)
   useEffect(() => {
-    if (!selectedItemPopup || !wishlistDbItems?.length) return
-    const freshDb = wishlistDbItems.find(db => String(db.id) === String(selectedItemPopup.id))
-    if (!freshDb) return
-    const freshAddedDay = freshDb.added_to_trip?.day
-    const freshAddedTime = freshDb.added_to_trip?.time
-    const currentAddedDay = selectedItemPopup.addedToDay
-    const currentAddedTime = selectedItemPopup.addedTime
-    if (freshAddedDay !== currentAddedDay || freshAddedTime !== currentAddedTime) {
-      setSelectedItemPopup(prev => prev ? { ...prev, addedToDay: freshAddedDay, addedTime: freshAddedTime } : null)
+    if (!selectedItemPopup) return
+    const liveItem = Object.values(wishlist).flat().find(i => String(i.id) === String(selectedItemPopup.id))
+    if (!liveItem) return
+    if (
+      liveItem.favoritedBy !== selectedItemPopup.favoritedBy ||
+      liveItem.isFavorite !== selectedItemPopup.isFavorite
+    ) {
+      setSelectedItemPopup(prev => prev ? { ...prev, favoritedBy: liveItem.favoritedBy, isFavorite: liveItem.isFavorite } : null)
     }
-  }, [wishlistDbItems, selectedItemPopup?.id])
+  }, [wishlist, selectedItemPopup?.id])
 
   // Get current category for adding
   const getCurrentCategory = () => {
@@ -712,38 +720,104 @@ export default function WishlistPage() {
     setIsSubmitting(false)
   }
   
+  /** Move one wishlist item to admin trash + delete from Supabase (no confirm) */
+  const deleteWishlistItemCore = async (item: WishlistItem) => {
+    const savedTrash = localStorage.getItem('admin_trash_bin')
+    const trashData = savedTrash ? JSON.parse(savedTrash) : { trips: [], users: [], destinations: [], wishlist: [] }
+    const trashWishlistItem: WishlistItemDB = {
+      id: Number(item.id),
+      category: item.category,
+      name: item.name,
+      note: item.note || null,
+      image_url: item.imageUrl || null,
+      map_link: null,
+      link: item.link || null,
+      added_to_trip: item.addedToDay ? { day: item.addedToDay, time: item.addedTime || '' } : null,
+      added_by: item.addedBy ? { username: item.addedBy.username, display_name: item.addedBy.displayName, avatar_url: item.addedBy.avatarUrl } : null,
+      is_favorite: item.isFavorite || false,
+      created_at: item.addedAt,
+    }
+    trashData.wishlist = [...(trashData.wishlist || []), { ...trashWishlistItem, deletedAt: new Date().toISOString() }]
+    safeSetItem('admin_trash_bin', JSON.stringify(trashData))
+    await deleteSupabaseWishlistItem(Number(item.id))
+  }
+
+  const findWishlistItemByNumericId = (id: number): WishlistItem | undefined => {
+    for (const items of Object.values(wishlist)) {
+      const found = items.find(i => Number(i.id) === id)
+      if (found) return found
+    }
+    return undefined
+  }
+
   // Handle delete item (move to trash)
   const handleDeleteItem = async (item: WishlistItem) => {
     if (!confirm('確定要將此項目移至垃圾桶嗎？')) return
-    
+
     try {
-      // Move to trash in localStorage
-      const savedTrash = localStorage.getItem('admin_trash_bin')
-      const trashData = savedTrash ? JSON.parse(savedTrash) : { trips: [], users: [], destinations: [], wishlist: [] }
-      const trashWishlistItem: WishlistItemDB = {
-        id: Number(item.id),
-        category: item.category,
-        name: item.name,
-        note: item.note || null,
-        image_url: item.imageUrl || null,
-        map_link: null,
-        link: item.link || null,
-        added_to_trip: item.addedToDay ? { day: item.addedToDay, time: item.addedTime || '' } : null,
-        added_by: item.addedBy ? { username: item.addedBy.username, display_name: item.addedBy.displayName, avatar_url: item.addedBy.avatarUrl } : null,
-        is_favorite: item.isFavorite || false,
-        created_at: item.addedAt,
-      }
-      trashData.wishlist = [...(trashData.wishlist || []), { ...trashWishlistItem, deletedAt: new Date().toISOString() }]
-      safeSetItem('admin_trash_bin', JSON.stringify(trashData))
-      
-      await deleteSupabaseWishlistItem(Number(item.id))
+      await deleteWishlistItemCore(item)
       setSelectedItemPopup(null)
-      // Refresh data via TanStack Query
       await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
     } catch (err) {
       console.error('Failed to delete item:', err)
       alert('刪除失敗')
     }
+  }
+
+  /** Admin: delete all selected items (current filter list) */
+  const handleBulkDeleteSelected = async () => {
+    if (!isAdmin || bulkSelectedIds.size === 0) return
+    const count = bulkSelectedIds.size
+    if (!confirm(`確定將已選的 ${count} 個心願移至垃圾桶並從資料庫刪除？此操作無法復原（請至後台垃圾桶確認）。`)) return
+
+    setBulkDeleting(true)
+    try {
+      const ids = Array.from(bulkSelectedIds)
+      let failed = 0
+      for (const id of ids) {
+        const item = findWishlistItemByNumericId(id)
+        if (!item) {
+          failed++
+          continue
+        }
+        try {
+          await deleteWishlistItemCore(item)
+        } catch (e) {
+          console.error('Bulk delete item failed:', id, e)
+          failed++
+        }
+      }
+      setBulkSelectedIds(new Set())
+      setBulkSelectMode(false)
+      setSelectedItemPopup(null)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
+      if (failed > 0) {
+        alert(`已處理刪除；其中有 ${failed} 筆失敗（可能已不存在或 ID 無效）。`)
+      }
+    } catch (err) {
+      console.error('Bulk delete failed:', err)
+      alert('批次刪除時發生錯誤')
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  const toggleBulkSelectId = (id: number) => {
+    setBulkSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const selectAllFilteredIds = () => {
+    const next = new Set<number>()
+    for (const item of getFilteredItems()) {
+      const n = Number(item.id)
+      if (!Number.isNaN(n)) next.add(n)
+    }
+    setBulkSelectedIds(next)
   }
   
   // Handle add wishlist item to itinerary (create trip) or 更改 day (update only)
@@ -984,24 +1058,40 @@ export default function WishlistPage() {
   }, [filteredItems, hasMore])
 
   return (
-    <main className={`bg-gray-50 pb-20 ${!isSakuraMode ? 'clean-mode' : ''}`}>
+    <main className={`bg-gray-50 ${isAdmin && bulkSelectMode ? 'pb-40' : 'pb-20'} ${!isSakuraMode ? 'clean-mode' : ''}`}>
       <SakuraCanvas enabled={isSakuraMode} />
       
       {/* Header - Airbnb style */}
       <header className="sticky top-0 z-40 bg-white border-b border-gray-100">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-              <img src="/images/gonggu card_1-04-nobg.png" alt="" className="w-7 h-7 object-contain" />
-              心願清單
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <h1 className="text-xl font-semibold text-gray-800 flex items-center gap-2 min-w-0">
+              <img src="/images/gonggu card_1-04-nobg.png" alt="" className="w-7 h-7 object-contain shrink-0" />
+              <span className="truncate">心願清單</span>
             </h1>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-sakura-500 hover:bg-sakura-600 text-white rounded-full text-sm font-medium transition-colors"
-            >
-              <span>+</span>
-              <span>新增</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setBulkSelectMode(v => !v)}
+                  className={`flex items-center gap-1 px-3 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors border ${
+                    bulkSelectMode
+                      ? 'bg-gray-900 text-white border-gray-900'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  {bulkSelectMode ? '取消多選' : '多選'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowAddForm(true)}
+                className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-sakura-500 hover:bg-sakura-600 text-white rounded-full text-xs sm:text-sm font-medium transition-colors"
+              >
+                <span>+</span>
+                <span className="hidden sm:inline">新增</span>
+              </button>
+            </div>
           </div>
           
           {/* Search Field */}
@@ -1115,21 +1205,46 @@ export default function WishlistPage() {
         ) : (
           <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {displayedItems.map((item) => (
+            {displayedItems.map((item) => {
+              const numericId = Number(item.id)
+              const isBulkSelected = !Number.isNaN(numericId) && bulkSelectedIds.has(numericId)
+              return (
               <motion.div
                 key={item.id}
                 layout
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow group cursor-pointer select-none"
+                className={`bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow group select-none ${
+                  isAdmin && bulkSelectMode ? 'cursor-pointer ring-offset-2' : 'cursor-pointer'
+                } ${isBulkSelected ? 'ring-2 ring-sakura-500 ring-offset-2' : ''}`}
                 style={{ touchAction: 'manipulation' }}
-                onClick={() => setSelectedItemPopup(item)}
+                onClick={() => {
+                  if (isAdmin && bulkSelectMode) {
+                    if (!Number.isNaN(numericId)) toggleBulkSelectId(numericId)
+                    return
+                  }
+                  setSelectedItemPopup(item)
+                }}
                 role="button"
                 tabIndex={0}
               >
                 {/* Image */}
                 <div className="relative aspect-[4/3] bg-gray-100">
+                  {isAdmin && bulkSelectMode && (
+                    <div
+                      className="absolute top-2 left-2 z-20 w-7 h-7 rounded-lg border-2 border-white shadow-md flex items-center justify-center bg-white/95"
+                      aria-hidden
+                    >
+                      <span
+                        className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                          isBulkSelected ? 'bg-sakura-500 border-sakura-500 text-white' : 'border-gray-400 bg-white'
+                        }`}
+                      >
+                        {isBulkSelected ? '✓' : ''}
+                      </span>
+                    </div>
+                  )}
                   {(() => {
                     const imgs = parseWishlistImages(item.imageUrl)
                     const src = imgs[0]
@@ -1150,7 +1265,11 @@ export default function WishlistPage() {
                   
                   {/* Top-left: trip day badge */}
                   {item.addedToDay && (
-                    <div className="absolute top-2 left-2 px-2 py-1 bg-green-500 text-white text-xs font-medium rounded-full">
+                    <div
+                      className={`absolute top-2 px-2 py-1 bg-green-500 text-white text-xs font-medium rounded-full z-10 ${
+                        isAdmin && bulkSelectMode ? 'left-10' : 'left-2'
+                      }`}
+                    >
                       Day {item.addedToDay}
                     </div>
                   )}
@@ -1259,7 +1378,7 @@ export default function WishlistPage() {
                   </div>
                 </div>
               </motion.div>
-            ))}
+            )})}
           </div>
           {hasMore && (
             <div ref={loadMoreRef} className="flex justify-center py-8">
@@ -1273,6 +1392,44 @@ export default function WishlistPage() {
           </>
         )}
       </div>
+
+      {/* Admin: bulk delete action bar */}
+      {isAdmin && bulkSelectMode && (
+        <div className="fixed bottom-16 left-0 right-0 z-[60] border-t border-gray-200 bg-white/95 backdrop-blur-md shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+          <div className="container mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-gray-700">
+              已選 <span className="font-semibold text-sakura-600">{bulkSelectedIds.size}</span> 項
+              <span className="text-gray-400 text-xs ml-2 hidden sm:inline">（點卡片可勾選／取消）</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-2 justify-end">
+              <button
+                type="button"
+                disabled={bulkDeleting || filteredItems.length === 0}
+                onClick={selectAllFilteredIds}
+                className="px-3 py-2 text-xs sm:text-sm font-medium rounded-full border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                全選篩選結果
+              </button>
+              <button
+                type="button"
+                disabled={bulkDeleting || bulkSelectedIds.size === 0}
+                onClick={() => setBulkSelectedIds(new Set())}
+                className="px-3 py-2 text-xs sm:text-sm font-medium rounded-full border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                清除選取
+              </button>
+              <button
+                type="button"
+                disabled={bulkDeleting || bulkSelectedIds.size === 0}
+                onClick={() => void handleBulkDeleteSelected()}
+                className="px-4 py-2 text-xs sm:text-sm font-medium rounded-full bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {bulkDeleting ? '刪除中…' : `刪除已選 (${bulkSelectedIds.size})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Add Form Modal */}
       <AnimatePresence>
@@ -1880,13 +2037,8 @@ export default function WishlistPage() {
                     <motion.button
                       onClick={() => {
                         const un = (getCurrentUser() || currentUser)?.username ?? getLoggedInUsername()
-                        const isLiked = (selectedItemPopup.favoritedBy || []).includes(un || '')
-                        const newFavorite = !isLiked
+                        if (!un) return
                         handleToggleFavorite(selectedItemPopup)
-                        const nextFavoritedBy = newFavorite
-                          ? (un ? [...(selectedItemPopup.favoritedBy || []), un] : (selectedItemPopup.favoritedBy || []))
-                          : (selectedItemPopup.favoritedBy || []).filter(u => u !== un)
-                        setSelectedItemPopup({ ...selectedItemPopup, favoritedBy: nextFavoritedBy, isFavorite: newFavorite })
                       }}
                       whileTap={{ scale: 0.85 }}
                       animate={{ scale: 1 }}
@@ -1983,13 +2135,8 @@ export default function WishlistPage() {
                     <motion.button
                       onClick={() => {
                         const un = (getCurrentUser() || currentUser)?.username ?? getLoggedInUsername()
-                        const isLiked = (selectedItemPopup.favoritedBy || []).includes(un || '')
-                        const newFavorite = !isLiked
+                        if (!un) return
                         handleToggleFavorite(selectedItemPopup)
-                        const nextFavoritedBy = newFavorite
-                          ? (un ? [...(selectedItemPopup.favoritedBy || []), un] : (selectedItemPopup.favoritedBy || []))
-                          : (selectedItemPopup.favoritedBy || []).filter(u => u !== un)
-                        setSelectedItemPopup({ ...selectedItemPopup, favoritedBy: nextFavoritedBy, isFavorite: newFavorite })
                       }}
                       whileTap={{ scale: 0.85 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 20 }}
@@ -2250,59 +2397,27 @@ export default function WishlistPage() {
       
       {/* Mobile: Airbnb-style Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-area-bottom">
-        <div className="flex items-center justify-around h-16 px-2">
+        <div className="flex items-stretch justify-around h-16 px-2">
           {/* 行程 Tab */}
           <Link
             href="/main"
-            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-sakura-500 transition-colors"
+            className="flex flex-col items-center justify-center flex-1 min-w-0 h-full text-gray-400 hover:text-sakura-500 transition-colors touch-manipulation"
           >
             <span className="text-xl mb-0.5">📋</span>
             <span className="text-[10px] font-medium">行程</span>
           </Link>
           
           {/* 心願清單 Tab - Active */}
-          <button className="flex flex-col items-center justify-center flex-1 h-full text-sakura-500">
+          <button type="button" className="flex flex-col items-center justify-center flex-1 min-w-0 h-full text-sakura-500 touch-manipulation">
             <span className="text-xl mb-0.5">💖</span>
             <span className="text-[10px] font-medium">心願清單</span>
           </button>
           
-          {/* Chiikawa Tab */}
-          <button
-            onClick={() => {
-              const newValue = !isSakuraMode
-              setIsSakuraMode(newValue)
-              if (typeof window !== 'undefined') {
-                safeSetItem('sakura_mode', String(newValue))
-              }
-            }}
-            className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-300 ${
-              isSakuraMode ? 'text-pink-500' : 'text-gray-400'
-            }`}
-          >
-            <motion.span 
-              className="text-xl mb-0.5"
-              animate={{ 
-                scale: isSakuraMode ? [1, 1.3, 1] : 1,
-                rotate: isSakuraMode ? [0, 15, -15, 0] : 0
-              }}
-              transition={{ duration: 0.4 }}
-            >
-              {isSakuraMode ? '🌸' : '🔘'}
-            </motion.span>
-            <motion.span 
-              className="text-[10px] font-medium"
-              initial={false}
-              animate={{ opacity: 1, y: 0 }}
-              key={isSakuraMode ? 'sakura' : 'normal'}
-            >
-              {isSakuraMode ? '摸摸Chiikawa' : '點擊'}
-            </motion.span>
-          </button>
-          
           {/* 旅遊須知 Tab */}
           <button
+            type="button"
             onClick={() => setShowTravelNotice(true)}
-            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-sakura-500 transition-colors"
+            className="flex flex-col items-center justify-center flex-1 min-w-0 h-full text-gray-400 hover:text-sakura-500 transition-colors touch-manipulation"
           >
             <span className="text-xl mb-0.5">📖</span>
             <span className="text-[10px] font-medium">旅遊須知</span>
@@ -2311,7 +2426,7 @@ export default function WishlistPage() {
           {/* 個人資料 Tab */}
           <Link
             href="/panel"
-            className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 hover:text-sakura-500 transition-colors"
+            className="flex flex-col items-center justify-center flex-1 min-w-0 h-full text-gray-400 hover:text-sakura-500 transition-colors touch-manipulation"
           >
             <span className="text-xl mb-0.5">👤</span>
             <span className="text-[10px] font-medium">個人資料</span>

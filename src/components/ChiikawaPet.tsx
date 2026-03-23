@@ -217,7 +217,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
 
   return (
     <div 
-      className="fixed bottom-20 right-4 md:bottom-6 md:left-6 md:right-auto z-50 cursor-pointer select-none w-14 h-14 md:w-20 md:h-20 flex flex-col items-center justify-center"
+      className="fixed bottom-20 right-4 md:bottom-6 md:left-6 md:right-auto z-30 cursor-pointer select-none w-14 h-14 md:w-20 md:h-20 flex flex-col items-center justify-center pointer-events-auto"
       onClick={handleClick}
     >
       {/* Chiikawa Character with floating animation - bubble moves together */}
