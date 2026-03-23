@@ -48,7 +48,9 @@ import MediaUpload from '@/components/MediaUpload'
 import MultiMediaUpload from '@/components/MultiMediaUpload'
 import ImageCropper from '@/components/ImageCropper'
 import ImageSlider from '@/components/ImageSlider'
+import TravelWalletModal from '@/components/TravelWalletModal'
 import { safeSetItem } from '@/lib/safeStorage'
+import { OPEN_TRAVEL_WALLET_QUERY } from '@/lib/travelWalletUi'
 import { EMPTY_PLATE_JSON, isPlateJsonEffectivelyEmpty } from '@/lib/plateRich'
 import PlateRichEditor from '@/components/PlateRichEditor'
 import PlateRichView from '@/components/PlateRichView'
@@ -246,6 +248,8 @@ export default function AdminPage() {
   const isSakuraMode = siteSettings?.sakuraModeEnabled ?? true
   // 必須與 SSR 初值一致（false），否則管理員在客戶端首屏會變 true，與伺服器「成員」文字衝突造成 hydration error
   const [isAdminUser, setIsAdminUser] = useState(false)
+  // Travel Wallet state
+  const [showWallet, setShowWallet] = useState(false)
   const [trashItems, setTrashItems] = useState<{
     trips: Trip[]
     users: User[]
@@ -264,7 +268,7 @@ export default function AdminPage() {
   
   // Disable background scrolling when any popup/modal is active
   useEffect(() => {
-    const anyPopupOpen = showForm || showSettings || showUserManagement || showProfileEdit || showProfileCropper || showTravelNoticePopup || showDestinationModal || showTrashBin || showWishlistManagement || showChiikawaEdit || showChiikawaEditDesktop || showTripDetail
+    const anyPopupOpen = showForm || showSettings || showUserManagement || showProfileEdit || showProfileCropper || showTravelNoticePopup || showDestinationModal || showTrashBin || showWishlistManagement || showChiikawaEdit || showChiikawaEditDesktop || showWallet || showTripDetail
     if (anyPopupOpen) {
       document.body.style.overflow = 'hidden'
     } else {
@@ -273,7 +277,7 @@ export default function AdminPage() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showChiikawaEdit, showChiikawaEditDesktop, showTripDetail])
+  }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showTripDetail])
 
   // Refresh settingsForm from latest Supabase data whenever the dialog opens
   useEffect(() => {
@@ -316,6 +320,7 @@ export default function AdminPage() {
     // Load current user
     const user = getCurrentUser()
     setCurrentUser(user)
+    // Wallet data is now managed by TanStack Query (useExpenses, useWalletSettings)
     // Load checked travel notice items from localStorage
     const savedCheckedItems = localStorage.getItem('travel_notice_checked')
     if (savedCheckedItems) {
@@ -327,6 +332,26 @@ export default function AdminPage() {
     }
   }, [])
 
+  // 從主頁 ?openTravelWallet=1 開啟與個人資料相同的旅行錢包視窗
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get(OPEN_TRAVEL_WALLET_QUERY) !== '1') return
+    if (!isAuthenticated()) return
+
+    const run = async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.walletSettings }),
+      ])
+      setShowWallet(true)
+      const url = new URL(window.location.href)
+      url.searchParams.delete(OPEN_TRAVEL_WALLET_QUERY)
+      const q = url.searchParams.toString()
+      window.history.replaceState({}, '', q ? `${url.pathname}?${q}` : url.pathname)
+    }
+    void run()
+  }, [queryClient])
   
   // Get user's avatar - returns undefined if no avatar for initials fallback
   const getUserAvatarUrl = (username: string, fallbackAvatarUrl?: string): string | undefined => {
@@ -1006,6 +1031,21 @@ export default function AdminPage() {
               <p className="font-semibold text-gray-900 text-sm">心願清單</p>
               <p className="text-xs text-gray-400 mt-0.5">收藏喜愛的地點</p>
             </a>
+            <button
+              type="button"
+              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95 text-left"
+              onClick={async () => {
+                await Promise.all([
+                  queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+                  queryClient.invalidateQueries({ queryKey: queryKeys.walletSettings }),
+                ])
+                setShowWallet(true)
+              }}
+            >
+              <span className="text-3xl block mb-2">💰</span>
+              <p className="font-semibold text-gray-900 text-sm">旅行錢包</p>
+              <p className="text-xs text-gray-400 mt-0.5">記錄旅程的消費</p>
+            </button>
             {isAdminUser && (
               <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
                 <p className="text-xs text-gray-400 mb-1.5 flex items-center gap-1">🌏 目的地</p>
@@ -1162,6 +1202,35 @@ export default function AdminPage() {
             </div>
           </div>
 
+          {/* Mobile Travel Wallet Card - Full row */}
+          <div
+            className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+            onClick={async () => {
+              // Refresh wallet data via TanStack Query
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+                queryClient.invalidateQueries({ queryKey: queryKeys.walletSettings }),
+              ])
+              setShowWallet(true)
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                  <span className="text-xl">💰</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800 text-sm">旅行錢包</h3>
+                  <p className="text-xs text-gray-500">記錄旅程的洗費</p>
+                </div>
+              </div>
+              <div className="text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </div>
 
           {/* Mobile - Profile Edit Card - Full row (for all users) */}
           <div 
@@ -1565,6 +1634,37 @@ export default function AdminPage() {
             </button>
           </div>
 
+          {/* Travel Wallet Card - Desktop only */}
+          <div className="hidden md:block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center mb-3">
+                  <span className="text-xl">💰</span>
+                </div>
+                <h3 className="font-semibold text-gray-800 mb-1">旅行錢包</h3>
+                <p className="text-xs text-gray-500">
+                  記錄旅程的洗費
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  個人 / 共同支出
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                // Refresh wallet data via TanStack Query
+                await Promise.all([
+                  queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+                  queryClient.invalidateQueries({ queryKey: queryKeys.walletSettings }),
+                ])
+                setShowWallet(true)
+              }}
+              className="mt-4 w-full py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
+            >
+              開啟錢包
+            </button>
+          </div>
 
           {/* Chiikawa Dialogue Edit Card - Desktop only */}
           <div className="hidden md:block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
@@ -2898,6 +2998,17 @@ export default function AdminPage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <TravelWalletModal
+          open={showWallet}
+          onClose={(reason) => {
+            setShowWallet(false)
+            if (reason?.dataChanged) window.location.reload()
+          }}
+          themeColor={themeColor}
+          isAdminUser={isAdminUser}
+          onNotify={(msg) => setMessage(msg)}
+        />
 
         {/* Trash Bin Modal */}
         <AnimatePresence>

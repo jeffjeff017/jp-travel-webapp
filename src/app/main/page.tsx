@@ -19,6 +19,8 @@ import ImageSlider from '@/components/ImageSlider'
 import WishlistButton from '@/components/WishlistButton'
 import { useLanguage } from '@/lib/i18n'
 import { safeSetItem } from '@/lib/safeStorage'
+import { isTravelWalletHomeBubbleEnabled } from '@/lib/travelWalletUi'
+import TravelWalletModal from '@/components/TravelWalletModal'
 import TripListingAddress from '@/components/TripListingAddress'
 import HomeStayLinks from '@/components/HomeStayLinks'
 import PlateRichEditor from '@/components/PlateRichEditor'
@@ -282,13 +284,21 @@ function MainPageContent() {
   // Home location map popup state
   const [showHomeMapPopup, setShowHomeMapPopup] = useState(false)
 
+  /** 主頁左側垂直置中旅行錢包浮球（僅客戶端掛載後顯示，避免 SSR hydration 不一致） */
+  const [mainClientMounted, setMainClientMounted] = useState(false)
+  const [travelWalletBubbleOn, setTravelWalletBubbleOn] = useState(false)
+  const [showTravelWallet, setShowTravelWallet] = useState(false)
+  useEffect(() => {
+    setTravelWalletBubbleOn(isTravelWalletHomeBubbleEnabled())
+    setMainClientMounted(true)
+  }, [])
   
   // Travel notice checklist state
   const [checkedItems, setCheckedItems] = useState<Record<string, { username: string; displayName: string; avatarUrl?: string }[]>>({})
   
   // Disable background scrolling when any popup/modal is active
   useEffect(() => {
-    const anyPopupOpen = showTripForm || showMapPopup || showWishlistPopup || showInfoPopup || showSearch || showTripDetail || !!selectedWishlistItem || showHomeMapPopup
+    const anyPopupOpen = showTripForm || showMapPopup || showWishlistPopup || showInfoPopup || showSearch || showTripDetail || !!selectedWishlistItem || showHomeMapPopup || showTravelWallet
     if (anyPopupOpen) {
       document.body.style.overflow = 'hidden'
     } else {
@@ -297,7 +307,7 @@ function MainPageContent() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [showTripForm, showMapPopup, showWishlistPopup, showInfoPopup, showSearch, showTripDetail, selectedWishlistItem, showHomeMapPopup])
+  }, [showTripForm, showMapPopup, showWishlistPopup, showInfoPopup, showSearch, showTripDetail, selectedWishlistItem, showHomeMapPopup, showTravelWallet])
 
   useEffect(() => {
     setIsAdmin(canEdit())
@@ -2233,6 +2243,42 @@ function MainPageContent() {
         )}
       </AnimatePresence>
 
+      {/* Travel Wallet — 左下角（桌面/手機皆靠左、置底）；低於底欄 z-55 */}
+      {mainClientMounted && travelWalletBubbleOn && isAuthenticated() && (
+        <div className="fixed z-[48] pointer-events-none left-4 bottom-[calc(env(safe-area-inset-bottom,0px)+4.5rem)] md:left-6 md:bottom-8">
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            whileTap={{ scale: 0.92 }}
+            whileHover={{ scale: 1.05 }}
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: ['expenses'] })
+              void queryClient.invalidateQueries({ queryKey: queryKeys.walletSettings })
+              setShowTravelWallet(true)
+            }}
+            className="pointer-events-auto w-14 h-14 rounded-full shadow-lg border-2 border-white/90 bg-gradient-to-br from-amber-400 to-orange-500 flex flex-col items-center justify-center text-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 touch-manipulation"
+            title="旅行錢包"
+            aria-label="開啟旅行錢包"
+          >
+            <span className="text-xl leading-none drop-shadow-sm" aria-hidden>
+              💰
+            </span>
+          </motion.button>
+        </div>
+      )}
+
+      <TravelWalletModal
+        open={showTravelWallet}
+        onClose={(reason) => {
+          setShowTravelWallet(false)
+          if (reason?.dataChanged) window.location.reload()
+        }}
+        themeColor="#F472B6"
+        isAdminUser={isActualAdmin}
+      />
+
+      {/* Chiikawa Pet - Floating character when sakura mode is on */}
       <ChiikawaPet enabled={isSakuraMode} />
 
       {/* Daily Popup - Bottom Right - Hidden on mobile */}
