@@ -50,7 +50,7 @@ import ImageCropper from '@/components/ImageCropper'
 import ImageSlider from '@/components/ImageSlider'
 import TravelWalletModal from '@/components/TravelWalletModal'
 import { safeSetItem } from '@/lib/safeStorage'
-import { OPEN_TRAVEL_WALLET_QUERY, shouldShowTravelWalletProfileTile } from '@/lib/travelWalletUi'
+import { OPEN_TRAVEL_WALLET_QUERY } from '@/lib/travelWalletUi'
 
 const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
   ssr: false,
@@ -228,8 +228,6 @@ export default function AdminPage() {
   const [isAdminUser, setIsAdminUser] = useState(false)
   // Travel Wallet state
   const [showWallet, setShowWallet] = useState(false)
-  /** 主頁捷徑預設開啟時隱藏個人資料內「旅行錢包」方塊 */
-  const [showTravelWalletOnProfile, setShowTravelWalletOnProfile] = useState(false)
   const [trashItems, setTrashItems] = useState<{
     trips: Trip[]
     users: User[]
@@ -314,11 +312,6 @@ export default function AdminPage() {
         console.error('Failed to parse checked items:', e)
       }
     }
-  }, [])
-
-  // 主頁旅行錢包捷徑預設開啟 → 個人資料內方塊隱藏；localStorage 可關閉捷徑以恢復方塊
-  useEffect(() => {
-    setShowTravelWalletOnProfile(shouldShowTravelWalletProfileTile())
   }, [])
 
   // 從主頁 ?openTravelWallet=1 開啟與個人資料相同的旅行錢包視窗
@@ -1005,8 +998,8 @@ export default function AdminPage() {
               <p className="font-semibold text-gray-900 text-sm">心願清單</p>
               <p className="text-xs text-gray-400 mt-0.5">收藏喜愛的地點</p>
             </a>
-            {showTravelWalletOnProfile && (
             <button
+              type="button"
               className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95 text-left"
               onClick={async () => {
                 await Promise.all([
@@ -1020,7 +1013,6 @@ export default function AdminPage() {
               <p className="font-semibold text-gray-900 text-sm">旅行錢包</p>
               <p className="text-xs text-gray-400 mt-0.5">記錄旅程的消費</p>
             </button>
-            )}
             {isAdminUser && (
               <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
                 <p className="text-xs text-gray-400 mb-1.5 flex items-center gap-1">🌏 目的地</p>
@@ -1177,9 +1169,8 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Mobile Travel Wallet Card - Full row（主頁捷徑開啟時隱藏） */}
-          {showTravelWalletOnProfile && (
-          <div 
+          {/* Mobile Travel Wallet Card - Full row */}
+          <div
             className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
             onClick={async () => {
               // Refresh wallet data via TanStack Query
@@ -1207,7 +1198,6 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
-          )}
 
           {/* Mobile - Profile Edit Card - Full row (for all users) */}
           <div 
@@ -1611,8 +1601,7 @@ export default function AdminPage() {
             </button>
           </div>
 
-          {/* Travel Wallet Card - Desktop only（主頁捷徑開啟時隱藏） */}
-          {showTravelWalletOnProfile && (
+          {/* Travel Wallet Card - Desktop only */}
           <div className="hidden md:block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -1629,6 +1618,7 @@ export default function AdminPage() {
               </div>
             </div>
             <button
+              type="button"
               onClick={async () => {
                 // Refresh wallet data via TanStack Query
                 await Promise.all([
@@ -1642,7 +1632,6 @@ export default function AdminPage() {
               開啟錢包
             </button>
           </div>
-          )}
 
           {/* Chiikawa Dialogue Edit Card - Desktop only */}
           <div className="hidden md:block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
@@ -1761,6 +1750,39 @@ export default function AdminPage() {
                       placeholder="例如：日本旅遊"
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400"
                     />
+                  </div>
+
+                  {/* Sakura Mode Toggle */}
+                  <div className="border-t border-gray-100 pt-6">
+                    <h4 className="text-sm font-medium text-gray-800 mb-4 flex items-center gap-2">
+                      🌸 寵物設定
+                    </h4>
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <img src="/images/chii-widgetlogo.ico" alt="Chiikawa" className="w-8 h-8 object-contain" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">摸摸 Chiikawa</p>
+                          <p className="text-xs text-gray-500">首頁顯示浮動角色</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newValue = !isSakuraMode
+                          setIsSakuraMode(newValue)
+                          safeSetItem('sakura_mode', String(newValue))
+                        }}
+                        className={`relative w-12 h-6 rounded-full transition-colors ${
+                          isSakuraMode ? 'bg-pink-400' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                            isSakuraMode ? 'left-7' : 'left-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Home Location */}
