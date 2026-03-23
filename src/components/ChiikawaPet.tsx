@@ -60,7 +60,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
     setCharacterImage(CHARACTER_IMAGES[randomIndex])
   }, [])
   
-  // Load custom messages from settings - reload when enabled changes or on storage change
+  // Load custom messages from settings - reload when enabled changes or on settings update
   useEffect(() => {
     const loadMessages = () => {
       try {
@@ -76,26 +76,17 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
       }
     }
     
-    // Load on mount and when enabled
+    // Load on mount
     loadMessages()
     
-    // Listen for storage changes (when settings are updated in another tab or same page)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'site_settings') {
-        loadMessages()
-      }
-    }
-    
-    // Also listen for custom event when settings are saved in same page
+    // Listen for custom event when settings are saved (same page or via Supabase Realtime)
     const handleSettingsUpdate = () => {
       loadMessages()
     }
     
-    window.addEventListener('storage', handleStorageChange)
     window.addEventListener('settingsUpdated', handleSettingsUpdate)
     
     return () => {
-      window.removeEventListener('storage', handleStorageChange)
       window.removeEventListener('settingsUpdated', handleSettingsUpdate)
     }
   }, [enabled])

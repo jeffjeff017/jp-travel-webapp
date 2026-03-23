@@ -14,7 +14,6 @@ import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, getUsers, getAuthToke
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
 import DailyPopup from '@/components/DailyPopup'
-import ModeToggle from '@/components/ModeToggle'
 import MultiMediaUpload from '@/components/MultiMediaUpload'
 import ImageSlider from '@/components/ImageSlider'
 import WishlistButton from '@/components/WishlistButton'
@@ -194,8 +193,9 @@ function MainPageContent() {
   const updateTripMutation = useUpdateTrip()
   const deleteTripMutation = useDeleteTrip()
 
-  const [isSakuraMode, setIsSakuraMode] = useState(false)
   const [settings, setSettings] = useState<SiteSettings | null>(null)
+  // isSakuraMode derived from Supabase siteSettings (admin-controlled, synced via Realtime)
+  const isSakuraMode = settings?.sakuraModeEnabled ?? true
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null)
   const searchParams = useSearchParams()
   const [selectedDay, setSelectedDay] = useState<number>(1)
@@ -306,14 +306,7 @@ function MainPageContent() {
     setIsAdmin(canEdit())
     setIsActualAdmin(checkIsAdmin())
     setCurrentUser(getCurrentUser())
-    // 摸摸 Chiikawa：首次進站無紀錄時預設開啟；若曾儲存則依使用者選擇
-    const savedSakuraMode = localStorage.getItem('sakura_mode')
-    if (savedSakuraMode === null) {
-      safeSetItem('sakura_mode', 'true')
-      setIsSakuraMode(true)
-    } else {
-      setIsSakuraMode(savedSakuraMode === 'true')
-    }
+    // 摸摸 Chiikawa now lives in Supabase siteSettings (default: true)
   }, [])
 
 
@@ -961,13 +954,8 @@ function MainPageContent() {
     return targetDate.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })
   }
 
-  const toggleSakuraMode = () => {
-    const newValue = !isSakuraMode
-    setIsSakuraMode(newValue)
-    if (typeof window !== 'undefined') {
-      safeSetItem('sakura_mode', String(newValue))
-    }
-  }
+  // toggleSakuraMode is disabled on main page — sakura mode is admin-controlled via Supabase settings
+  const toggleSakuraMode = () => {}
 
   // Get user's current avatar from users list (most up-to-date)
   // Returns undefined if no avatar, so UI can show initials fallback
@@ -993,10 +981,7 @@ function MainPageContent() {
       {/* Sakura Animation - Only when toggled ON */}
       <SakuraCanvas enabled={isSakuraMode} />
 
-      {/* Mode Toggle - Hidden on mobile, shown in popup */}
-      <div className="hidden md:block">
-        <ModeToggle isSakuraMode={isSakuraMode} onToggle={toggleSakuraMode} />
-      </div>
+      {/* Mode Toggle - Hidden on main page; sakura mode is admin-controlled via site settings */}
 
       {/* Header - Airbnb style search */}
       <motion.header

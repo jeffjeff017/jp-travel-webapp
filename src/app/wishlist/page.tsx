@@ -304,7 +304,8 @@ export default function WishlistPage() {
   })
   const [isLoading, setIsLoading] = useState(true)
   const [settings, setSettings] = useState<SiteSettings | null>(null)
-  const [isSakuraMode, setIsSakuraMode] = useState(false)
+  // isSakuraMode derived from Supabase siteSettings (admin-controlled, synced via Realtime)
+  const isSakuraMode = settings?.sakuraModeEnabled ?? true
   const [isAdmin, setIsAdmin] = useState(false)
   const [showTravelNotice, setShowTravelNotice] = useState(false)
   // Checklist state for travel notice
@@ -387,12 +388,6 @@ export default function WishlistPage() {
     setCurrentUser(getCurrentUser())
     // Load users for avatar display
     setUsers(getUsers())
-    
-    // Load sakura mode from localStorage
-    const savedSakuraMode = localStorage.getItem('sakura_mode')
-    if (savedSakuraMode === 'true') {
-      setIsSakuraMode(true)
-    }
     
     // Load settings + fresh users (checklist states are managed by TanStack Query)
     const init = async () => {

@@ -224,7 +224,8 @@ export default function AdminPage() {
   const [chiikawaDialogueSaveStatus, setChiikawaDialogueSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [chiikawaDialogueSaveError, setChiikawaDialogueSaveError] = useState<string | null>(null)
   // Sakura mode state (synced with localStorage)
-  const [isSakuraMode, setIsSakuraMode] = useState(false)
+  // isSakuraMode derived from Supabase siteSettings (admin toggles via saveSettingsAsync)
+  const isSakuraMode = siteSettings?.sakuraModeEnabled ?? true
   const [isAdminUser, setIsAdminUser] = useState(() =>
     typeof window !== 'undefined' ? isAdmin() : false
   )
@@ -294,14 +295,7 @@ export default function AdminPage() {
         console.error('Failed to parse trash:', e)
       }
     }
-    // 摸摸 Chiikawa：無紀錄時預設開啟（與主頁一致，所有使用者裝置上預設為開）
-    const savedSakuraMode = localStorage.getItem('sakura_mode')
-    if (savedSakuraMode === null) {
-      safeSetItem('sakura_mode', 'true')
-      setIsSakuraMode(true)
-    } else {
-      setIsSakuraMode(savedSakuraMode === 'true')
-    }
+    // 摸摸 Chiikawa now lives in Supabase siteSettings (default: true)
     // Check if user is admin
     setIsAdminUser(isAdmin())
     // Load current user
@@ -1757,7 +1751,7 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  {/* Sakura Mode Toggle — 僅管理員可切換；預設開啟由 localStorage 決定 */}
+                  {/* Sakura Mode Toggle — 僅管理員可切換；值存於 Supabase siteSettings */}
                   <div className="border-t border-gray-100 pt-6">
                     <h4 className="text-sm font-medium text-gray-800 mb-4 flex items-center gap-2">
                       🌸 寵物設定
@@ -1768,7 +1762,7 @@ export default function AdminPage() {
                           <img src="/images/chii-widgetlogo.ico" alt="Chiikawa" className="w-8 h-8 object-contain shrink-0" />
                           <div>
                             <p className="text-sm font-medium text-gray-700">摸摸 Chiikawa</p>
-                            <p className="text-xs text-gray-500">首頁顯示浮動角色（預設開啟）</p>
+                            <p className="text-xs text-gray-500">全站同步（管理員設定）</p>
                           </div>
                         </div>
                         <button
@@ -1776,11 +1770,15 @@ export default function AdminPage() {
                           disabled={!isAdminUser}
                           title={!isAdminUser ? '僅管理員可調整' : undefined}
                           aria-label={isSakuraMode ? '關閉摸摸 Chiikawa' : '開啟摸摸 Chiikawa'}
-                          onClick={() => {
+                          onClick={async () => {
                             if (!isAdmin()) return
                             const newValue = !isSakuraMode
-                            setIsSakuraMode(newValue)
-                            safeSetItem('sakura_mode', String(newValue))
+                            // Optimistic local update
+                            setSiteSettings(prev => prev ? { ...prev, sakuraModeEnabled: newValue } : null)
+                            // Persist to Supabase
+                            await saveSettingsAsync({ sakuraModeEnabled: newValue })
+                            // Notify other tabs/components via custom event
+                            window.dispatchEvent(new CustomEvent('settingsUpdated'))
                           }}
                           className={`relative w-12 h-6 rounded-full shrink-0 transition-colors ${
                             isSakuraMode ? 'bg-pink-400' : 'bg-gray-300'
@@ -1793,7 +1791,7 @@ export default function AdminPage() {
                           />
                         </button>
                       </div>
-                      <p className="text-[11px] text-gray-400">僅管理員可變更此開關；一般成員仍可享受預設開啟效果。</p>
+                      <p className="text-[11px] text-gray-400">僅管理員可變更此開關；一般成員同步享受全站設定。</p>
                     </div>
                   </div>
 

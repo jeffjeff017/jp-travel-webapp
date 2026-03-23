@@ -42,6 +42,8 @@ export interface SiteSettings {
     hachiware?: string[]
     usagi?: string[]
   }
+  // Sakura mode enabled — synced to Supabase; admin toggles via site settings (default: true)
+  sakuraModeEnabled?: boolean
 }
 
 // Default travel notice items
@@ -78,6 +80,7 @@ const defaultSettings: SiteSettings = {
   ],
   travelEssentials: defaultTravelEssentials,
   travelPreparations: defaultTravelPreparations,
+  sakuraModeEnabled: true,
 }
 
 // Convert from Supabase format to local format
@@ -98,6 +101,7 @@ function fromSupabaseFormat(db: SiteSettingsDB): SiteSettings | null {
     travelPreparations: db.travel_preparations || defaultTravelPreparations,
     recaptchaEnabled: db.recaptcha_enabled || false,
     chiikawaMessages: db.chiikawa_messages || undefined,
+    sakuraModeEnabled: db.sakura_mode_enabled ?? true,
   }
 }
 
@@ -114,6 +118,7 @@ function toSupabaseFormat(settings: Partial<SiteSettings>): Partial<Omit<SiteSet
   if (settings.travelPreparations !== undefined) result.travel_preparations = settings.travelPreparations
   if (settings.recaptchaEnabled !== undefined) result.recaptcha_enabled = settings.recaptchaEnabled
   if (settings.chiikawaMessages !== undefined) result.chiikawa_messages = settings.chiikawaMessages
+  if (settings.sakuraModeEnabled !== undefined) result.sakura_mode_enabled = settings.sakuraModeEnabled
   
   return result
 }

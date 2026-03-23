@@ -335,6 +335,7 @@ export type SiteSettingsDB = {
   travel_essentials: TravelNoticeItem[] | null
   travel_preparations: TravelNoticeItem[] | null
   recaptcha_enabled: boolean | null
+  sakura_mode_enabled: boolean | null
   chiikawa_messages: {
     chiikawa?: string[]
     hachiware?: string[]
