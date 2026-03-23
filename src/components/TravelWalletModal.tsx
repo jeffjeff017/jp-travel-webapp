@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -8,13 +8,16 @@ import {
   createSupabaseExpense,
   updateSupabaseExpense,
   deleteSupabaseExpense,
+  getSupabaseExpenses,
   EXPENSE_CATEGORIES,
   type ExpenseDB,
   type ExpenseCategory,
   type WalletSettingsDB,
 } from '@/lib/supabase'
-import { getCurrentUser, getUsersAsync, type User } from '@/lib/auth'
+import { getCurrentUser, getLoggedInUsername, getUsersAsync, type User } from '@/lib/auth'
 import { useWalletSettings, useExpenses, queryKeys } from '@/hooks/useQueries'
+
+const EXPENSE_LIST_PAGE_SIZE = 5
 
 export type TravelWalletCloseReason = { dataChanged?: boolean }
 
@@ -41,16 +44,35 @@ export default function TravelWalletModal({
   const [currentUser, setCurrentUser] = useState<ReturnType<typeof getCurrentUser>>(null)
   const [personalUsername, setPersonalUsername] = useState<string | undefined>(undefined)
 
+  // 第一幀就要能取得 username。僅依賴 user_info Cookie 會失敗：若只有 auth token、沒有 user_info（過期/未寫入），getCurrentUser() 為 null，查詢永遠不跑 → refresh 後個人支出空白，新增後 setPersonalUsername 才恢復。
+  const personalExpenseUsername = useMemo(() => {
+    if (!open) return undefined
+    const raw =
+      personalUsername ??
+      currentUser?.username ??
+      getCurrentUser()?.username ??
+      getLoggedInUsername() ??
+      undefined
+    const t = raw?.trim()
+    return t || undefined
+  }, [open, personalUsername, currentUser?.username])
+
   const { data: walletSettingsData } = useWalletSettings({ enabled: open })
-  const { data: sharedExpensesData = [] } = useExpenses('shared', undefined, { enabled: open })
-  const { data: personalExpensesData = [] } = useExpenses('personal', personalUsername, {
-    enabled: open && !!personalUsername,
+  const { data: sharedExpensesData = [], isFetching: isSharedFetching } = useExpenses('shared', undefined, { enabled: open })
+  const {
+    data: personalExpensesData,
+    isFetching: isPersonalFetching,
+    isPending: isPersonalPending,
+  } = useExpenses('personal', personalExpenseUsername, {
+    enabled: open && !!personalExpenseUsername,
   })
+  const personalExpenses = personalExpensesData ?? []
 
   const [walletTab, setWalletTab] = useState<'personal' | 'shared'>('shared')
+  const [sharedListPage, setSharedListPage] = useState(0)
+  const [personalListPage, setPersonalListPage] = useState(0)
   const [walletSettings, setWalletSettings] = useState<WalletSettingsDB | null>(null)
   const [sharedExpenses, setSharedExpenses] = useState<ExpenseDB[]>([])
-  const [personalExpenses, setPersonalExpenses] = useState<ExpenseDB[]>([])
   const [walletDirty, setWalletDirty] = useState(false)
   const [showExpenseForm, setShowExpenseForm] = useState(false)
   const [editingExpense, setEditingExpense] = useState<ExpenseDB | null>(null)
@@ -70,15 +92,42 @@ export default function TravelWalletModal({
     [onNotify]
   )
 
+  // 同步登入者：user_info 與 auth token 並存時以 user_info 為準；無 user_info 時用 token 解析出的 username（與 DB expenses.username 一致）
   useEffect(() => {
     if (!open) return
-    setCurrentUser(getCurrentUser())
-    const u = getCurrentUser()?.username
-    setPersonalUsername(u)
-    getUsersAsync()
-      .then(setUsers)
+    const me = getCurrentUser()
+    const tokenName = getLoggedInUsername()
+
+    void getUsersAsync()
+      .then((list) => {
+        setUsers(list)
+        if (me) {
+          setCurrentUser(me)
+          setPersonalUsername(me.username)
+        } else if (tokenName) {
+          setPersonalUsername(tokenName)
+          const u = list.find((x) => x.username === tokenName)
+          if (u) {
+            setCurrentUser({
+              username: u.username,
+              role: u.role,
+              displayName: u.displayName,
+              avatarUrl: u.avatarUrl,
+            })
+          } else {
+            setCurrentUser({
+              username: tokenName,
+              role: tokenName === 'admin' ? 'admin' : 'user',
+              displayName: tokenName,
+            })
+          }
+        } else {
+          setCurrentUser(null)
+          setPersonalUsername(undefined)
+        }
+      })
       .catch(() => {})
-  }, [open])
+  }, [open, walletTab])
 
   useEffect(() => {
     if (walletSettingsData) {
@@ -88,12 +137,47 @@ export default function TravelWalletModal({
   }, [walletSettingsData])
 
   useEffect(() => {
-    setPersonalExpenses(personalExpensesData)
-  }, [personalExpensesData])
-
-  useEffect(() => {
     setSharedExpenses(sharedExpensesData)
   }, [sharedExpensesData])
+
+  // 打開錢包時強制重抓支出（與 useExpenses staleTime:0 搭配，避免錯誤空快取）
+  useEffect(() => {
+    if (!open) return
+    void queryClient.invalidateQueries({ queryKey: queryKeys.expenses('shared', undefined) })
+    const u = (getCurrentUser()?.username ?? getLoggedInUsername() ?? '').trim()
+    if (u) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.expenses('personal', u) })
+    }
+  }, [open, queryClient])
+
+  useEffect(() => {
+    if (!open) return
+    setSharedListPage(0)
+    setPersonalListPage(0)
+  }, [open, walletTab])
+
+  useEffect(() => {
+    const max = Math.max(0, Math.ceil(sharedExpenses.length / EXPENSE_LIST_PAGE_SIZE) - 1)
+    setSharedListPage((p) => Math.min(p, max))
+  }, [sharedExpenses.length])
+
+  useEffect(() => {
+    const max = Math.max(0, Math.ceil(personalExpenses.length / EXPENSE_LIST_PAGE_SIZE) - 1)
+    setPersonalListPage((p) => Math.min(p, max))
+  }, [personalExpenses.length])
+
+  const sharedListSlice = useMemo(() => {
+    const start = sharedListPage * EXPENSE_LIST_PAGE_SIZE
+    return sharedExpenses.slice(start, start + EXPENSE_LIST_PAGE_SIZE)
+  }, [sharedExpenses, sharedListPage])
+
+  const personalListSlice = useMemo(() => {
+    const start = personalListPage * EXPENSE_LIST_PAGE_SIZE
+    return personalExpenses.slice(start, start + EXPENSE_LIST_PAGE_SIZE)
+  }, [personalExpenses, personalListPage])
+
+  const sharedListTotalPages = Math.max(1, Math.ceil(sharedExpenses.length / EXPENSE_LIST_PAGE_SIZE))
+  const personalListTotalPages = Math.max(1, Math.ceil(personalExpenses.length / EXPENSE_LIST_PAGE_SIZE))
 
   const getUserAvatarUrl = (username: string, fallbackAvatarUrl?: string): string | undefined => {
     const userObj = users.find(u => u.username === username)
@@ -381,9 +465,13 @@ export default function TravelWalletModal({
 
                     <div className="space-y-2">
                       {sharedExpenses.length === 0 ? (
-                        <p className="text-center text-gray-400 text-sm py-8">尚無共同支出記錄</p>
+                        isSharedFetching ? (
+                          <p className="text-center text-gray-400 text-sm py-8">載入中…</p>
+                        ) : (
+                          <p className="text-center text-gray-400 text-sm py-8">尚無共同支出記錄</p>
+                        )
                       ) : (
-                        sharedExpenses.map((expense) => {
+                        sharedListSlice.map((expense) => {
                           const category = EXPENSE_CATEGORIES.find((c) => c.id === expense.category)
                           const avatarUrl = getUserAvatarUrl(expense.username, expense.avatar_url || undefined)
                           return (
@@ -458,6 +546,29 @@ export default function TravelWalletModal({
                           )
                         })
                       )}
+                      {sharedExpenses.length > EXPENSE_LIST_PAGE_SIZE && (
+                        <div className="flex items-center justify-center gap-3 pt-2 pb-1 border-t border-gray-100">
+                          <button
+                            type="button"
+                            disabled={sharedListPage <= 0}
+                            onClick={() => setSharedListPage((p) => Math.max(0, p - 1))}
+                            className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                          >
+                            上一頁
+                          </button>
+                          <span className="text-xs text-gray-500 tabular-nums">
+                            {sharedListPage + 1} / {sharedListTotalPages}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={sharedListPage >= sharedListTotalPages - 1}
+                            onClick={() => setSharedListPage((p) => Math.min(sharedListTotalPages - 1, p + 1))}
+                            className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                          >
+                            下一頁
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -474,9 +585,13 @@ export default function TravelWalletModal({
 
                     <div className="space-y-2">
                       {personalExpenses.length === 0 ? (
-                        <p className="text-center text-gray-400 text-sm py-8">尚無個人支出記錄</p>
+                        personalExpenseUsername && (isPersonalFetching || isPersonalPending) ? (
+                          <p className="text-center text-gray-400 text-sm py-8">載入中…</p>
+                        ) : (
+                          <p className="text-center text-gray-400 text-sm py-8">尚無個人支出記錄</p>
+                        )
                       ) : (
-                        personalExpenses.map((expense) => {
+                        personalListSlice.map((expense) => {
                           const category = EXPENSE_CATEGORIES.find((c) => c.id === expense.category)
                           return (
                             <div
@@ -531,6 +646,31 @@ export default function TravelWalletModal({
                             </div>
                           )
                         })
+                      )}
+                      {personalExpenses.length > EXPENSE_LIST_PAGE_SIZE && (
+                        <div className="flex items-center justify-center gap-3 pt-2 pb-1 border-t border-gray-100">
+                          <button
+                            type="button"
+                            disabled={personalListPage <= 0}
+                            onClick={() => setPersonalListPage((p) => Math.max(0, p - 1))}
+                            className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                          >
+                            上一頁
+                          </button>
+                          <span className="text-xs text-gray-500 tabular-nums">
+                            {personalListPage + 1} / {personalListTotalPages}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={personalListPage >= personalListTotalPages - 1}
+                            onClick={() =>
+                              setPersonalListPage((p) => Math.min(personalListTotalPages - 1, p + 1))
+                            }
+                            className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                          >
+                            下一頁
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -680,7 +820,7 @@ export default function TravelWalletModal({
                         const { error } = await createSupabaseExpense({
                           type: walletTab,
                           username: user.username,
-                          display_name: user.displayName,
+                          display_name: user.displayName || user.username,
                           avatar_url: user.avatarUrl || null,
                           amount: parseFloat(expenseForm.amount),
                           category: expenseForm.category,
@@ -690,9 +830,21 @@ export default function TravelWalletModal({
                           notify({ type: 'error', text: `新增失敗：${error}` })
                           return
                         }
+                        // 若先前 personalUsername 未同步，查詢會維持關閉；補齊後 invalidate 才會載入個人列表
+                        if (walletTab === 'personal') {
+                          setPersonalUsername(user.username)
+                          setCurrentUser(user)
+                        }
                       }
 
                       await queryClient.invalidateQueries({ queryKey: ['expenses'] })
+                      // 個人支出查詢曾可能因 personalUsername 未就緒而從未啟用；fetchQuery 直接寫入快取，避免同一個事件迴圈中 refetch 對不到 observer
+                      if (walletTab === 'personal') {
+                        await queryClient.fetchQuery({
+                          queryKey: queryKeys.expenses('personal', user.username),
+                          queryFn: () => getSupabaseExpenses('personal', user.username),
+                        })
+                      }
                       setShowExpenseForm(false)
                       setEditingExpense(null)
                       setExpenseForm({ amount: '', category: 'food', note: '' })

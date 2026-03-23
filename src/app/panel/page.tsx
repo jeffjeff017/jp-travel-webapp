@@ -226,9 +226,8 @@ export default function AdminPage() {
   // Sakura mode state (synced with localStorage)
   // isSakuraMode derived from Supabase siteSettings (admin toggles via saveSettingsAsync)
   const isSakuraMode = siteSettings?.sakuraModeEnabled ?? true
-  const [isAdminUser, setIsAdminUser] = useState(() =>
-    typeof window !== 'undefined' ? isAdmin() : false
-  )
+  // 必須與 SSR 初值一致（false），否則管理員在客戶端首屏會變 true，與伺服器「成員」文字衝突造成 hydration error
+  const [isAdminUser, setIsAdminUser] = useState(false)
   // Travel Wallet state
   const [showWallet, setShowWallet] = useState(false)
   const [trashItems, setTrashItems] = useState<{

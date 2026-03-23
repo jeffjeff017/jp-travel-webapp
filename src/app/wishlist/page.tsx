@@ -19,6 +19,7 @@ import { geocodePlaceName } from '@/lib/geocode'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWishlistItems, useChecklistStates, queryKeys } from '@/hooks/useQueries'
 import { getSettings, getSettingsAsync, type SiteSettings } from '@/lib/settings'
+import { formatTripDaySelectOption, formatTripDayAttachedSummary } from '@/lib/tripDayLabels'
 import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, isAuthenticated, logout, getUsers, getUsersAsync, getAuthToken, getLoggedInUsername, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
@@ -639,16 +640,29 @@ export default function WishlistPage() {
     }
   }, [availableAreas, activeAreaFilter])
 
-  // Sync selectedItemPopup when wishlist changes (e.g. after toggleFavorite from popup)
+  // Sync selectedItemPopup when wishlist changes (favorites, or added_to_trip cleared elsewhere e.g. 主頁刪行程)
   useEffect(() => {
     if (!selectedItemPopup) return
     const liveItem = Object.values(wishlist).flat().find(i => String(i.id) === String(selectedItemPopup.id))
     if (!liveItem) return
-    if (
+    const favChanged =
       liveItem.favoritedBy !== selectedItemPopup.favoritedBy ||
       liveItem.isFavorite !== selectedItemPopup.isFavorite
-    ) {
-      setSelectedItemPopup(prev => prev ? { ...prev, favoritedBy: liveItem.favoritedBy, isFavorite: liveItem.isFavorite } : null)
+    const tripChanged =
+      liveItem.addedToDay !== selectedItemPopup.addedToDay ||
+      liveItem.addedTime !== selectedItemPopup.addedTime
+    if (favChanged || tripChanged) {
+      setSelectedItemPopup(prev =>
+        prev
+          ? {
+              ...prev,
+              favoritedBy: liveItem.favoritedBy,
+              isFavorite: liveItem.isFavorite,
+              addedToDay: liveItem.addedToDay,
+              addedTime: liveItem.addedTime,
+            }
+          : null
+      )
     }
   }, [wishlist, selectedItemPopup?.id])
 
@@ -898,11 +912,12 @@ export default function WishlistPage() {
   const handleRemoveFromItinerary = async () => {
     if (!selectedItemPopup) return
     if (!confirm('確定要從行程中移除此心願嗎？')) return
+    const popupSnapshot = selectedItemPopup
     setRemoveFromItinerarySubmitting(true)
     try {
-      const res = await removeWishlistItemFromItinerary(Number(selectedItemPopup.id), {
-        name: selectedItemPopup.name,
-        addedToDay: selectedItemPopup.addedToDay,
+      const res = await removeWishlistItemFromItinerary(Number(popupSnapshot.id), {
+        name: popupSnapshot.name,
+        addedToDay: popupSnapshot.addedToDay,
       })
       if (!res.success) {
         alert(res.error || '移除失敗')
@@ -910,7 +925,20 @@ export default function WishlistPage() {
       }
       await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
       await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
-      window.location.reload()
+      setSelectedItemPopup(prev =>
+        prev && String(prev.id) === String(popupSnapshot.id)
+          ? { ...prev, addedToDay: undefined, addedTime: undefined }
+          : prev
+      )
+      setWishlist(prev => {
+        const cat = popupSnapshot.category
+        const items = prev[cat] || []
+        const idx = items.findIndex(i => String(i.id) === String(popupSnapshot.id))
+        if (idx < 0) return prev
+        const next = [...items]
+        next[idx] = { ...next[idx], addedToDay: undefined, addedTime: undefined }
+        return { ...prev, [cat]: next }
+      })
     } catch (err: any) {
       alert(err?.message || '移除時發生錯誤')
     } finally {
@@ -1261,11 +1289,12 @@ export default function WishlistPage() {
                   {/* Top-left: trip day badge */}
                   {item.addedToDay && (
                     <div
-                      className={`absolute top-2 px-2 py-1 bg-green-500 text-white text-xs font-medium rounded-full z-10 ${
+                      className={`absolute top-2 max-w-[min(85%,10rem)] px-2 py-1 bg-green-500 text-white text-xs font-medium rounded-full z-10 truncate ${
                         isAdmin && bulkSelectMode ? 'left-10' : 'left-2'
                       }`}
+                      title={formatTripDayAttachedSummary(item.addedToDay, settings)}
                     >
-                      Day {item.addedToDay}
+                      {formatTripDayAttachedSummary(item.addedToDay, settings)}
                     </div>
                   )}
 
@@ -2272,12 +2301,7 @@ export default function WishlistPage() {
                             >
                               {Array.from({ length: Math.max(1, settings?.totalDays || 7) }, (_, i) => i + 1).map(d => (
                                 <option key={d} value={d}>
-                                  Day {d} {settings?.tripStartDate && (() => {
-                                    const start = new Date(settings.tripStartDate)
-                                    const t = new Date(start)
-                                    t.setDate(start.getDate() + d - 1)
-                                    return `(${t.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })})`
-                                  })()}
+                                  {formatTripDaySelectOption(d, settings)}
                                 </option>
                               ))}
                             </select>
@@ -2333,7 +2357,9 @@ export default function WishlistPage() {
                         className="flex-1 flex items-center gap-2 text-green-700 hover:text-green-800 font-medium min-w-0"
                       >
                         <span>📋</span>
-                        <span className="truncate">已新增至 Day {selectedItemPopup.addedToDay}</span>
+                        <span className="truncate">
+                          已新增至 {formatTripDayAttachedSummary(selectedItemPopup.addedToDay, settings)}
+                        </span>
                         {selectedItemPopup.addedTime && (
                           <span className="text-green-600 text-sm font-normal shrink-0">
                             {selectedItemPopup.addedTime}

@@ -309,6 +309,9 @@ export function useExpenses(
     queryKey: queryKeys.expenses(type, username),
     queryFn: () => getSupabaseExpenses(type, username),
     enabled: options?.enabled,
+    // 旅行錢包專用：避免空陣列被當成「fresh」導致 refresh 後列表空白直到再次新增
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 }
 

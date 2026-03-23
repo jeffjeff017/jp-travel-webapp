@@ -21,7 +21,9 @@ import { useLanguage } from '@/lib/i18n'
 import { safeSetItem } from '@/lib/safeStorage'
 import { isTravelWalletHomeBubbleEnabled } from '@/lib/travelWalletUi'
 import TravelWalletModal from '@/components/TravelWalletModal'
+import TripListingAddress from '@/components/TripListingAddress'
 import { geocodePlaceName } from '@/lib/geocode'
+import { formatTripDaySelectOption, formatTripDayAttachedSummary } from '@/lib/tripDayLabels'
 
 const GoogleMapComponent = dynamic(
   () => import('@/components/GoogleMap'),
@@ -223,6 +225,13 @@ function MainPageContent() {
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set())
   const [showWishlistSchedulePicker, setShowWishlistSchedulePicker] = useState(false)
   const [wishlistScheduleSearch, setWishlistScheduleSearch] = useState('')
+  /** 本次開啟「新增/編輯行程」表單內，僅第一次從心願清單選入明細時，同步帶入標題與圖片欄 */
+  const wishlistFirstPickAutofillDoneRef = useRef(false)
+
+  useEffect(() => {
+    if (showTripForm) wishlistFirstPickAutofillDoneRef.current = false
+  }, [showTripForm])
+
   const [showWishlistAddToTripForm, setShowWishlistAddToTripForm] = useState(false)
   const [wishlistAddToTripDay, setWishlistAddToTripDay] = useState(1)
   const [wishlistAddToTripTimeStart, setWishlistAddToTripTimeStart] = useState('')
@@ -240,7 +249,6 @@ function MainPageContent() {
   const [pendingNewDay, setPendingNewDay] = useState<number | null>(null)
   
   // Track expanded trip descriptions
-  const [expandedTrips, setExpandedTrips] = useState<number[]>([])
   
   // Check if user can edit (admin or regular user like "girl")
   const [isAdmin, setIsAdmin] = useState(false)
@@ -476,20 +484,6 @@ function MainPageContent() {
     }
   }, [])
   
-  // Toggle trip description expansion
-  const toggleTripExpand = (tripId: number) => {
-    setExpandedTrips(prev => 
-      prev.includes(tripId) 
-        ? prev.filter(id => id !== tripId)
-        : [...prev, tripId]
-    )
-  }
-
-  // Collapse all dropdowns when switching day tabs
-  useEffect(() => {
-    setExpandedTrips([])
-  }, [selectedDay])
-
   // Parse schedule items from description JSON
   const parseScheduleItems = (description: string): ScheduleItem[] => {
     try {
@@ -1134,9 +1128,14 @@ function MainPageContent() {
                       <span className="w-10 h-10 flex items-center justify-center bg-blue-100 text-blue-600 rounded-full">
                         📍
                       </span>
-                      <div className="flex-1 text-left">
+                      <div className="flex-1 text-left min-w-0">
                         <p className="font-medium text-gray-800">{trip.title}</p>
-                        <p className="text-xs text-gray-500">{trip.location}</p>
+                        <TripListingAddress
+                          tripId={trip.id}
+                          lat={trip.lat}
+                          lng={trip.lng}
+                          fallback={trip.location}
+                        />
                       </div>
                       <span className="text-gray-400">→</span>
                     </button>
@@ -1454,65 +1453,16 @@ function MainPageContent() {
                           </h3>
                         </div>
                       
-                        {/* Section 2: Location - Clickable to expand description */}
-                        <div 
-                          className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-2.5 py-1.5 cursor-pointer hover:bg-gray-100 transition-colors"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            toggleTripExpand(trip.id)
-                          }}
-                        >
-                          <span className="text-sakura-500 text-sm">📍</span>
-                          <p className="text-xs text-gray-600 truncate flex-1">
-                            {trip.location}
-                          </p>
-                          {trip.description && (
-                            <span className={`text-gray-400 text-xs transition-transform duration-200 flex-shrink-0 ${expandedTrips.includes(trip.id) ? 'rotate-180' : ''}`}>
-                              ▼
-                            </span>
-                          )}
+                        {/* 地址：繁中（Geocoding zh-TW）＋單行省略；點擊整張卡片仍開啟行程詳情 */}
+                        <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-2.5 py-1.5 min-h-[2rem]">
+                          <span className="text-sakura-500 text-sm flex-shrink-0 leading-none">📍</span>
+                          <TripListingAddress
+                            tripId={trip.id}
+                            lat={trip.lat}
+                            lng={trip.lng}
+                            fallback={trip.location}
+                          />
                         </div>
-                      
-                        {/* Section 3: Schedule Items - Expandable */}
-                        <AnimatePresence>
-                          {trip.description && expandedTrips.includes(trip.id) && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="bg-white border border-gray-100 rounded-lg p-3 space-y-2">
-                                {(() => {
-                                  try {
-                                    const items = JSON.parse(trip.description)
-                                    if (Array.isArray(items)) {
-                                      return items.map((item: any, idx: number) => (
-                                        <div key={idx} className="flex items-start gap-2 text-sm">
-                                          {(item.time_start || item.time_end) && (
-                                            <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded whitespace-nowrap">
-                                              {item.time_start}{item.time_end ? ` - ${item.time_end}` : ''}
-                                            </span>
-                                          )}
-                                          <span className="text-gray-600">{item.content}</span>
-                                        </div>
-                                      ))
-                                    }
-                                  } catch {
-                                    // Legacy: render as HTML if not JSON
-                                    return (
-                                      <div 
-                                        className="text-sm text-gray-500"
-                                        dangerouslySetInnerHTML={{ __html: trip.description }}
-                                      />
-                                    )
-                                  }
-                                })()}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
                       
                       </div>
                     </div>
@@ -2067,12 +2017,7 @@ function MainPageContent() {
                             >
                               {Array.from({ length: Math.max(1, settings?.totalDays || 7) }, (_, i) => i + 1).map(d => (
                                 <option key={d} value={d}>
-                                  Day {d} {settings?.tripStartDate && (() => {
-                                    const start = new Date(settings.tripStartDate)
-                                    const t = new Date(start)
-                                    t.setDate(start.getDate() + d - 1)
-                                    return `(${t.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })})`
-                                  })()}
+                                  {formatTripDaySelectOption(d, settings)}
                                 </option>
                               ))}
                             </select>
@@ -2128,7 +2073,9 @@ function MainPageContent() {
                         className="flex-1 flex items-center gap-2 text-green-700 hover:text-green-800 font-medium min-w-0"
                       >
                         <span>📋</span>
-                        <span className="truncate">已新增至 Day {selectedWishlistItem.added_to_trip.day}</span>
+                        <span className="truncate">
+                          已新增至 {formatTripDayAttachedSummary(selectedWishlistItem.added_to_trip.day, settings)}
+                        </span>
                         {selectedWishlistItem.added_to_trip.time && (
                           <span className="text-green-600 text-sm font-normal shrink-0">
                             {selectedWishlistItem.added_to_trip.time}
@@ -2906,6 +2853,16 @@ function MainPageContent() {
                                     onClick={() => {
                                       const content = w.note ? `${w.name}（${w.note}）` : w.name
                                       setScheduleItems([...scheduleItems, { ...createEmptyScheduleItem(), content }])
+                                      // 第一次從心願清單選入明細時，將該筆名稱與圖片帶入表單「標題」「圖片」（不覆蓋已填寫內容）
+                                      if (!wishlistFirstPickAutofillDoneRef.current) {
+                                        wishlistFirstPickAutofillDoneRef.current = true
+                                        const fromWishlist = parseImages(w.image_url || undefined).slice(0, 5)
+                                        setFormData(prev => ({
+                                          ...prev,
+                                          title: prev.title.trim() === '' ? w.name : prev.title,
+                                          images: prev.images.length === 0 ? fromWishlist : prev.images,
+                                        }))
+                                      }
                                       setShowWishlistSchedulePicker(false)
                                     }}
                                     className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-sakura-50 transition-colors text-left border-b border-gray-50 last:border-0"

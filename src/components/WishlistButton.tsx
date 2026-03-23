@@ -11,7 +11,8 @@ import {
   deleteSupabaseWishlistItem,
   type WishlistItemDB 
 } from '@/lib/supabase'
-import { getSettings, getSettingsAsync } from '@/lib/settings'
+import { getSettings, getSettingsAsync, type DaySchedule } from '@/lib/settings'
+import { formatTripDaySelectOption, formatTripDayAttachedSummary } from '@/lib/tripDayLabels'
 import { getCurrentUser } from '@/lib/auth'
 
 // Main categories (tabs)
@@ -185,6 +186,7 @@ export default function WishlistButton({
   const [selectedTime, setSelectedTime] = useState('12:00')
   const [isLoading, setIsLoading] = useState(true)
   const [tripStartDate, setTripStartDate] = useState<string>('')
+  const [daySchedules, setDaySchedules] = useState<DaySchedule[]>([])
 
   // Disable background scrolling when popup is active
   useEffect(() => {
@@ -204,12 +206,14 @@ export default function WishlistButton({
       // First load from cache for immediate display
       const cachedSettings = getSettings()
       setTripStartDate(cachedSettings.tripStartDate || '')
+      setDaySchedules(cachedSettings.daySchedules || [])
       
       // Then fetch latest from Supabase
       const freshSettings = await getSettingsAsync()
       if (freshSettings.tripStartDate) {
         setTripStartDate(freshSettings.tripStartDate)
       }
+      setDaySchedules(freshSettings.daySchedules || [])
     }
     loadTripStartDate()
   }, [])
@@ -222,19 +226,11 @@ export default function WishlistButton({
         if (freshSettings.tripStartDate) {
           setTripStartDate(freshSettings.tripStartDate)
         }
+        setDaySchedules(freshSettings.daySchedules || [])
       }
       refreshTripStartDate()
     }
   }, [isOpen])
-
-  // Helper function to format date for a specific day
-  const getDayDate = (dayNumber: number): string => {
-    if (!tripStartDate) return ''
-    const startDate = new Date(tripStartDate)
-    const dayDate = new Date(startDate)
-    dayDate.setDate(startDate.getDate() + dayNumber - 1)
-    return `${dayDate.getMonth() + 1}/${dayDate.getDate()}`
-  }
 
   // Group items by category
   const groupByCategory = useCallback((items: WishlistItem[]): Wishlist => {
@@ -975,7 +971,7 @@ export default function WishlistButton({
                                         onClick={() => handleNavigateToDay(item.addedToDay!)}
                                         className="block text-xs text-pink-500 mt-1 hover:underline"
                                       >
-                                        📅 Day {item.addedToDay} {item.addedTime && `@ ${item.addedTime}`}
+                                        📅 {formatTripDayAttachedSummary(item.addedToDay, { tripStartDate, daySchedules })}{item.addedTime ? ` @ ${item.addedTime}` : ''}
                                       </button>
                                     )}
                                   </>
@@ -1052,7 +1048,9 @@ export default function WishlistButton({
                                           className="flex-1 px-2 py-1.5 text-sm border border-pink-200 rounded-lg focus:outline-none focus:border-pink-400"
                                         >
                                           {Array.from({ length: totalDays }, (_, i) => i + 1).map(day => (
-                                            <option key={day} value={day}>Day {day} {tripStartDate && `(${getDayDate(day)})`}</option>
+                                            <option key={day} value={day}>
+                                              {formatTripDaySelectOption(day, { tripStartDate, daySchedules })}
+                                            </option>
                                           ))}
                                         </select>
                                         <input
