@@ -224,7 +224,7 @@ function MainPageContent() {
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set())
   const [showWishlistSchedulePicker, setShowWishlistSchedulePicker] = useState(false)
   const [wishlistScheduleSearch, setWishlistScheduleSearch] = useState('')
-  /** 本次開啟「新增/編輯行程」表單內，僅第一次從心願清單選入明細時，同步帶入標題與圖片欄 */
+  /** 本次開啟「新增/編輯行程」表單內，僅第一次從美食清單選入明細時，同步帶入標題與圖片欄 */
   const wishlistFirstPickAutofillDoneRef = useRef(false)
 
   useEffect(() => {
@@ -752,7 +752,7 @@ function MainPageContent() {
   // Remove wishlist item from itinerary (from main page popup)
   const handleRemoveWishlistFromItinerary = async () => {
     if (!selectedWishlistItem) return
-    if (!confirm('確定要從行程中移除此心願嗎？')) return
+    if (!confirm('確定要從行程中移除此美食嗎？')) return
     setWishlistRemoveSubmitting(true)
     try {
       const res = await removeWishlistItemFromItinerary(selectedWishlistItem.id, {
@@ -1028,7 +1028,7 @@ function MainPageContent() {
               <span className="text-lg">🔍</span>
               <div className="flex-1 text-left">
                 <p className="text-sm font-medium text-gray-800">搜尋地點</p>
-                <p className="text-xs text-gray-400">景點、餐廳、住宿、心願清單...</p>
+                <p className="text-xs text-gray-400">景點、餐廳、住宿、美食清單...</p>
               </div>
             </button>
             
@@ -1551,7 +1551,7 @@ function MainPageContent() {
             <span className="text-[10px] font-medium">行程</span>
           </button>
           
-          {/* 心願清單：硬導向避免 App Router / 遮擋導致無法進頁 */}
+          {/* 美食清單：硬導向避免 App Router / 遮擋導致無法進頁 */}
           <a
             href="/wishlist"
             className="flex flex-col items-center justify-center flex-1 min-w-0 h-full text-gray-400 hover:text-sakura-500 transition-colors touch-manipulation no-underline"
@@ -1561,8 +1561,8 @@ function MainPageContent() {
               window.location.assign('/wishlist')
             }}
           >
-            <span className="text-xl mb-0.5">💖</span>
-            <span className="text-[10px] font-medium">心願清單</span>
+            <span className="text-xl mb-0.5">💝</span>
+            <span className="text-[10px] font-medium">美食清單</span>
           </a>
           
           {/* 旅遊須知 Tab */}
@@ -2326,7 +2326,7 @@ function MainPageContent() {
               id: Date.now().toString(), 
               time_start: time, 
               time_end: '', 
-              content: `${categoryIcon} ${item.note || '心願清單項目'}` 
+              content: `${categoryIcon} ${item.note || '美食清單項目'}` 
             }]),
             time_start: time,
             time_end: undefined,
@@ -2859,7 +2859,7 @@ function MainPageContent() {
                             className="flex-1 py-2 border-2 border-dashed border-pink-300 hover:border-sakura-500 text-pink-400 hover:text-sakura-600 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-sm"
                           >
                             <span>💝</span>
-                            <span>從心願清單選擇</span>
+                            <span>從美食清單選擇</span>
                           </button>
                         </div>
 
@@ -2868,7 +2868,7 @@ function MainPageContent() {
                           <div className="border border-sakura-200 rounded-xl bg-white shadow-lg overflow-hidden">
                             {/* Header */}
                             <div className="flex items-center justify-between px-3 py-2.5 bg-sakura-50 border-b border-sakura-100">
-                              <span className="text-sm font-medium text-sakura-700">💝 心願清單</span>
+                              <span className="text-sm font-medium text-sakura-700">💝 美食清單</span>
                               <button
                                 type="button"
                                 onClick={() => setShowWishlistSchedulePicker(false)}
@@ -2881,7 +2881,7 @@ function MainPageContent() {
                                 type="text"
                                 value={wishlistScheduleSearch}
                                 onChange={(e) => setWishlistScheduleSearch(e.target.value)}
-                                placeholder="搜尋心願清單..."
+                                placeholder="搜尋美食清單..."
                                 className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 focus:border-sakura-400 focus:ring-1 focus:ring-sakura-100 outline-none"
                                 autoFocus
                               />
@@ -2907,7 +2907,7 @@ function MainPageContent() {
                                         : ''
                                       const content = notePlain ? `${w.name}（${notePlain}）` : w.name
                                       setScheduleItems([...scheduleItems, { ...createEmptyScheduleItem(), content }])
-                                      // 第一次從心願清單選入明細時，將該筆名稱與圖片帶入表單「標題」「圖片」（不覆蓋已填寫內容）
+                                      // 第一次從美食清單選入明細時，將該筆名稱與圖片帶入表單「標題」「圖片」（不覆蓋已填寫內容）
                                       if (!wishlistFirstPickAutofillDoneRef.current) {
                                         wishlistFirstPickAutofillDoneRef.current = true
                                         const fromWishlist = parseImages(w.image_url || undefined).slice(0, 5)
@@ -2952,7 +2952,7 @@ function MainPageContent() {
                                 (w.category || '').toLowerCase().includes(wishlistScheduleSearch.toLowerCase())
                               ).length === 0 && (
                                 <div className="px-4 py-6 text-center text-sm text-gray-400">
-                                  {wishlistDbItems.length === 0 ? '心願清單是空的' : '找不到符合的項目'}
+                                  {wishlistDbItems.length === 0 ? '美食清單是空的' : '找不到符合的項目'}
                                 </div>
                               )}
                             </div>

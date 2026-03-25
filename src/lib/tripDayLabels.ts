@@ -29,3 +29,8 @@ export function formatTripDayAttachedSummary(dayNumber: number, settings: DayLab
   if (theme) return `Day ${dayNumber} · ${theme}`
   return `Day ${dayNumber}`
 }
+
+/** 清單卡片／縮圖用：只顯示 Day N，不帶行程標題 */
+export function formatTripDayListBadge(dayNumber: number): string {
+  return `Day ${dayNumber}`
+}

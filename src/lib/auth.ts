@@ -204,23 +204,24 @@ export function login(username: string, password: string): User | null {
       ? 'japan_travel_admin_authenticated_2024'
       : `japan_travel_user_${user.username}_2024`
     
-    Cookies.set(AUTH_COOKIE_NAME, token, { 
-      expires: 1, // 1 day
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict'
-    })
-    
-    // Store user info
-    Cookies.set(USER_COOKIE_NAME, JSON.stringify({ 
-      username: user.username, 
-      role: user.role,
-      displayName: user.displayName,
-      avatarUrl: user.avatarUrl || ''
-    }), { 
+    const setOpts = {
       expires: 1,
+      path: '/',
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict'
-    })
+      sameSite: 'strict' as const,
+    }
+    Cookies.set(AUTH_COOKIE_NAME, token, setOpts)
+
+    Cookies.set(
+      USER_COOKIE_NAME,
+      JSON.stringify({
+        username: user.username,
+        role: user.role,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl || '',
+      }),
+      setOpts
+    )
     
     return user
   }
@@ -237,10 +238,18 @@ export async function loginAsync(username: string, password: string): Promise<Us
   return login(username, password)
 }
 
+const cookieBaseOpts = { path: '/' as const, sameSite: 'strict' as const }
+
 export function logout(): void {
-  Cookies.remove(AUTH_COOKIE_NAME)
-  Cookies.remove(USER_COOKIE_NAME)
-  // Clear Remember Me so we don't auto-login after explicit logout
+  // Must match path (and secure in prod) used in login(), or the browser keeps the session cookie
+  Cookies.remove(AUTH_COOKIE_NAME, {
+    ...cookieBaseOpts,
+    secure: process.env.NODE_ENV === 'production',
+  })
+  Cookies.remove(USER_COOKIE_NAME, {
+    ...cookieBaseOpts,
+    secure: process.env.NODE_ENV === 'production',
+  })
   if (typeof window !== 'undefined') {
     localStorage.removeItem('japan_travel_remember_me')
   }

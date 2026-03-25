@@ -12,7 +12,8 @@ import {
   type WishlistItemDB 
 } from '@/lib/supabase'
 import { getSettings, getSettingsAsync, type DaySchedule } from '@/lib/settings'
-import { formatTripDaySelectOption, formatTripDayAttachedSummary } from '@/lib/tripDayLabels'
+import { formatTripDaySelectOption, formatTripDayListBadge } from '@/lib/tripDayLabels'
+import { parseFavoritedBy, isWishlistLocalItemLikedByUser } from '@/lib/wishlistLikeUtils'
 import { getCurrentUser } from '@/lib/auth'
 
 // Main categories (tabs)
@@ -72,23 +73,6 @@ const CACHE_KEY = 'japan_travel_wishlist_cache_time'
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 /** Prevents concurrent localStorage→Supabase migration (e.g. React Strict Mode double mount = duplicate rows). */
 const WISHLIST_MIGRATE_LOCK_KEY = 'wishlist_supabase_migration_in_progress'
-
-// Parse favorited_by safely — only non-empty usernames count as real likes.
-// Handles null, undefined, non-array, JSON string, and invalid entries like "" or null.
-function parseFavoritedBy(raw: unknown): string[] {
-  let arr: unknown[] = []
-  if (Array.isArray(raw)) {
-    arr = raw
-  } else if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw)
-      arr = Array.isArray(parsed) ? parsed : []
-    } catch {
-      arr = []
-    }
-  }
-  return arr.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
-}
 
 // Convert from Supabase format to local format
 function fromSupabaseFormat(db: WishlistItemDB): WishlistItem {
@@ -511,9 +495,12 @@ export default function WishlistButton({
     const currentUsername = getCurrentUser()?.username
     if (!currentUsername) return
     const favoritedBy = item.favoritedBy || []
-    const isLiked = favoritedBy.includes(currentUsername)
+    const inArray = favoritedBy.includes(currentUsername)
+    const isLiked = isWishlistLocalItemLikedByUser(item, currentUsername)
     const newFavoritedBy = isLiked
-      ? favoritedBy.filter(u => u !== currentUsername)
+      ? inArray
+        ? favoritedBy.filter(u => u !== currentUsername)
+        : []
       : [...favoritedBy, currentUsername]
     const newFavorite = newFavoritedBy.length > 0
     if (typeof itemId === 'number') {
@@ -536,8 +523,8 @@ export default function WishlistButton({
   const getSortedItems = (items: WishlistItem[]) => {
     const currentUsername = getCurrentUser()?.username || ''
     return [...items].sort((a, b) => {
-      const aLiked = (a.favoritedBy || []).includes(currentUsername)
-      const bLiked = (b.favoritedBy || []).includes(currentUsername)
+      const aLiked = isWishlistLocalItemLikedByUser(a, currentUsername)
+      const bLiked = isWishlistLocalItemLikedByUser(b, currentUsername)
       if (aLiked && !bLiked) return -1
       if (!aLiked && bLiked) return 1
       return 0
@@ -619,10 +606,10 @@ export default function WishlistButton({
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(true)}
         className="hidden md:flex fixed bottom-[88px] right-6 z-30 bg-gradient-to-r from-pink-400 to-rose-500 text-white shadow-lg hover:from-pink-500 hover:to-rose-600 transition-all items-center justify-center gap-2 p-4 rounded-2xl"
-        title="心願清單"
+        title="美食清單"
       >
         <span className="text-xl">💝</span>
-        <span className="font-medium text-sm">心願清單</span>
+        <span className="font-medium text-sm">美食清單</span>
       </motion.button>
 
       {/* Wishlist Modal - Centered */}
@@ -653,7 +640,7 @@ export default function WishlistButton({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">💝</span>
-                      <h2 className="text-lg font-bold">心願清單</h2>
+                      <h2 className="text-lg font-bold">💝 美食清單</h2>
                       <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
                         {totalCount} 項
                       </span>
@@ -1013,7 +1000,7 @@ export default function WishlistButton({
                                         onClick={() => handleNavigateToDay(item.addedToDay!)}
                                         className="block text-xs text-pink-500 mt-1 hover:underline"
                                       >
-                                        📅 {formatTripDayAttachedSummary(item.addedToDay, { tripStartDate, daySchedules })}{item.addedTime ? ` @ ${item.addedTime}` : ''}
+                                        📅 {formatTripDayListBadge(item.addedToDay)}{item.addedTime ? ` @ ${item.addedTime}` : ''}
                                       </button>
                                     )}
                                   </>
@@ -1022,7 +1009,7 @@ export default function WishlistButton({
                               
                               {/* Heart Button - Right side (per-user like) */}
                               {(() => {
-                                const isLiked = (item.favoritedBy || []).includes(getCurrentUser()?.username || '')
+                                const isLiked = isWishlistLocalItemLikedByUser(item, getCurrentUser()?.username)
                                 return (
                                   <button
                                     onClick={() => toggleFavorite(item.id)}

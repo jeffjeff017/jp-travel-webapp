@@ -19,7 +19,12 @@ import { geocodePlaceName } from '@/lib/geocode'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWishlistItems, useChecklistStates, queryKeys } from '@/hooks/useQueries'
 import { getSettings, getSettingsAsync, type SiteSettings } from '@/lib/settings'
-import { formatTripDaySelectOption, formatTripDayAttachedSummary } from '@/lib/tripDayLabels'
+import { formatTripDaySelectOption, formatTripDayAttachedSummary, formatTripDayListBadge } from '@/lib/tripDayLabels'
+import {
+  parseFavoritedBy,
+  isWishlistLocalItemLikedByUser,
+  wishlistLocalItemHasLikeSignal,
+} from '@/lib/wishlistLikeUtils'
 import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, isAuthenticated, logout, getUsers, getUsersAsync, getAuthToken, getLoggedInUsername, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
 import ChiikawaPet from '@/components/ChiikawaPet'
@@ -29,104 +34,7 @@ import { safeSetItem } from '@/lib/safeStorage'
 import { EMPTY_PLATE_JSON, extractPlainTextFromPlateJson, isPlateJsonEffectivelyEmpty } from '@/lib/plateRich'
 import PlateRichEditor from '@/components/PlateRichEditor'
 import PlateRichView from '@/components/PlateRichView'
-
-// Tokyo district areas
-// Grouped district structure (parent → children)
-const TOKYO_DISTRICTS = [
-  {
-    id: 'east', label: '東東京', en: 'East Tokyo', icon: '🏮',
-    areas: [
-      { id: 'asakusa',          zh: '浅草',     en: 'Asakusa' },
-      { id: 'ueno',             zh: '上野',     en: 'Ueno' },
-      { id: 'akihabara',        zh: '秋葉原',   en: 'Akihabara' },
-      { id: 'yanaka',           zh: '谷根千',   en: 'Yanaka' },
-      { id: 'kuramae',          zh: '蔵前',     en: 'Kuramae' },
-      { id: 'kiyosumishirakawa',zh: '清澄白河', en: 'Kiyosumi-Shirakawa' },
-      { id: 'ryogoku',          zh: '両国',     en: 'Ryogoku' },
-      { id: 'kinshicho',        zh: '錦糸町',   en: 'Kinshicho' },
-      { id: 'kitasenju',        zh: '北千住',   en: 'Kita-Senju' },
-    ],
-  },
-  {
-    id: 'shibuya_area', label: '渋谷エリア', en: 'Shibuya Area', icon: '🛍️',
-    areas: [
-      { id: 'shibuya',          zh: '渋谷',     en: 'Shibuya' },
-      { id: 'harajuku',         zh: '原宿',     en: 'Harajuku' },
-      { id: 'omotesando',       zh: '表参道',   en: 'Omotesando' },
-      { id: 'aoyama',           zh: '青山',     en: 'Aoyama' },
-      { id: 'ebisu',            zh: '恵比寿',   en: 'Ebisu' },
-      { id: 'daikanyama',       zh: '代官山',   en: 'Daikanyama' },
-      { id: 'nakameguro',       zh: '中目黒',   en: 'Nakameguro' },
-    ],
-  },
-  {
-    id: 'shinjuku_area', label: '新宿エリア', en: 'Shinjuku Area', icon: '🌃',
-    areas: [
-      { id: 'shinjuku',         zh: '新宿',     en: 'Shinjuku' },
-      { id: 'shimokitazawa',    zh: '下北沢',   en: 'Shimokitazawa' },
-      { id: 'sangenjaya',       zh: '三軒茶屋', en: 'Sangenjaya' },
-      { id: 'jiyugaoka',        zh: '自由が丘', en: 'Jiyugaoka' },
-      { id: 'futakotamagawa',   zh: '二子玉川', en: 'Futakotamagawa' },
-    ],
-  },
-  {
-    id: 'central', label: '都心', en: 'Central Tokyo', icon: '🏙️',
-    areas: [
-      { id: 'ginza',            zh: '銀座',     en: 'Ginza' },
-      { id: 'tsukiji',          zh: '築地',     en: 'Tsukiji' },
-      { id: 'shimbashi',        zh: '新橋',     en: 'Shimbashi' },
-      { id: 'nihonbashi',       zh: '日本橋',   en: 'Nihonbashi' },
-      { id: 'yurakucho',        zh: '有楽町',   en: 'Yurakucho' },
-      { id: 'marunouchi',       zh: '丸の内',   en: 'Marunouchi' },
-      { id: 'otemachi',         zh: '大手町',   en: 'Otemachi' },
-    ],
-  },
-  {
-    id: 'minato', label: '港区', en: 'Minato', icon: '🌆',
-    areas: [
-      { id: 'roppongi',         zh: '六本木',   en: 'Roppongi' },
-      { id: 'akasaka',          zh: '赤坂',     en: 'Akasaka' },
-      { id: 'azabujuban',       zh: '麻布十番', en: 'Azabu-Juban' },
-      { id: 'hiro',             zh: '広尾',     en: 'Hiro' },
-    ],
-  },
-  {
-    id: 'north', label: '北エリア', en: 'North Area', icon: '🎓',
-    areas: [
-      { id: 'ikebukuro',        zh: '池袋',     en: 'Ikebukuro' },
-      { id: 'kagurazaka',       zh: '神楽坂',   en: 'Kagurazaka' },
-      { id: 'iidabashi',        zh: '飯田橋',   en: 'Iidabashi' },
-      { id: 'jimbocho',         zh: '神保町',   en: 'Jimbocho' },
-      { id: 'ochanomizu',       zh: '御茶ノ水', en: 'Ochanomizu' },
-    ],
-  },
-  {
-    id: 'west', label: '西エリア', en: 'West Area', icon: '🌿',
-    areas: [
-      { id: 'kichijoji',        zh: '吉祥寺',   en: 'Kichijoji' },
-      { id: 'koenji',           zh: '高円寺',   en: 'Koenji' },
-      { id: 'ogikubo',          zh: '荻窪',     en: 'Ogikubo' },
-    ],
-  },
-  {
-    id: 'bay', label: '湾岸', en: 'Bay Area', icon: '🌊',
-    areas: [
-      { id: 'toyosu',           zh: '豊洲',     en: 'Toyosu' },
-      { id: 'odaiba',           zh: '台場',     en: 'Odaiba' },
-      { id: 'shinagawa',        zh: '品川',     en: 'Shinagawa' },
-    ],
-  },
-  {
-    id: 'suburbs', label: '郊外', en: 'Suburbs', icon: '🌸',
-    areas: [
-      { id: 'machida',          zh: '町田',     en: 'Machida' },
-      { id: 'tachikawa',        zh: '立川',     en: 'Tachikawa' },
-    ],
-  },
-]
-
-// Flat list derived from grouped structure (backwards compatible IDs)
-const TOKYO_AREAS = TOKYO_DISTRICTS.flatMap(d => d.areas)
+import { TOKYO_DISTRICTS, TOKYO_AREAS } from '@/lib/tokyoDistricts'
 
 // Main categories
 const CATEGORIES = [
@@ -212,23 +120,6 @@ const isGoogleMapsLink = (link?: string) => {
 
 // Check if an item is a threads item (should not show Google Maps link)
 const isThreadsCategory = (category: string) => category === 'threads'
-
-// Parse favorited_by safely — only non-empty usernames count as real likes.
-// Handles null, undefined, non-array, JSON string, and invalid entries like "" or null.
-function parseFavoritedBy(raw: unknown): string[] {
-  let arr: unknown[] = []
-  if (Array.isArray(raw)) {
-    arr = raw
-  } else if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw)
-      arr = Array.isArray(parsed) ? parsed : []
-    } catch {
-      arr = []
-    }
-  }
-  return arr.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
-}
 
 // Convert from Supabase format to local format
 function fromSupabaseFormat(db: WishlistItemDB): WishlistItem {
@@ -572,32 +463,47 @@ export default function WishlistPage() {
     return grouped
   }, [])
   
-  // Sync wishlist data from TanStack Query
+  // Sync wishlist data from TanStack Query（顯示全部美食清單項目）
   useEffect(() => {
-    if (wishlistDbItems && wishlistDbItems.length > 0) {
-      // Backfill: update items without added_by in Supabase
-      const user = currentUser || getCurrentUser()
-      
-      const itemsWithoutAddedBy = wishlistDbItems.filter(db => !db.added_by)
+    if (wishlistDbItems === undefined) {
+      if (!isWishlistLoading) setIsLoading(false)
+      return
+    }
+
+    const user = currentUser || getCurrentUser()
+    const filteredDb = wishlistDbItems.length ? wishlistDbItems : []
+
+    const emptyGrouped: Wishlist = {
+      cafe: [],
+      restaurant: [],
+      bakery: [],
+      shopping: [],
+      park: [],
+      threads: [],
+    }
+
+    if (filteredDb.length > 0) {
+      const itemsWithoutAddedBy = filteredDb.filter(db => !db.added_by)
       if (user && itemsWithoutAddedBy.length > 0) {
         const addedByData = {
           username: user.username,
           display_name: (user as any).displayName || (user as any).display_name || user.username,
           avatar_url: (user as any).avatarUrl || (user as any).avatar_url || undefined,
         }
-        // Fire-and-forget: update all items missing added_by
         for (const db of itemsWithoutAddedBy) {
           updateSupabaseWishlistItem(db.id, { added_by: addedByData }).catch(() => {})
         }
       }
-      
-      const items = wishlistDbItems.map(fromSupabaseFormat)
+
+      const items = filteredDb.map(fromSupabaseFormat)
       const grouped = groupByCategory(items)
       setWishlist(grouped)
       safeSetItem(STORAGE_KEY, JSON.stringify(stripImagesForCache(grouped)))
       safeSetItem(CACHE_KEY, Date.now().toString())
+    } else {
+      setWishlist(emptyGrouped)
     }
-    
+
     if (!isWishlistLoading) {
       setIsLoading(false)
     }
@@ -639,26 +545,33 @@ export default function WishlistPage() {
       })
     }
     
-    // Sort by current user's favorites first
+    // 已加入行程的置頂，依 Day 數字小→大；其餘依當前用戶讚好狀態排序
     const currentUsername = (currentUser || getCurrentUser())?.username
     items = [...items].sort((a, b) => {
-      const aLiked = (a.favoritedBy || []).includes(currentUsername || '')
-      const bLiked = (b.favoritedBy || []).includes(currentUsername || '')
+      const aTrip = a.addedToDay != null && a.addedToDay !== undefined
+      const bTrip = b.addedToDay != null && b.addedToDay !== undefined
+      if (aTrip && !bTrip) return -1
+      if (!aTrip && bTrip) return 1
+      if (aTrip && bTrip) {
+        return (Number(a.addedToDay) || 0) - (Number(b.addedToDay) || 0)
+      }
+      const aLiked = isWishlistLocalItemLikedByUser(a, currentUsername)
+      const bLiked = isWishlistLocalItemLikedByUser(b, currentUsername)
       if (aLiked && !bLiked) return -1
       if (!aLiked && bLiked) return 1
       return 0
     })
-    
+
     return items
   }
-  
-  // Individual areas that have at least one item under the current tab (ignoring area/search filters)
-  // Read directly from wishlistDbItems (raw TanStack Query data) to avoid stale wishlist state
+
   const availableAreas = useMemo(() => {
-    if (!wishlistDbItems || wishlistDbItems.length === 0) return []
-    const relevantDbItems = activeTab === 'all'
-      ? wishlistDbItems
-      : wishlistDbItems.filter(db => db.category === activeTab)
+    const allDb = wishlistDbItems ?? []
+    if (!allDb.length) return []
+    const relevantDbItems =
+      activeTab === 'all'
+        ? allDb
+        : allDb.filter(db => db.category === activeTab)
     const usedAreaIds = new Set(
       relevantDbItems.map(db => db.map_link).filter(Boolean) as string[]
     )
@@ -724,8 +637,8 @@ export default function WishlistPage() {
         imageUrl: imageUrlValue,
         link: newItemUrl.trim() || undefined,
         area: newItemArea || undefined,
-        favoritedBy: [], // Only show bubble when user presses like — not when adding
-        isFavorite: false,
+        favoritedBy: user ? [user.username] : [],
+        isFavorite: !!user,
         addedBy: user ? {
           username: user.username,
           displayName: user.displayName,
@@ -805,7 +718,7 @@ export default function WishlistPage() {
   const handleBulkDeleteSelected = async () => {
     if (!isAdmin || bulkSelectedIds.size === 0) return
     const count = bulkSelectedIds.size
-    if (!confirm(`確定將已選的 ${count} 個心願移至垃圾桶並從資料庫刪除？此操作無法復原（請至後台垃圾桶確認）。`)) return
+    if (!confirm(`確定將已選的 ${count} 個美食項目移至垃圾桶並從資料庫刪除？此操作無法復原（請至後台垃圾桶確認）。`)) return
 
     setBulkDeleting(true)
     try {
@@ -942,7 +855,7 @@ export default function WishlistPage() {
   // Handle remove wishlist item from itinerary
   const handleRemoveFromItinerary = async () => {
     if (!selectedItemPopup) return
-    if (!confirm('確定要從行程中移除此心願嗎？')) return
+    if (!confirm('確定要從行程中移除此美食項目嗎？')) return
     const popupSnapshot = selectedItemPopup
     setRemoveFromItinerarySubmitting(true)
     try {
@@ -1044,9 +957,12 @@ export default function WishlistPage() {
     const currentUsername = (currentUser || getCurrentUser())?.username
     if (!currentUsername) return
     const favoritedBy = item.favoritedBy || []
-    const isLiked = favoritedBy.includes(currentUsername)
+    const inArray = favoritedBy.includes(currentUsername)
+    const isLiked = isWishlistLocalItemLikedByUser(item, currentUsername)
     const newFavoritedBy = isLiked
-      ? favoritedBy.filter(u => u !== currentUsername)
+      ? inArray
+        ? favoritedBy.filter(u => u !== currentUsername)
+        : []
       : [...favoritedBy, currentUsername]
     try {
       const { data, error } = await updateSupabaseWishlistItem(Number(item.id), {
@@ -1115,7 +1031,7 @@ export default function WishlistPage() {
           <div className="flex items-center justify-between gap-2 mb-4">
             <h1 className="text-xl font-semibold text-gray-800 flex items-center gap-2 min-w-0">
               <img src="/images/gonggu card_1-04-nobg.png" alt="" className="w-7 h-7 object-contain shrink-0" />
-              <span className="truncate">心願清單</span>
+              <span className="truncate">美食清單</span>
             </h1>
             <div className="flex items-center gap-2 shrink-0">
               {isAdmin && (
@@ -1212,9 +1128,9 @@ export default function WishlistPage() {
               )}
               {availableAreas.map(area => {
                 const isActive = activeAreaFilter === area.id
-                const relevantDbItems = wishlistDbItems
-                  ? (activeTab === 'all' ? wishlistDbItems : wishlistDbItems.filter(db => db.category === activeTab))
-                  : []
+                const dbList = wishlistDbItems ?? []
+                const relevantDbItems =
+                  activeTab === 'all' ? dbList : dbList.filter(db => db.category === activeTab)
                 const count = relevantDbItems.filter(db => db.map_link === area.id).length
                 return (
                   <button
@@ -1242,12 +1158,12 @@ export default function WishlistPage() {
         ) : filteredItems.length === 0 ? (
           <div className="text-center py-20">
             <div className="text-6xl mb-4">💝</div>
-            <p className="text-gray-500 mb-4">還沒有收藏項目</p>
+            <p className="text-gray-500 mb-4">還沒有美食項目</p>
             <button
               onClick={openNewWishlistForm}
               className="px-6 py-2 bg-sakura-500 hover:bg-sakura-600 text-white rounded-full text-sm font-medium transition-colors"
             >
-              新增第一個心願
+              新增第一筆美食
             </button>
           </div>
         ) : (
@@ -1317,9 +1233,9 @@ export default function WishlistPage() {
                       className={`absolute top-2 max-w-[min(85%,10rem)] px-2 py-1 bg-green-500 text-white text-xs font-medium rounded-full z-10 truncate ${
                         isAdmin && bulkSelectMode ? 'left-10' : 'left-2'
                       }`}
-                      title={formatTripDayAttachedSummary(item.addedToDay, settings)}
+                      title={formatTripDayListBadge(item.addedToDay)}
                     >
-                      {formatTripDayAttachedSummary(item.addedToDay, settings)}
+                      {formatTripDayListBadge(item.addedToDay)}
                     </div>
                   )}
 
@@ -1334,7 +1250,7 @@ export default function WishlistPage() {
                   })()}
                   
                   {/* Like bubble - bottom left (avatar + 已讚好 + ❤️) */}
-                  {(item.favoritedBy || []).length > 0 && (() => {
+                  {wishlistLocalItemHasLikeSignal(item) && (() => {
                     const favoritedBy = (item.favoritedBy || []) as string[]
                     const loggedInUsername = (currentUser || getCurrentUser())?.username ?? getLoggedInUsername()
                     const isCurrentUserLiked = favoritedBy.includes(loggedInUsername || '')
@@ -1348,11 +1264,15 @@ export default function WishlistPage() {
                       <div className="absolute bottom-2 left-2 pointer-events-none">
                         <div className="bg-black/75 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1.5">
                           <div className="flex -space-x-1">
-                            {avatars.map((url, i) => url ? (
-                              <img key={i} src={url} alt="" className="w-4 h-4 rounded-full object-cover border border-black/75" />
+                            {favoritedBy.length === 0 ? (
+                              <div className="w-4 h-4 rounded-full bg-white/30 border border-black/75" />
                             ) : (
-                              <div key={i} className="w-4 h-4 rounded-full bg-white/30 border border-black/75" />
-                            ))}
+                              avatars.map((url, i) => url ? (
+                                <img key={i} src={url} alt="" className="w-4 h-4 rounded-full object-cover border border-black/75" />
+                              ) : (
+                                <div key={i} className="w-4 h-4 rounded-full bg-white/30 border border-black/75" />
+                              ))
+                            )}
                           </div>
                           <span>已讚好 ❤️</span>
                         </div>
@@ -1360,7 +1280,7 @@ export default function WishlistPage() {
                     )
                   })()}
                   {/* Favorite indicator - bottom right (current user's like) */}
-                  {(item.favoritedBy || []).includes((currentUser || getCurrentUser())?.username || '') && (
+                  {isWishlistLocalItemLikedByUser(item, (currentUser || getCurrentUser())?.username || '') && (
                     <div className="absolute bottom-2 right-2 w-7 h-7 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-sm">
                       <HeartFilled className="w-4 h-4 text-rose-500" />
                     </div>
@@ -1502,7 +1422,7 @@ export default function WishlistPage() {
             >
               {/* Fixed Header */}
               <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-100 flex-shrink-0">
-                <h3 className="text-lg font-semibold text-gray-800">{editingItem ? '編輯心願' : '新增心願'}</h3>
+                <h3 className="text-lg font-semibold text-gray-800">{editingItem ? '編輯美食' : '新增美食'}</h3>
                 <button
                   onClick={closeWishlistForm}
                   className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
@@ -2042,16 +1962,32 @@ export default function WishlistPage() {
                       ✕
                     </button>
                   </div>
-                  {/* Bottom left: Like bubble — only show when someone has pressed the like button (favoritedBy) */}
+                  {/* Bottom left: Like bubble — favoritedBy 或舊版 is_favorite */}
                   {(() => {
                     const currentUserInfo = getCurrentUser()
                     const loggedInUsername = currentUserInfo?.username ?? getLoggedInUsername()
                     const addedBy = selectedItemPopup.addedBy
                     const liveItem = Object.values(wishlist).flat().find(i => String(i.id) === String(selectedItemPopup.id))
-                    const favoritedBy = (liveItem?.favoritedBy ?? selectedItemPopup.favoritedBy ?? []) as string[]
+                    const effective = liveItem ?? selectedItemPopup
+                    if (!wishlistLocalItemHasLikeSignal(effective)) return null
+                    const favoritedBy = (effective.favoritedBy ?? []) as string[]
                     const isCurrentUserLiked = favoritedBy.includes(loggedInUsername || '')
                     const currentUserAvatar = loggedInUsername ? getUserAvatar(loggedInUsername, currentUserInfo?.avatarUrl ?? users.find(u => u.username === loggedInUsername)?.avatarUrl) : undefined
-                    if (favoritedBy.length === 0) return null
+                    if (favoritedBy.length === 0) {
+                      return (
+                        <motion.div
+                          className="absolute bottom-3 left-3 pointer-events-none"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.3, ease: 'easeOut' }}
+                        >
+                          <div className="bg-black/75 text-white text-xs px-3 py-2 rounded-full backdrop-blur-sm shadow-lg flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full bg-white/30 border-2 border-black/75" />
+                            <span>已讚好 ❤️</span>
+                          </div>
+                        </motion.div>
+                      )
+                    }
                     const otherUsername = favoritedBy.find(u => u !== loggedInUsername)
                     const otherDisplayName = otherUsername ? getUserDisplayName(otherUsername, addedBy?.username === otherUsername ? addedBy.displayName : users.find(u => u.username === otherUsername)?.displayName) : ''
                     const otherAvatar = otherUsername ? getUserAvatar(otherUsername, addedBy?.username === otherUsername ? addedBy.avatarUrl : users.find(u => u.username === otherUsername)?.avatarUrl) : undefined
@@ -2095,12 +2031,18 @@ export default function WishlistPage() {
                       className="w-10 h-10 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:scale-110 transition-transform"
                     >
                       <motion.span
-                        key={(selectedItemPopup.favoritedBy || []).includes((getCurrentUser() || currentUser)?.username ?? '') ? 'filled' : 'outline'}
+                        key={isWishlistLocalItemLikedByUser(
+                          Object.values(wishlist).flat().find(i => String(i.id) === String(selectedItemPopup.id)) ?? selectedItemPopup,
+                          (getCurrentUser() || currentUser)?.username ?? getLoggedInUsername()
+                        ) ? 'filled' : 'outline'}
                         initial={{ scale: 1.4 }}
                         animate={{ scale: 1 }}
                         transition={{ type: 'spring', stiffness: 500, damping: 25 }}
                       >
-                        {(selectedItemPopup.favoritedBy || []).includes((getCurrentUser() || currentUser)?.username ?? '')
+                        {isWishlistLocalItemLikedByUser(
+                          Object.values(wishlist).flat().find(i => String(i.id) === String(selectedItemPopup.id)) ?? selectedItemPopup,
+                          (getCurrentUser() || currentUser)?.username ?? getLoggedInUsername()
+                        )
                           ? <HeartFilled className="w-5 h-5 text-rose-500" />
                           : <HeartOutline className="w-5 h-5 text-gray-400" />}
                       </motion.span>
@@ -2114,16 +2056,30 @@ export default function WishlistPage() {
               <div className="p-6">
                 {!parseWishlistImages(selectedItemPopup.imageUrl).length && (
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    {/* Bottom left: Like bubble — only show when someone has pressed the like button (favoritedBy) */}
+                    {/* Bottom left: Like bubble — favoritedBy 或舊版 is_favorite */}
                     {(() => {
                       const currentUserInfo = getCurrentUser()
                       const loggedInUsername = currentUserInfo?.username ?? getLoggedInUsername()
                       const addedBy = selectedItemPopup.addedBy
                       const liveItem = Object.values(wishlist).flat().find(i => String(i.id) === String(selectedItemPopup.id))
-                      const favoritedBy = (liveItem?.favoritedBy ?? selectedItemPopup.favoritedBy ?? []) as string[]
+                      const effective = liveItem ?? selectedItemPopup
+                      if (!wishlistLocalItemHasLikeSignal(effective)) return <div />
+                      const favoritedBy = (effective.favoritedBy ?? []) as string[]
                       const isCurrentUserLiked = favoritedBy.includes(loggedInUsername || '')
                       const currentUserAvatar = loggedInUsername ? getUserAvatar(loggedInUsername, currentUserInfo?.avatarUrl ?? users.find(u => u.username === loggedInUsername)?.avatarUrl) : undefined
-                      if (favoritedBy.length === 0) return <div />
+                      if (favoritedBy.length === 0) {
+                        return (
+                          <motion.div
+                            className="bg-black/75 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-2"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.3, ease: 'easeOut' }}
+                          >
+                            <div className="w-5 h-5 rounded-full bg-white/30 border-2 border-black/75" />
+                            <span>已讚好 ❤️</span>
+                          </motion.div>
+                        )
+                      }
                       const otherUsername = favoritedBy.find(u => u !== loggedInUsername)
                       const otherDisplayName = otherUsername ? getUserDisplayName(otherUsername, addedBy?.username === otherUsername ? addedBy.displayName : users.find(u => u.username === otherUsername)?.displayName) : ''
                       const otherAvatar = otherUsername ? getUserAvatar(otherUsername, addedBy?.username === otherUsername ? addedBy.avatarUrl : users.find(u => u.username === otherUsername)?.avatarUrl) : undefined
@@ -2192,12 +2148,18 @@ export default function WishlistPage() {
                       className="w-8 h-8 flex items-center justify-center hover:scale-110 transition-transform"
                     >
                       <motion.span
-                        key={(selectedItemPopup.favoritedBy || []).includes((getCurrentUser() || currentUser)?.username ?? '') ? 'filled' : 'outline'}
+                        key={isWishlistLocalItemLikedByUser(
+                          Object.values(wishlist).flat().find(i => String(i.id) === String(selectedItemPopup.id)) ?? selectedItemPopup,
+                          (getCurrentUser() || currentUser)?.username ?? getLoggedInUsername()
+                        ) ? 'filled' : 'outline'}
                         initial={{ scale: 1.4 }}
                         animate={{ scale: 1 }}
                         transition={{ type: 'spring', stiffness: 500, damping: 25 }}
                       >
-                        {(selectedItemPopup.favoritedBy || []).includes((getCurrentUser() || currentUser)?.username ?? '')
+                        {isWishlistLocalItemLikedByUser(
+                          Object.values(wishlist).flat().find(i => String(i.id) === String(selectedItemPopup.id)) ?? selectedItemPopup,
+                          (getCurrentUser() || currentUser)?.username ?? getLoggedInUsername()
+                        )
                           ? <HeartFilled className="w-5 h-5 text-rose-500" />
                           : <HeartOutline className="w-5 h-5 text-gray-400" />}
                       </motion.span>
@@ -2455,10 +2417,10 @@ export default function WishlistPage() {
             <span className="text-[10px] font-medium">行程</span>
           </Link>
           
-          {/* 心願清單 Tab - Active */}
+          {/* 美食清單 Tab - Active */}
           <button type="button" className="flex flex-col items-center justify-center flex-1 min-w-0 h-full text-sakura-500 touch-manipulation">
             <span className="text-xl mb-0.5">💖</span>
-            <span className="text-[10px] font-medium">心願清單</span>
+            <span className="text-[10px] font-medium">美食清單</span>
           </button>
           
           {/* 旅遊須知 Tab */}

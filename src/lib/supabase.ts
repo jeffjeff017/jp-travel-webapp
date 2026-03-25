@@ -653,7 +653,7 @@ export async function saveSupabaseWishlistItem(item: Omit<WishlistItemDB, 'id' |
     return { data, error: null }
   } catch (err: any) {
     console.error('Save wishlist item error:', err)
-    return { data: null, error: err.message || '儲存心願清單項目時發生錯誤' }
+    return { data: null, error: err.message || '儲存美食清單項目時發生錯誤' }
   }
 }
 
@@ -674,7 +674,7 @@ export async function updateSupabaseWishlistItem(id: number, item: Partial<Omit<
     return { data, error: null }
   } catch (err: any) {
     console.error('Update wishlist item error:', err)
-    return { data: null, error: err.message || '更新心願清單項目時發生錯誤' }
+    return { data: null, error: err.message || '更新美食清單項目時發生錯誤' }
   }
 }
 
@@ -693,7 +693,7 @@ export async function deleteSupabaseWishlistItem(id: number): Promise<{ success:
     return { success: true, error: null }
   } catch (err: any) {
     console.error('Delete wishlist item error:', err)
-    return { success: false, error: err.message || '刪除心願清單項目時發生錯誤' }
+    return { success: false, error: err.message || '刪除美食清單項目時發生錯誤' }
   }
 }
 

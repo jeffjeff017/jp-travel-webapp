@@ -49,6 +49,7 @@ import MultiMediaUpload from '@/components/MultiMediaUpload'
 import ImageCropper from '@/components/ImageCropper'
 import ImageSlider from '@/components/ImageSlider'
 import TravelWalletModal from '@/components/TravelWalletModal'
+import MyLikedFoodModal from '@/components/MyLikedFoodModal'
 import { safeSetItem } from '@/lib/safeStorage'
 import { OPEN_TRAVEL_WALLET_QUERY } from '@/lib/travelWalletUi'
 import { EMPTY_PLATE_JSON, isPlateJsonEffectivelyEmpty } from '@/lib/plateRich'
@@ -172,6 +173,7 @@ export default function AdminPage() {
   const [profileForm, setProfileForm] = useState({ displayName: '', password: '', avatarUrl: '' })
   const [showProfileCropper, setShowProfileCropper] = useState(false)
   const [profileCropImage, setProfileCropImage] = useState<string | null>(null)
+  const [profileAvatarLightboxUrl, setProfileAvatarLightboxUrl] = useState<string | null>(null)
   // Travel notice state
   const [showTravelNotice, setShowTravelNotice] = useState(false)
   const [showTravelNoticePopup, setShowTravelNoticePopup] = useState(false) // Mobile read-only popup
@@ -221,6 +223,7 @@ export default function AdminPage() {
 
   // Wishlist management state
   const [showWishlistManagement, setShowWishlistManagement] = useState(false)
+  const [showMyLikedFood, setShowMyLikedFood] = useState(false)
   const [wishlistItems, setWishlistItems] = useState<WishlistItemDB[]>([])
   const [editingWishlistItem, setEditingWishlistItem] = useState<WishlistItemDB | null>(null)
   const [wishlistSearchQuery, setWishlistSearchQuery] = useState('')
@@ -268,7 +271,7 @@ export default function AdminPage() {
   
   // Disable background scrolling when any popup/modal is active
   useEffect(() => {
-    const anyPopupOpen = showForm || showSettings || showUserManagement || showProfileEdit || showProfileCropper || showTravelNoticePopup || showDestinationModal || showTrashBin || showWishlistManagement || showChiikawaEdit || showChiikawaEditDesktop || showWallet || showTripDetail
+    const anyPopupOpen = showForm || showSettings || showUserManagement || showProfileEdit || showProfileCropper || profileAvatarLightboxUrl != null || showTravelNoticePopup || showDestinationModal || showTrashBin || showWishlistManagement || showMyLikedFood || showChiikawaEdit || showChiikawaEditDesktop || showWallet || showTripDetail
     if (anyPopupOpen) {
       document.body.style.overflow = 'hidden'
     } else {
@@ -277,7 +280,7 @@ export default function AdminPage() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showTripDetail])
+  }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, profileAvatarLightboxUrl, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showMyLikedFood, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showTripDetail])
 
   // Refresh settingsForm from latest Supabase data whenever the dialog opens
   useEffect(() => {
@@ -576,7 +579,8 @@ export default function AdminPage() {
 
   const handleLogout = () => {
     logout()
-    router.push('/login')
+    // Full navigation so middleware sees cleared cookies (client router alone can leave /panel stuck)
+    window.location.assign('/login')
   }
 
   const handleInputChange = (
@@ -1027,9 +1031,9 @@ export default function AdminPage() {
               href="/wishlist"
               className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95"
             >
-              <span className="text-3xl block mb-2">💖</span>
-              <p className="font-semibold text-gray-900 text-sm">心願清單</p>
-              <p className="text-xs text-gray-400 mt-0.5">收藏喜愛的地點</p>
+              <span className="text-3xl block mb-2">💝</span>
+              <p className="font-semibold text-gray-900 text-sm">美食清單</p>
+              <p className="text-xs text-gray-400 mt-0.5">你已讚好的店家</p>
             </a>
             <button
               type="button"
@@ -1063,17 +1067,19 @@ export default function AdminPage() {
             )}
           </div>
 
-          {/* Management List (admin) */}
+          {/* 已讚好的美食清單：全員；美食清單後台管理：管理員 */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowMyLikedFood(true)}
+              className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+            >
+              <span className="text-lg w-6 text-center">💝</span>
+              <p className="flex-1 text-left text-sm font-medium text-gray-800">已讚好</p>
+              <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            </button>
           {isAdminUser && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <button
-                onClick={() => { loadWishlistItems(); setShowWishlistManagement(true) }}
-                className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors"
-              >
-                <span className="text-lg w-6 text-center">💝</span>
-                <p className="flex-1 text-left text-sm font-medium text-gray-800">心願清單管理</p>
-                <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-              </button>
+            <>
               <button
                 onClick={() => setShowChiikawaEdit(true)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors"
@@ -1123,8 +1129,9 @@ export default function AdminPage() {
                 </div>
                 <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
-            </div>
+            </>
           )}
+          </div>
 
           {/* Account */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -1363,28 +1370,24 @@ export default function AdminPage() {
             </div>
           </a>
 
-          {/* Mobile Admin Cards Row - Wishlist Management + Chiikawa Dialogue (Admin only) */}
+          {/* Mobile: 已讚好的美食清單（全員） */}
+          <button
+            type="button"
+            onClick={() => setShowMyLikedFood(true)}
+            className="md:hidden col-span-1 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer flex flex-col items-center text-center gap-2"
+          >
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center">
+              <span className="text-xl">💝</span>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-800 text-sm">已讚好</h3>
+              <p className="text-xs text-gray-500">查看你讚好的店家</p>
+            </div>
+          </button>
+
+          {/* Mobile Admin Cards Row */}
           {isAdminUser && (
             <>
-              {/* Wishlist Management Card */}
-              <div 
-                className="md:hidden col-span-1 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => {
-                  loadWishlistItems()
-                  setShowWishlistManagement(true)
-                }}
-              >
-                <div className="flex flex-col items-center text-center gap-2">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center">
-                    <span className="text-xl">💝</span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-800 text-sm">心願清單管理</h3>
-                    <p className="text-xs text-gray-500">編輯或刪除項目</p>
-                  </div>
-                </div>
-              </div>
-              
               {/* Chiikawa Dialogue Edit Card */}
               <div 
                 className="md:hidden col-span-1 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
@@ -2177,7 +2180,7 @@ export default function AdminPage() {
                       disabled={editingUser?.username === 'admin'}
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-sakura-400 disabled:bg-gray-100"
                     >
-                      <option value="user">用戶（可編輯行程、心願清單）</option>
+                      <option value="user">用戶（可編輯行程、美食清單）</option>
                       <option value="admin">管理員（可存取後台）</option>
                     </select>
                     
@@ -2332,13 +2335,20 @@ export default function AdminPage() {
                   <div className="mb-6 p-4 bg-gray-50 rounded-xl">
                     <div className="flex items-center gap-3">
                       {profileForm.avatarUrl ? (
-                        <img 
-                          src={profileForm.avatarUrl} 
-                          alt="Avatar"
-                          className="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => setProfileAvatarLightboxUrl(profileForm.avatarUrl || null)}
+                          className="w-16 h-16 rounded-full overflow-hidden border-2 border-white shadow flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-sakura-400"
+                          title="點擊放大頭像"
+                        >
+                          <img
+                            src={profileForm.avatarUrl}
+                            alt="Avatar"
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
                       ) : (
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sakura-300 to-sakura-500 flex items-center justify-center text-white text-xl font-medium shadow">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sakura-300 to-sakura-500 flex items-center justify-center text-white text-xl font-medium shadow flex-shrink-0">
                           {profileForm.displayName?.charAt(0).toUpperCase() || '?'}
                         </div>
                       )}
@@ -2405,11 +2415,18 @@ export default function AdminPage() {
                         {/* Avatar Preview */}
                         <div className="flex-shrink-0">
                           {profileForm.avatarUrl ? (
-                            <img 
-                              src={profileForm.avatarUrl} 
-                              alt="Avatar preview"
-                              className="w-20 h-20 rounded-full object-cover border-2 border-sakura-200 shadow"
-                            />
+                            <button
+                              type="button"
+                              onClick={() => setProfileAvatarLightboxUrl(profileForm.avatarUrl || null)}
+                              className="w-20 h-20 rounded-full overflow-hidden border-2 border-sakura-200 shadow flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-sakura-400"
+                              title="點擊放大頭像"
+                            >
+                              <img
+                                src={profileForm.avatarUrl}
+                                alt="Avatar preview"
+                                className="w-full h-full object-cover"
+                              />
+                            </button>
                           ) : (
                             <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2571,6 +2588,37 @@ export default function AdminPage() {
             }}
           />
         )}
+
+        {/* Profile Avatar Lightbox */}
+        <AnimatePresence>
+          {profileAvatarLightboxUrl && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4"
+              onClick={() => setProfileAvatarLightboxUrl(null)}
+            >
+              <motion.img
+                src={profileAvatarLightboxUrl}
+                alt="頭像大圖"
+                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl cursor-zoom-out"
+                style={{ maxHeight: '95vh', maxWidth: '95vw' }}
+                onClick={(e) => e.stopPropagation()}
+                initial={{ scale: 0.8 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.8 }}
+              />
+              <button
+                onClick={() => setProfileAvatarLightboxUrl(null)}
+                className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center text-white text-xl transition-colors"
+                aria-label="關閉"
+              >
+                ✕
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Travel Notice Modal */}
         <AnimatePresence>
@@ -3010,6 +3058,12 @@ export default function AdminPage() {
           onNotify={(msg) => setMessage(msg)}
         />
 
+        {/* 已讚好 Modal */}
+        <MyLikedFoodModal
+          open={showMyLikedFood}
+          onClose={() => setShowMyLikedFood(false)}
+        />
+
         {/* Trash Bin Modal */}
         <AnimatePresence>
           {showTrashBin && (
@@ -3082,7 +3136,7 @@ export default function AdminPage() {
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
-                      💝 心願 ({trashItems.wishlist?.length || 0})
+                      💝 美食 ({trashItems.wishlist?.length || 0})
                     </button>
                   </div>
 
@@ -3172,7 +3226,7 @@ export default function AdminPage() {
 
                     {trashTab === 'wishlist' && (
                       !trashItems.wishlist?.length ? (
-                        <p className="text-center text-gray-400 text-sm py-8">沒有已刪除的心願</p>
+                        <p className="text-center text-gray-400 text-sm py-8">沒有已刪除的美食項目</p>
                       ) : (
                         trashItems.wishlist.map((item) => (
                           <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -4031,13 +4085,13 @@ export default function AdminPage() {
             <span className="text-[10px] font-medium">行程</span>
           </a>
           
-          {/* 心願清單 Tab */}
+          {/* 美食清單 Tab */}
           <a
             href="/wishlist"
             className="flex flex-col items-center justify-center flex-1 min-w-0 h-full text-gray-400 hover:text-sakura-500 transition-colors touch-manipulation"
           >
-            <span className="text-xl mb-0.5">💖</span>
-            <span className="text-[10px] font-medium">心願清單</span>
+            <span className="text-xl mb-0.5">💝</span>
+            <span className="text-[10px] font-medium">美食清單</span>
           </a>
           
           {/* 旅遊須知 Tab */}
@@ -4073,14 +4127,14 @@ export default function AdminPage() {
         </div>
       </nav>
       
-      {/* Mobile: Wishlist Management Popup */}
+      {/* 美食清單後台管理 Popup（管理員，全螢幕尺寸） */}
       <AnimatePresence>
         {showWishlistManagement && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="md:hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
             onClick={() => {
               setShowWishlistManagement(false)
               setEditingWishlistItem(null)
@@ -4097,7 +4151,7 @@ export default function AdminPage() {
               <div className="flex items-center justify-between p-4 border-b border-gray-100 flex-shrink-0">
                 <h3 className="font-medium text-gray-800 flex items-center gap-2">
                   <span>💝</span>
-                  <span>心願清單管理</span>
+                  <span>美食清單管理（全部項目）</span>
                 </h3>
                 <button
                   onClick={() => {
