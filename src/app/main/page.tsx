@@ -2257,11 +2257,11 @@ function MainPageContent() {
               void queryClient.invalidateQueries({ queryKey: queryKeys.walletSettings })
               setShowTravelWallet(true)
             }}
-            className="pointer-events-auto w-14 h-14 rounded-full shadow-lg border-2 border-white/90 bg-gradient-to-br from-amber-400 to-orange-500 flex flex-col items-center justify-center text-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 touch-manipulation"
+            className="pointer-events-auto w-16 h-16 rounded-full shadow-lg border-2 border-white/90 bg-gradient-to-br from-amber-400 to-orange-500 flex flex-col items-center justify-center text-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 touch-manipulation"
             title="旅行錢包"
             aria-label="開啟旅行錢包"
           >
-            <span className="text-xl leading-none drop-shadow-sm" aria-hidden>
+            <span className="text-2xl leading-none drop-shadow-sm" aria-hidden>
               💰
             </span>
           </motion.button>

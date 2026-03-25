@@ -303,7 +303,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (wishlistItemsData) setWishlistItems(wishlistItemsData)
   }, [wishlistItemsData])
-  
+
   // Load trash from localStorage
   useEffect(() => {
     const savedTrash = localStorage.getItem('admin_trash_bin')
@@ -1203,7 +1203,7 @@ export default function AdminPage() {
           </div>
 
           {/* Mobile Travel Wallet Card - Full row */}
-          <div
+          <div 
             className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
             onClick={async () => {
               // Refresh wallet data via TanStack Query
@@ -3002,7 +3002,7 @@ export default function AdminPage() {
         <TravelWalletModal
           open={showWallet}
           onClose={(reason) => {
-            setShowWallet(false)
+                  setShowWallet(false)
             if (reason?.dataChanged) window.location.reload()
           }}
           themeColor={themeColor}

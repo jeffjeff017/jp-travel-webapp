@@ -331,6 +331,8 @@ export default function WishlistPage() {
   const [areaDropdownOpen, setAreaDropdownOpen] = useState(false)
   const [areaSearch, setAreaSearch] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  /** Blocks double submit on the add/edit form (same frame as rapid taps before React re-renders). */
+  const wishlistFormSubmitRef = useRef(false)
   const areaDropdownRef = useRef<HTMLDivElement>(null)
   const [selectedItemPopup, setSelectedItemPopup] = useState<WishlistItem | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -707,9 +709,10 @@ export default function WishlistPage() {
   // Handle add item
   const handleAddItem = async () => {
     if (!newItemName.trim()) return
-    
+    if (wishlistFormSubmitRef.current) return
+    wishlistFormSubmitRef.current = true
     setIsSubmitting(true)
-    
+
     try {
       const category = newItemCategory
       const user = currentUser || getCurrentUser()
@@ -729,29 +732,29 @@ export default function WishlistPage() {
           avatarUrl: user.avatarUrl,
         } : undefined,
       }
-      
+
       const { data: dbItem, error } = await saveSupabaseWishlistItem(toSupabaseFormat(newItem))
-      
+
       if (error) {
         alert(`新增失敗：${error}`)
-        setIsSubmitting(false)
         return
       }
-      
-      if (dbItem) {
-        // Invalidate TanStack Query to refetch fresh data
-        await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
+
+      if (!dbItem) {
+        alert('新增失敗：未收到伺服器資料')
+        return
       }
-      
-      // Reset form
+
+      await queryClient.invalidateQueries({ queryKey: queryKeys.wishlistItems })
       resetWishlistFormFields()
       setShowAddForm(false)
     } catch (err: any) {
       console.error('Failed to add item:', err)
       alert(`新增失敗：${err.message || '未知錯誤'}`)
+    } finally {
+      wishlistFormSubmitRef.current = false
+      setIsSubmitting(false)
     }
-    
-    setIsSubmitting(false)
   }
   
   /** Move one wishlist item to admin trash + delete from Supabase (no confirm) */
@@ -992,9 +995,10 @@ export default function WishlistPage() {
   // Handle save edited item
   const handleSaveEdit = async () => {
     if (!editingItem || !newItemName.trim()) return
-    
+    if (wishlistFormSubmitRef.current) return
+    wishlistFormSubmitRef.current = true
     setIsSubmitting(true)
-    
+
     try {
       const imageUrlValue = newItemImages.length > 0 ? JSON.stringify(newItemImages) : null
       const { error } = await updateSupabaseWishlistItem(Number(editingItem.id), {
@@ -1005,14 +1009,12 @@ export default function WishlistPage() {
         category: newItemCategory,
         map_link: newItemArea || null,
       })
-      
+
       if (error) {
         alert(`更新失敗：${error}`)
-        setIsSubmitting(false)
         return
       }
-      
-      // Sync name/note/images to linked trips (行程明細)
+
       const imageUrlForSync = newItemImages.length > 0 ? JSON.stringify(newItemImages) : null
       const { updated } = await syncTripsFromWishlistItem(
         Number(editingItem.id),
@@ -1023,8 +1025,7 @@ export default function WishlistPage() {
       if (updated > 0) {
         await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
       }
-      
-      // Reset form and refresh via TanStack Query
+
       setEditingItem(null)
       resetWishlistFormFields()
       setShowAddForm(false)
@@ -1032,9 +1033,10 @@ export default function WishlistPage() {
     } catch (err: any) {
       console.error('Failed to update item:', err)
       alert(`更新失敗：${err.message || '未知錯誤'}`)
+    } finally {
+      wishlistFormSubmitRef.current = false
+      setIsSubmitting(false)
     }
-    
-    setIsSubmitting(false)
   }
   
   // Handle toggle favorite (per-user: add/remove from favoritedBy, does not affect others)

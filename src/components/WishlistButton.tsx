@@ -70,6 +70,8 @@ function parseWishlistImages(imageUrl: string | undefined): string[] {
 const STORAGE_KEY = 'japan_travel_wishlist'
 const CACHE_KEY = 'japan_travel_wishlist_cache_time'
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+/** Prevents concurrent localStorage→Supabase migration (e.g. React Strict Mode double mount = duplicate rows). */
+const WISHLIST_MIGRATE_LOCK_KEY = 'wishlist_supabase_migration_in_progress'
 
 // Parse favorited_by safely — only non-empty usernames count as real likes.
 // Handles null, undefined, non-array, JSON string, and invalid entries like "" or null.
@@ -180,6 +182,8 @@ export default function WishlistButton({
   const [newItemImages, setNewItemImages] = useState<string[]>([])
   const [newItemLink, setNewItemLink] = useState('')
   const [isAdding, setIsAdding] = useState(false)
+  const [isSavingWishlistItem, setIsSavingWishlistItem] = useState(false)
+  const saveItemInFlightRef = useRef(false)
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null)
   const [showAddToTrip, setShowAddToTrip] = useState<string | null>(null)
   const [selectedDay, setSelectedDay] = useState(1)
@@ -335,12 +339,36 @@ export default function WishlistButton({
     loadWishlist()
   }, [groupByCategory])
 
-  // Migrate local data to Supabase
+  // Migrate local data to Supabase (single flight — avoids duplicate inserts from parallel loads)
   const migrateToSupabase = async (localWishlist: Wishlist) => {
-    console.log('Migrating wishlist to Supabase...')
-    for (const [category, items] of Object.entries(localWishlist)) {
-      for (const item of items) {
-        await saveSupabaseWishlistItem(toSupabaseFormat({ ...item, category }))
+    if (typeof window === 'undefined') return
+    try {
+      if (sessionStorage.getItem(WISHLIST_MIGRATE_LOCK_KEY) === '1') return
+      sessionStorage.setItem(WISHLIST_MIGRATE_LOCK_KEY, '1')
+    } catch {
+      return
+    }
+    try {
+      let fresh: WishlistItemDB[] = []
+      try {
+        fresh = await getSupabaseWishlistItems()
+      } catch (e) {
+        console.error('Wishlist migration: could not read Supabase', e)
+        return
+      }
+      if (fresh.length > 0) return
+
+      console.log('Migrating wishlist to Supabase...')
+      for (const [category, items] of Object.entries(localWishlist)) {
+        for (const item of items) {
+          await saveSupabaseWishlistItem(toSupabaseFormat({ ...item, category }))
+        }
+      }
+    } finally {
+      try {
+        sessionStorage.removeItem(WISHLIST_MIGRATE_LOCK_KEY)
+      } catch {
+        /* ignore */
       }
     }
   }
@@ -357,75 +385,85 @@ export default function WishlistButton({
 
   // Add or update item
   const saveItem = async () => {
+    if (saveItemInFlightRef.current) return
     // For threads, require link; for others, require name
     if (isLinkOnlyCategory) {
       if (!newItemLink.trim()) return
     } else {
       if (!newItemName.trim()) return
     }
-    
+
     const catId = getActiveCategoryId()
-    
-    if (editingItem) {
-      // Update existing item
-      const updatedItem = {
-        ...editingItem,
-        name: isLinkOnlyCategory 
-          ? (newItemName.trim() || newItemLink.trim()) // Use title if provided, else link
-          : newItemName.trim(), 
-        note: newItemNote.trim() || undefined,
-        imageUrl: newItemImages.length > 0 ? JSON.stringify(newItemImages) : editingItem.imageUrl,
-        link: newItemLink.trim() || undefined
+    saveItemInFlightRef.current = true
+    setIsSavingWishlistItem(true)
+    try {
+      if (editingItem) {
+        const updatedItem = {
+          ...editingItem,
+          name: isLinkOnlyCategory
+            ? (newItemName.trim() || newItemLink.trim())
+            : newItemName.trim(),
+          note: newItemNote.trim() || undefined,
+          imageUrl: newItemImages.length > 0 ? JSON.stringify(newItemImages) : editingItem.imageUrl,
+          link: newItemLink.trim() || undefined,
+        }
+
+        const newWishlist = {
+          ...wishlist,
+          [catId]: wishlist[catId].map(item =>
+            item.id === editingItem.id ? updatedItem : item
+          ),
+        }
+        saveWishlist(newWishlist)
+
+        if (typeof editingItem.id === 'number') {
+          const { error } = await updateSupabaseWishlistItem(editingItem.id, {
+            name: updatedItem.name,
+            note: updatedItem.note || null,
+            image_url: updatedItem.imageUrl || null,
+            link: updatedItem.link || null,
+          })
+          if (error) {
+            alert(`更新失敗：${error}`)
+            return
+          }
+        }
+        resetForm()
+      } else {
+        const newItemData = {
+          category: catId,
+          name: isLinkOnlyCategory
+            ? (newItemName.trim() || newItemLink.trim())
+            : newItemName.trim(),
+          note: newItemNote.trim() || undefined,
+          imageUrl: newItemImages.length > 0 ? JSON.stringify(newItemImages) : undefined,
+          link: newItemLink.trim() || undefined,
+          favoritedBy: [],
+          isFavorite: false,
+        }
+
+        const result = await saveSupabaseWishlistItem(toSupabaseFormat(newItemData))
+        if (result.error || !result.data) {
+          alert(result.error || '新增失敗，請稍後再試')
+          return
+        }
+
+        const newItem: WishlistItem = {
+          id: result.data.id,
+          ...newItemData,
+          addedAt: new Date().toISOString(),
+        }
+        const newWishlist = {
+          ...wishlist,
+          [catId]: [...wishlist[catId], newItem],
+        }
+        saveWishlist(newWishlist)
+        resetForm()
       }
-      
-      const newWishlist = {
-        ...wishlist,
-        [catId]: wishlist[catId].map(item => 
-          item.id === editingItem.id ? updatedItem : item
-        ),
-      }
-      saveWishlist(newWishlist)
-      
-      // Sync to Supabase
-      if (typeof editingItem.id === 'number') {
-        await updateSupabaseWishlistItem(editingItem.id, {
-          name: updatedItem.name,
-          note: updatedItem.note || null,
-          image_url: updatedItem.imageUrl || null,
-          link: updatedItem.link || null,
-        })
-      }
-    } else {
-      // Create new item - first save to Supabase to get the ID
-      const user = getCurrentUser()
-      const newItemData = {
-        category: catId,
-        name: isLinkOnlyCategory 
-          ? (newItemName.trim() || newItemLink.trim())
-          : newItemName.trim(),
-        note: newItemNote.trim() || undefined,
-        imageUrl: newItemImages.length > 0 ? JSON.stringify(newItemImages) : undefined,
-        link: newItemLink.trim() || undefined,
-        favoritedBy: [], // Only show bubble when user presses like — not when adding
-        isFavorite: false,
-      }
-      
-      const result = await saveSupabaseWishlistItem(toSupabaseFormat(newItemData))
-      
-      const newItem: WishlistItem = {
-        id: result.data?.id || Date.now(),
-        ...newItemData,
-        addedAt: new Date().toISOString(),
-      }
-      
-      const newWishlist = {
-        ...wishlist,
-        [catId]: [...wishlist[catId], newItem],
-      }
-      saveWishlist(newWishlist)
+    } finally {
+      saveItemInFlightRef.current = false
+      setIsSavingWishlistItem(false)
     }
-    
-    resetForm()
   }
 
   // Reset form
@@ -810,11 +848,15 @@ export default function WishlistButton({
                           取消
                         </button>
                         <button
-                          onClick={saveItem}
-                          disabled={isLinkOnlyCategory ? !newItemLink.trim() : !newItemName.trim()}
+                          type="button"
+                          onClick={() => void saveItem()}
+                          disabled={
+                            isSavingWishlistItem ||
+                            (isLinkOnlyCategory ? !newItemLink.trim() : !newItemName.trim())
+                          }
                           className="flex-1 py-2 bg-pink-500 hover:bg-pink-600 disabled:bg-pink-300 text-white rounded-lg text-sm transition-colors"
                         >
-                          {editingItem ? '更新' : '新增'}
+                          {isSavingWishlistItem ? '儲存中…' : editingItem ? '更新' : '新增'}
                         </button>
                       </div>
                     </motion.div>

@@ -208,7 +208,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
 
   return (
     <div 
-      className="fixed bottom-20 right-4 md:bottom-6 md:left-6 md:right-auto z-30 cursor-pointer select-none w-14 h-14 md:w-20 md:h-20 flex flex-col items-center justify-center pointer-events-auto"
+      className="fixed bottom-20 right-4 md:bottom-6 md:left-6 md:right-auto z-30 cursor-pointer select-none w-16 h-16 md:w-20 md:h-20 flex flex-col items-center justify-center pointer-events-auto"
       onClick={handleClick}
     >
       {/* Chiikawa Character with floating animation - bubble moves together */}
@@ -315,7 +315,7 @@ export default function ChiikawaPet({ enabled = true }: ChiikawaPetProps) {
           repeat: Infinity,
           ease: 'easeInOut',
         }}
-        className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-10 md:w-14 h-1.5 md:h-2 bg-black/20 rounded-full blur-sm"
+        className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-11 md:w-14 h-1.5 md:h-2 bg-black/20 rounded-full blur-sm"
       />
 
     </div>

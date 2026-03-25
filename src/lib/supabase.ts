@@ -606,7 +606,17 @@ export async function getSupabaseWishlistItems(): Promise<WishlistItemDB[]> {
       return []
     }
 
-    return data || []
+    const rows = data || []
+    // Defensive: same id should not appear twice; keeps UI stable if data is ever odd
+    const byId = new Map<number, WishlistItemDB>()
+    for (const row of rows) {
+      if (row && typeof row.id === 'number' && !byId.has(row.id)) {
+        byId.set(row.id, row)
+      }
+    }
+    return Array.from(byId.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
   } catch (err) {
     console.error('Supabase wishlist error:', err)
     return []
