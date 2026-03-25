@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -24,6 +24,7 @@ import {
   parseFavoritedBy,
   isWishlistLocalItemLikedByUser,
   wishlistLocalItemHasLikeSignal,
+  normalizedEquals,
 } from '@/lib/wishlistLikeUtils'
 import { canEdit, getCurrentUser, isAdmin as checkIsAdmin, isAuthenticated, logout, getUsers, getUsersAsync, getAuthToken, getLoggedInUsername, type User } from '@/lib/auth'
 import SakuraCanvas from '@/components/SakuraCanvas'
@@ -386,15 +387,51 @@ export default function WishlistPage() {
   // Get user's current avatar from users list (most up-to-date)
   // Returns undefined if no avatar, so UI can show initials fallback
   const getUserAvatar = (username: string, fallbackAvatarUrl?: string): string | undefined => {
-    const user = users.find(u => u.username === username)
+    const user = users.find(u => normalizedEquals(u.username, username))
     return user?.avatarUrl || fallbackAvatarUrl || undefined
   }
 
   // Get user's current display name from users list (most up-to-date)
   // Falls back to stored displayName, then username
   const getUserDisplayName = (username: string, fallbackDisplayName?: string): string => {
-    const user = users.find(u => u.username === username)
+    const user = users.find(u => normalizedEquals(u.username, username))
     return user?.displayName || fallbackDisplayName || username
+  }
+
+  /** Avatar in 已讚好 bubble: image or initial (avoids empty grey when URL missing). */
+  const renderLikeBubbleAvatar = (
+    username: string | undefined,
+    resolvedUrl: string | undefined,
+    size: 'sm' | 'md'
+  ) => {
+    const box = size === 'sm' ? 'w-4 h-4 min-w-4 min-h-4 text-[8px]' : 'w-5 h-5 min-w-5 min-h-5 text-[9px]'
+    const border = size === 'sm' ? 'border border-black/75' : 'border-2 border-black/75'
+    if (resolvedUrl) {
+      return <img src={resolvedUrl} alt="" className={`${box} rounded-full object-cover ${border}`} />
+    }
+    const label = username ? getUserDisplayName(username) : ''
+    const initial = (label || username || '?').charAt(0) || '?'
+    return (
+      <div
+        className={`${box} rounded-full bg-white/40 flex items-center justify-center font-bold text-white shrink-0 ${border}`}
+        aria-hidden
+      >
+        {initial}
+      </div>
+    )
+  }
+
+  const avatarUrlForLiker = (
+    likerUsername: string,
+    item: WishlistItem,
+    session?: { username: string; avatarUrl?: string } | null
+  ): string | undefined => {
+    const added = item.addedBy
+    const fromAdded =
+      added && normalizedEquals(added.username, likerUsername) ? added.avatarUrl : undefined
+    const fromSession =
+      session && normalizedEquals(likerUsername, session.username) ? session.avatarUrl : undefined
+    return getUserAvatar(likerUsername, fromAdded || fromSession)
   }
   
   // Toggle travel notice item check (synced to Supabase)
@@ -1252,25 +1289,40 @@ export default function WishlistPage() {
                   {/* Like bubble - bottom left (avatar + 已讚好 + ❤️) */}
                   {wishlistLocalItemHasLikeSignal(item) && (() => {
                     const favoritedBy = (item.favoritedBy || []) as string[]
-                    const loggedInUsername = (currentUser || getCurrentUser())?.username ?? getLoggedInUsername()
-                    const isCurrentUserLiked = favoritedBy.includes(loggedInUsername || '')
-                    const otherUsername = favoritedBy.find(u => u !== loggedInUsername)
-                    const otherAvatar = otherUsername ? getUserAvatar(otherUsername, item.addedBy?.username === otherUsername ? item.addedBy.avatarUrl : users.find(u => u.username === otherUsername)?.avatarUrl) : undefined
-                    const currentUserAvatar = loggedInUsername ? getUserAvatar(loggedInUsername, currentUser?.avatarUrl ?? users.find(u => u.username === loggedInUsername)?.avatarUrl) : undefined
-                    const avatars = isCurrentUserLiked && otherUsername
-                      ? [currentUserAvatar, otherAvatar]
-                      : (isCurrentUserLiked ? [currentUserAvatar] : [otherAvatar])
+                    const sessionUser = currentUser || getCurrentUser()
+                    const loggedInUsername = sessionUser?.username ?? getLoggedInUsername() ?? ''
+                    const isCurrentUserLiked = isWishlistLocalItemLikedByUser(item, loggedInUsername)
+                    const otherUsername = favoritedBy.find(u => !normalizedEquals(u, loggedInUsername))
+
+                    let likerUsernames: string[] = []
+                    if (favoritedBy.length === 0) {
+                      if (isCurrentUserLiked && loggedInUsername) likerUsernames = [loggedInUsername]
+                      else if (item.addedBy?.username) likerUsernames = [item.addedBy.username]
+                    } else if (isCurrentUserLiked && otherUsername && loggedInUsername) {
+                      likerUsernames = [loggedInUsername, otherUsername]
+                    } else if (isCurrentUserLiked && loggedInUsername) {
+                      likerUsernames = [loggedInUsername]
+                    } else if (otherUsername) {
+                      likerUsernames = [otherUsername]
+                    } else if (item.addedBy?.username) {
+                      likerUsernames = [item.addedBy.username]
+                    }
+
                     return (
                       <div className="absolute bottom-2 left-2 pointer-events-none">
                         <div className="bg-black/75 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1.5">
                           <div className="flex -space-x-1">
-                            {favoritedBy.length === 0 ? (
-                              <div className="w-4 h-4 rounded-full bg-white/30 border border-black/75" />
+                            {likerUsernames.length === 0 ? (
+                              renderLikeBubbleAvatar(undefined, undefined, 'sm')
                             ) : (
-                              avatars.map((url, i) => url ? (
-                                <img key={i} src={url} alt="" className="w-4 h-4 rounded-full object-cover border border-black/75" />
-                              ) : (
-                                <div key={i} className="w-4 h-4 rounded-full bg-white/30 border border-black/75" />
+                              likerUsernames.map((un, i) => (
+                                <Fragment key={`${un}-${i}`}>
+                                  {renderLikeBubbleAvatar(
+                                    un,
+                                    un ? avatarUrlForLiker(un, item, sessionUser) : undefined,
+                                    'sm'
+                                  )}
+                                </Fragment>
                               ))
                             )}
                           </div>
@@ -1964,39 +2016,45 @@ export default function WishlistPage() {
                   </div>
                   {/* Bottom left: Like bubble — favoritedBy 或舊版 is_favorite */}
                   {(() => {
-                    const currentUserInfo = getCurrentUser()
-                    const loggedInUsername = currentUserInfo?.username ?? getLoggedInUsername()
+                    const sessionUser = currentUser || getCurrentUser()
+                    const loggedInUsername = sessionUser?.username ?? getLoggedInUsername() ?? ''
                     const addedBy = selectedItemPopup.addedBy
                     const liveItem = Object.values(wishlist).flat().find(i => String(i.id) === String(selectedItemPopup.id))
                     const effective = liveItem ?? selectedItemPopup
                     if (!wishlistLocalItemHasLikeSignal(effective)) return null
                     const favoritedBy = (effective.favoritedBy ?? []) as string[]
-                    const isCurrentUserLiked = favoritedBy.includes(loggedInUsername || '')
-                    const currentUserAvatar = loggedInUsername ? getUserAvatar(loggedInUsername, currentUserInfo?.avatarUrl ?? users.find(u => u.username === loggedInUsername)?.avatarUrl) : undefined
+                    const isCurrentUserLiked = isWishlistLocalItemLikedByUser(effective, loggedInUsername)
+                    const otherUsername = favoritedBy.find(u => !normalizedEquals(u, loggedInUsername))
+
+                    let likerUsernames: string[] = []
                     if (favoritedBy.length === 0) {
-                      return (
-                        <motion.div
-                          className="absolute bottom-3 left-3 pointer-events-none"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ duration: 0.3, ease: 'easeOut' }}
-                        >
-                          <div className="bg-black/75 text-white text-xs px-3 py-2 rounded-full backdrop-blur-sm shadow-lg flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-full bg-white/30 border-2 border-black/75" />
-                            <span>已讚好 ❤️</span>
-                          </div>
-                        </motion.div>
-                      )
+                      if (isCurrentUserLiked && loggedInUsername) likerUsernames = [loggedInUsername]
+                      else if (effective.addedBy?.username) likerUsernames = [effective.addedBy.username]
+                    } else if (isCurrentUserLiked && otherUsername && loggedInUsername) {
+                      likerUsernames = [loggedInUsername, otherUsername]
+                    } else if (isCurrentUserLiked && loggedInUsername) {
+                      likerUsernames = [loggedInUsername]
+                    } else if (otherUsername) {
+                      likerUsernames = [otherUsername]
+                    } else if (effective.addedBy?.username) {
+                      likerUsernames = [effective.addedBy.username]
                     }
-                    const otherUsername = favoritedBy.find(u => u !== loggedInUsername)
-                    const otherDisplayName = otherUsername ? getUserDisplayName(otherUsername, addedBy?.username === otherUsername ? addedBy.displayName : users.find(u => u.username === otherUsername)?.displayName) : ''
-                    const otherAvatar = otherUsername ? getUserAvatar(otherUsername, addedBy?.username === otherUsername ? addedBy.avatarUrl : users.find(u => u.username === otherUsername)?.avatarUrl) : undefined
-                    const text = isCurrentUserLiked
-                      ? (otherUsername ? `你 和 ${otherDisplayName} 也對此讚好` : '你 對此讚好')
-                      : `${otherDisplayName} 對此讚好`
-                    const avatars = isCurrentUserLiked && otherUsername
-                      ? [currentUserAvatar, otherAvatar]
-                      : (isCurrentUserLiked ? [currentUserAvatar] : [otherAvatar])
+
+                    const otherDisplayName = otherUsername
+                      ? getUserDisplayName(
+                          otherUsername,
+                          addedBy && normalizedEquals(addedBy.username, otherUsername) ? addedBy.displayName : undefined
+                        )
+                      : ''
+                    const text =
+                      favoritedBy.length === 0
+                        ? '已讚好'
+                        : isCurrentUserLiked
+                          ? otherUsername
+                            ? `你 和 ${otherDisplayName} 也對此讚好`
+                            : '你 對此讚好'
+                          : `${otherDisplayName} 對此讚好`
+
                     return (
                       <motion.div
                         className="absolute bottom-3 left-3 pointer-events-none"
@@ -2006,11 +2064,15 @@ export default function WishlistPage() {
                       >
                         <div className="bg-black/75 text-white text-xs px-3 py-2 rounded-full backdrop-blur-sm shadow-lg flex items-center gap-2">
                           <div className="flex -space-x-1.5">
-                            {avatars.map((url, i) => url ? (
-                              <img key={i} src={url} alt="" className="w-5 h-5 rounded-full object-cover border-2 border-black/75" />
+                            {likerUsernames.length === 0 ? (
+                              renderLikeBubbleAvatar(undefined, undefined, 'md')
                             ) : (
-                              <div key={i} className="w-5 h-5 rounded-full bg-white/30 border-2 border-black/75" />
-                            ))}
+                              likerUsernames.map((un, i) => (
+                                <Fragment key={`${un}-${i}`}>
+                                  {renderLikeBubbleAvatar(un, avatarUrlForLiker(un, effective, sessionUser), 'md')}
+                                </Fragment>
+                              ))
+                            )}
                           </div>
                           <span>{text} ❤️</span>
                         </div>
@@ -2058,37 +2120,45 @@ export default function WishlistPage() {
                   <div className="flex items-center justify-between gap-2 mb-2">
                     {/* Bottom left: Like bubble — favoritedBy 或舊版 is_favorite */}
                     {(() => {
-                      const currentUserInfo = getCurrentUser()
-                      const loggedInUsername = currentUserInfo?.username ?? getLoggedInUsername()
+                      const sessionUser = currentUser || getCurrentUser()
+                      const loggedInUsername = sessionUser?.username ?? getLoggedInUsername() ?? ''
                       const addedBy = selectedItemPopup.addedBy
                       const liveItem = Object.values(wishlist).flat().find(i => String(i.id) === String(selectedItemPopup.id))
                       const effective = liveItem ?? selectedItemPopup
                       if (!wishlistLocalItemHasLikeSignal(effective)) return <div />
                       const favoritedBy = (effective.favoritedBy ?? []) as string[]
-                      const isCurrentUserLiked = favoritedBy.includes(loggedInUsername || '')
-                      const currentUserAvatar = loggedInUsername ? getUserAvatar(loggedInUsername, currentUserInfo?.avatarUrl ?? users.find(u => u.username === loggedInUsername)?.avatarUrl) : undefined
+                      const isCurrentUserLiked = isWishlistLocalItemLikedByUser(effective, loggedInUsername)
+                      const otherUsername = favoritedBy.find(u => !normalizedEquals(u, loggedInUsername))
+
+                      let likerUsernames: string[] = []
                       if (favoritedBy.length === 0) {
-                        return (
-                          <motion.div
-                            className="bg-black/75 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-2"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.3, ease: 'easeOut' }}
-                          >
-                            <div className="w-5 h-5 rounded-full bg-white/30 border-2 border-black/75" />
-                            <span>已讚好 ❤️</span>
-                          </motion.div>
-                        )
+                        if (isCurrentUserLiked && loggedInUsername) likerUsernames = [loggedInUsername]
+                        else if (effective.addedBy?.username) likerUsernames = [effective.addedBy.username]
+                      } else if (isCurrentUserLiked && otherUsername && loggedInUsername) {
+                        likerUsernames = [loggedInUsername, otherUsername]
+                      } else if (isCurrentUserLiked && loggedInUsername) {
+                        likerUsernames = [loggedInUsername]
+                      } else if (otherUsername) {
+                        likerUsernames = [otherUsername]
+                      } else if (effective.addedBy?.username) {
+                        likerUsernames = [effective.addedBy.username]
                       }
-                      const otherUsername = favoritedBy.find(u => u !== loggedInUsername)
-                      const otherDisplayName = otherUsername ? getUserDisplayName(otherUsername, addedBy?.username === otherUsername ? addedBy.displayName : users.find(u => u.username === otherUsername)?.displayName) : ''
-                      const otherAvatar = otherUsername ? getUserAvatar(otherUsername, addedBy?.username === otherUsername ? addedBy.avatarUrl : users.find(u => u.username === otherUsername)?.avatarUrl) : undefined
-                      const text = isCurrentUserLiked
-                        ? (otherUsername ? `你 和 ${otherDisplayName} 也對此讚好` : '你 對此讚好')
-                        : `${otherDisplayName} 對此讚好`
-                      const avatars = isCurrentUserLiked && otherUsername
-                        ? [currentUserAvatar, otherAvatar]
-                        : (isCurrentUserLiked ? [currentUserAvatar] : [otherAvatar])
+
+                      const otherDisplayName = otherUsername
+                        ? getUserDisplayName(
+                            otherUsername,
+                            addedBy && normalizedEquals(addedBy.username, otherUsername) ? addedBy.displayName : undefined
+                          )
+                        : ''
+                      const text =
+                        favoritedBy.length === 0
+                          ? '已讚好'
+                          : isCurrentUserLiked
+                            ? otherUsername
+                              ? `你 和 ${otherDisplayName} 也對此讚好`
+                              : '你 對此讚好'
+                            : `${otherDisplayName} 對此讚好`
+
                       return (
                         <motion.div
                           className="bg-black/75 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-2"
@@ -2097,11 +2167,15 @@ export default function WishlistPage() {
                           transition={{ duration: 0.3, ease: 'easeOut' }}
                         >
                           <div className="flex -space-x-1.5">
-                            {avatars.map((url, i) => url ? (
-                              <img key={i} src={url} alt="" className="w-5 h-5 rounded-full object-cover border-2 border-black/75" />
+                            {likerUsernames.length === 0 ? (
+                              renderLikeBubbleAvatar(undefined, undefined, 'md')
                             ) : (
-                              <div key={i} className="w-5 h-5 rounded-full bg-white/30 border-2 border-black/75" />
-                            ))}
+                              likerUsernames.map((un, i) => (
+                                <Fragment key={`${un}-${i}`}>
+                                  {renderLikeBubbleAvatar(un, avatarUrlForLiker(un, effective, sessionUser), 'md')}
+                                </Fragment>
+                              ))
+                            )}
                           </div>
                           <span>{text} ❤️</span>
                         </motion.div>

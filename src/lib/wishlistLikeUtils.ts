@@ -16,7 +16,8 @@ export function parseFavoritedBy(raw: unknown): string[] {
   return arr.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
 }
 
-function normalizedEquals(a: string, b: string): boolean {
+/** Case-insensitive username match (aligned with login / like checks). */
+export function normalizedEquals(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase()
 }
 
