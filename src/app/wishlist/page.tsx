@@ -637,8 +637,8 @@ export default function WishlistPage() {
         imageUrl: imageUrlValue,
         link: newItemUrl.trim() || undefined,
         area: newItemArea || undefined,
-        favoritedBy: user ? [user.username] : [],
-        isFavorite: !!user,
+        favoritedBy: [],
+        isFavorite: false,
         addedBy: user ? {
           username: user.username,
           displayName: user.displayName,
