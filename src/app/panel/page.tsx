@@ -49,6 +49,7 @@ import MultiMediaUpload from '@/components/MultiMediaUpload'
 import ImageCropper from '@/components/ImageCropper'
 import ImageSlider from '@/components/ImageSlider'
 import TravelWalletModal from '@/components/TravelWalletModal'
+import FlightInfoModal from '@/components/FlightInfoModal'
 import MyLikedFoodModal from '@/components/MyLikedFoodModal'
 import { safeSetItem } from '@/lib/safeStorage'
 import { OPEN_TRAVEL_WALLET_QUERY } from '@/lib/travelWalletUi'
@@ -253,6 +254,7 @@ export default function AdminPage() {
   const [isAdminUser, setIsAdminUser] = useState(false)
   // Travel Wallet state
   const [showWallet, setShowWallet] = useState(false)
+  const [showFlightInfo, setShowFlightInfo] = useState(false)
   const [trashItems, setTrashItems] = useState<{
     trips: Trip[]
     users: User[]
@@ -271,7 +273,7 @@ export default function AdminPage() {
   
   // Disable background scrolling when any popup/modal is active
   useEffect(() => {
-    const anyPopupOpen = showForm || showSettings || showUserManagement || showProfileEdit || showProfileCropper || profileAvatarLightboxUrl != null || showTravelNoticePopup || showDestinationModal || showTrashBin || showWishlistManagement || showMyLikedFood || showChiikawaEdit || showChiikawaEditDesktop || showWallet || showTripDetail
+    const anyPopupOpen = showForm || showSettings || showUserManagement || showProfileEdit || showProfileCropper || profileAvatarLightboxUrl != null || showTravelNoticePopup || showDestinationModal || showTrashBin || showWishlistManagement || showMyLikedFood || showChiikawaEdit || showChiikawaEditDesktop || showWallet || showFlightInfo || showTripDetail
     if (anyPopupOpen) {
       document.body.style.overflow = 'hidden'
     } else {
@@ -280,7 +282,7 @@ export default function AdminPage() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, profileAvatarLightboxUrl, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showMyLikedFood, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showTripDetail])
+  }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, profileAvatarLightboxUrl, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showMyLikedFood, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showFlightInfo, showTripDetail])
 
   // Refresh settingsForm from latest Supabase data whenever the dialog opens
   useEffect(() => {
@@ -1050,6 +1052,23 @@ export default function AdminPage() {
               <p className="font-semibold text-gray-900 text-sm">旅行錢包</p>
               <p className="text-xs text-gray-400 mt-0.5">記錄旅程的消費</p>
             </button>
+            <button
+              type="button"
+              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95 text-left"
+              onClick={async () => {
+                try {
+                  const s = await refreshSettings()
+                  setSiteSettings(s)
+                } catch {
+                  setSiteSettings(getSettings())
+                }
+                setShowFlightInfo(true)
+              }}
+            >
+              <span className="text-3xl block mb-2">✈️</span>
+              <p className="font-semibold text-gray-900 text-sm">航班資料</p>
+              <p className="text-xs text-gray-400 mt-0.5">機票時間與航廈</p>
+            </button>
             {isAdminUser && (
               <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
                 <p className="text-xs text-gray-400 mb-1.5 flex items-center gap-1">🌏 目的地</p>
@@ -1147,6 +1166,34 @@ export default function AdminPage() {
 
           {/* Mobile Trip Management Heading — hidden for now */}
         </div>
+
+        {/* Desktop：成員也可開啟航班資料（管理員主區塊在下方） */}
+        {!isAdminUser && (
+          <div className="hidden md:block mb-6">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const s = await refreshSettings()
+                  setSiteSettings(s)
+                } catch {
+                  setSiteSettings(getSettings())
+                }
+                setShowFlightInfo(true)
+              }}
+              className="w-full bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow text-left flex items-center gap-4"
+            >
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl bg-gradient-to-br from-violet-500 to-purple-700 text-white shadow-sm">
+                ✈️
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-gray-800">航班資料</h3>
+                <p className="text-xs text-gray-500 mt-0.5">檢視範例版面並新增你的航班</p>
+              </div>
+              <span className="text-gray-300 text-lg">→</span>
+            </button>
+          </div>
+        )}
 
         {/* ===== DESKTOP BENTO GRID ===== */}
         <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
@@ -1666,6 +1713,42 @@ export default function AdminPage() {
               className="mt-4 w-full py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
             >
               開啟錢包
+            </button>
+          </div>
+
+          {/* Flight info - Desktop (admin grid) */}
+          <div className="hidden md:block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 text-xl text-white shadow-sm"
+                  style={{ background: 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)' }}
+                >
+                  ✈️
+                </div>
+                <h3 className="font-semibold text-gray-800 mb-1">航班資料</h3>
+                <p className="text-xs text-gray-500">機票、航廈與時間</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {(siteSettings?.flights?.length ?? 0) > 0
+                    ? `已存 ${siteSettings!.flights!.length} 筆`
+                    : '使用表單新增'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const s = await refreshSettings()
+                  setSiteSettings(s)
+                } catch {
+                  setSiteSettings(getSettings())
+                }
+                setShowFlightInfo(true)
+              }}
+              className="mt-4 w-full py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
+            >
+              開啟航班
             </button>
           </div>
 
@@ -3056,6 +3139,21 @@ export default function AdminPage() {
           themeColor={themeColor}
           isAdminUser={isAdminUser}
           onNotify={(msg) => setMessage(msg)}
+        />
+
+        <FlightInfoModal
+          open={showFlightInfo}
+          onClose={() => setShowFlightInfo(false)}
+          flights={siteSettings?.flights ?? []}
+          isAdminUser={isAdminUser}
+          onSave={async (next) => {
+            const r = await saveSettingsAsync({ flights: next })
+            setSiteSettings((prev) =>
+              prev ? { ...prev, flights: next } : { ...getSettings(), flights: next }
+            )
+            if (r.success) setMessage({ type: 'success', text: '航班資料已更新' })
+            else setMessage({ type: 'error', text: r.error || '同步失敗，資料已寫入本機' })
+          }}
         />
 
         {/* 已讚好 Modal */}

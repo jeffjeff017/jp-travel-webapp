@@ -8,7 +8,7 @@ export function getDayScheduleTheme(dayNumber: number, settings: DayLabelSetting
   return t || undefined
 }
 
-/** 下拉選單選項：Day N · 標題 (M/D) */
+/** 下拉選單選項：Day N · 標題 (M/D 週X) */
 export function formatTripDaySelectOption(dayNumber: number, settings: DayLabelSettings): string {
   const theme = getDayScheduleTheme(dayNumber, settings)
   let datePart = ''
@@ -16,7 +16,7 @@ export function formatTripDaySelectOption(dayNumber: number, settings: DayLabelS
     const start = new Date(settings.tripStartDate)
     const t = new Date(start)
     t.setDate(start.getDate() + dayNumber - 1)
-    datePart = `(${t.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })})`
+    datePart = `(${t.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric', weekday: 'short' })})`
   }
   const base = `Day ${dayNumber}`
   if (theme) return `${base} · ${theme} ${datePart}`.trim()

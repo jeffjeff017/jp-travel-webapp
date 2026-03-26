@@ -857,11 +857,14 @@ function MainPageContent() {
     
     const dayToRemove = settings.totalDays
     
-    // Check if there are trips on this day
-    const dayDate = getDayDate(dayToRemove)
+    // Check if there are trips on this day（與 filteredTrips 相同：以 ISO 日曆日比對）
+    const startRm = new Date(settings.tripStartDate)
+    const targetRm = new Date(startRm)
+    targetRm.setDate(startRm.getDate() + dayToRemove - 1)
+    const dayDateIso = targetRm.toISOString().split('T')[0]
     const tripsOnDay = trips.filter(trip => {
       const tripDate = new Date(trip.date).toISOString().split('T')[0]
-      return tripDate === dayDate
+      return tripDate === dayDateIso
     })
     
     let confirmMessage = `確定要刪除 Day ${dayToRemove} 嗎？`
@@ -974,13 +977,15 @@ function MainPageContent() {
     })
   }, [trips])
 
-  // Get date for a specific day
+  // Get date + weekday for a specific day（依行程開始日推算）
   const getDayDate = (dayNum: number) => {
     if (!settings?.tripStartDate) return ''
     const startDate = new Date(settings.tripStartDate)
     const targetDate = new Date(startDate)
     targetDate.setDate(startDate.getDate() + dayNum - 1)
-    return targetDate.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })
+    const md = targetDate.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })
+    const wd = targetDate.toLocaleDateString('zh-TW', { weekday: 'short' })
+    return `${md} ${wd}`
   }
 
   // toggleSakuraMode is disabled on main page — sakura mode is admin-controlled via Supabase settings

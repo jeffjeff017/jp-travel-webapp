@@ -1,7 +1,10 @@
 // Site settings with Supabase sync
 import { getSupabaseSiteSettings, saveSupabaseSiteSettings, type SiteSettingsDB, type DestinationDB, getSupabaseDestinations, DEFAULT_DESTINATIONS } from './supabase'
+import { DEFAULT_FLIGHT_CX527_RETURN, DEFAULT_SEED_FLIGHTS, type FlightRecord } from './flightInfo'
 
 const SETTINGS_KEY = 'site_settings'
+/** 使用者曾透過儲存明確清空航班列表時設為 1，之後不再自動寫入預設航班 */
+const FLIGHT_LIST_USER_EMPTIED_KEY = 'site_settings_flight_list_user_emptied'
 const SETTINGS_CACHE_KEY = 'site_settings_cache_time'
 const DESTINATION_KEY = 'current_destination'
 const DESTINATIONS_CACHE_KEY = 'destinations_cache'
@@ -44,6 +47,8 @@ export interface SiteSettings {
   }
   // Sakura mode enabled — synced to Supabase; admin toggles via site settings (default: true)
   sakuraModeEnabled?: boolean
+  /** 個人資料「航班資料」列表（與 site_settings.flights 同步） */
+  flights?: FlightRecord[]
 }
 
 // Default travel notice items
@@ -81,6 +86,7 @@ const defaultSettings: SiteSettings = {
   travelEssentials: defaultTravelEssentials,
   travelPreparations: defaultTravelPreparations,
   sakuraModeEnabled: true,
+  flights: [...DEFAULT_SEED_FLIGHTS],
 }
 
 // Convert from Supabase format to local format
@@ -102,6 +108,7 @@ function fromSupabaseFormat(db: SiteSettingsDB): SiteSettings | null {
     recaptchaEnabled: db.recaptcha_enabled || false,
     chiikawaMessages: db.chiikawa_messages || undefined,
     sakuraModeEnabled: db.sakura_mode_enabled ?? true,
+    flights: Array.isArray(db.flights) ? db.flights : [],
   }
 }
 
@@ -119,23 +126,58 @@ function toSupabaseFormat(settings: Partial<SiteSettings>): Partial<Omit<SiteSet
   if (settings.recaptchaEnabled !== undefined) result.recaptcha_enabled = settings.recaptchaEnabled
   if (settings.chiikawaMessages !== undefined) result.chiikawa_messages = settings.chiikawaMessages
   if (settings.sakuraModeEnabled !== undefined) result.sakura_mode_enabled = settings.sakuraModeEnabled
-  
+  if (settings.flights !== undefined) result.flights = settings.flights
+
   return result
+}
+
+/** Supabase 航班為空時寫入預設去程+回程；僅有舊版單筆 UO848 時補上回程 CX527 */
+async function ensureDefaultFlightSeeded(settings: SiteSettings): Promise<SiteSettings> {
+  let flights = Array.isArray(settings.flights) ? settings.flights : []
+
+  if (flights.length === 0) {
+    if (typeof window !== 'undefined' && localStorage.getItem(FLIGHT_LIST_USER_EMPTIED_KEY)) {
+      return { ...settings, flights: [] }
+    }
+    const seeded = { ...settings, flights: [...DEFAULT_SEED_FLIGHTS] }
+    if (typeof window !== 'undefined') {
+      await saveSupabaseSiteSettings({ flights: seeded.flights })
+    }
+    return seeded
+  }
+
+  const hasOutboundSeed = flights.some((f) => f.id === 'uo848-20260516')
+  const hasReturnSeed = flights.some((f) => f.id === 'cx527-20260522')
+  if (hasOutboundSeed && !hasReturnSeed) {
+    const upgraded = { ...settings, flights: [...flights, DEFAULT_FLIGHT_CX527_RETURN] }
+    if (typeof window !== 'undefined') {
+      await saveSupabaseSiteSettings({ flights: upgraded.flights })
+    }
+    return upgraded
+  }
+
+  return settings
 }
 
 // Get settings from localStorage cache
 function getLocalSettings(): SiteSettings {
   if (typeof window === 'undefined') return defaultSettings
-  
+
   try {
     const stored = localStorage.getItem(SETTINGS_KEY)
-    if (stored) {
-      return { ...defaultSettings, ...JSON.parse(stored) }
-    }
+    const merged: SiteSettings = stored
+      ? { ...defaultSettings, ...JSON.parse(stored) }
+      : { ...defaultSettings }
+
+    const flights = Array.isArray(merged.flights)
+      ? merged.flights
+      : defaultSettings.flights
+
+    return { ...merged, flights }
   } catch (e) {
     console.error('Error reading settings from localStorage:', e)
   }
-  
+
   return defaultSettings
 }
 
@@ -181,10 +223,10 @@ export async function getSettingsAsync(): Promise<SiteSettings> {
     
     if (dbSettings) {
       const settings = fromSupabaseFormat(dbSettings)
-      // Supabase is the single source of truth — always use it when data exists
       if (settings) {
-        saveLocalSettings(settings)
-        return settings
+        const final = await ensureDefaultFlightSeeded(settings)
+        saveLocalSettings(final)
+        return final
       }
     }
   } catch (err) {
@@ -209,6 +251,17 @@ export async function saveSettingsAsync(settings: Partial<SiteSettings>): Promis
   // Save to localStorage first (optimistic update)
   const current = getLocalSettings()
   const updated = { ...current, ...settings }
+  if (
+    typeof window !== 'undefined' &&
+    settings.flights !== undefined &&
+    Array.isArray(settings.flights)
+  ) {
+    if (settings.flights.length === 0) {
+      localStorage.setItem(FLIGHT_LIST_USER_EMPTIED_KEY, '1')
+    } else {
+      localStorage.removeItem(FLIGHT_LIST_USER_EMPTIED_KEY)
+    }
+  }
   saveLocalSettings(updated)
   
   // Then sync to Supabase
@@ -235,8 +288,9 @@ export async function refreshSettings(): Promise<SiteSettings> {
     if (dbSettings) {
       const settings = fromSupabaseFormat(dbSettings)
       if (settings) {
-        saveLocalSettings(settings)
-        return settings
+        const final = await ensureDefaultFlightSeeded(settings)
+        saveLocalSettings(final)
+        return final
       }
     }
   } catch (err) {

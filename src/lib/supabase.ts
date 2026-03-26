@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import type { FlightRecord } from './flightInfo'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -376,6 +377,7 @@ export type SiteSettingsDB = {
     hachiware?: string[]
     usagi?: string[]
   } | null
+  flights?: FlightRecord[] | null
   updated_at: string
 }
 
