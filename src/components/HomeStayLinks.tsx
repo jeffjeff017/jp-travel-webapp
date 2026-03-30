@@ -15,14 +15,15 @@ export const PREAS_CHECKIN_CODE = 'HMHT95WZN3'
 const NOTICE_LABEL = '入住須知 : PREAS錦糸町'
 const GUIDE_LABEL = '入住指南 : PREAS錦糸町'
 
-type Variant = 'modal' | 'card' | 'map'
+type Variant = 'modal' | 'map'
 
 type Props = {
   variant: Variant
 }
 
 /**
- * 住所區塊底下的入住須知（PDF）與入住指南（開啟驗證頁並複製驗證碼）。
+ * 入住須知（PDF）與入住指南（開啟驗證頁並複製驗證碼）。
+ * 用於地圖 popup（modal）與地圖資訊視窗（map）；主畫面住所卡片不顯示此區塊。
  */
 export default function HomeStayLinks({ variant }: Props) {
   const [tip, setTip] = useState<string | null>(null)
@@ -48,7 +49,6 @@ export default function HomeStayLinks({ variant }: Props) {
   )
 
   const isModal = variant === 'modal'
-  const isCard = variant === 'card'
 
   const rowBase =
     'flex items-center gap-2 w-full text-left rounded-lg transition-colors border-0 bg-transparent cursor-pointer font-sans'
@@ -60,9 +60,7 @@ export default function HomeStayLinks({ variant }: Props) {
 
   const wrapClass = isModal
     ? 'mt-3 pt-3 border-t border-gray-100 space-y-0.5'
-    : isCard
-      ? 'mt-2 space-y-0.5 ml-7'
-      : 'mt-2 space-y-0.5'
+    : 'mt-2 space-y-0.5'
 
   const tipClass = isModal
     ? 'text-xs text-amber-900 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-2'

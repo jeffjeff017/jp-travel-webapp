@@ -53,6 +53,10 @@ const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
   ),
 })
 
+/** Google 地圖 — 2026 東京慶生之旅（收藏地圖） */
+const TOKYO_2026_TRIP_GOOGLE_MAP_URL =
+  'https://maps.app.goo.gl/URqVhMsXZu6f16cFA?g_st=i'
+
 // Schedule item type for point-form list
 type ScheduleItem = {
   id: string
@@ -1269,8 +1273,29 @@ function MainPageContent() {
                     <h3 className="font-medium text-gray-800">{settings.homeLocation.name}</h3>
                   </div>
                   <p className="text-sm text-gray-500 ml-7">{settings.homeLocation.address}</p>
-                  <HomeStayLinks variant="card" />
-                  <p className="text-xs text-blue-500 ml-7 mt-1">點擊查看位置及路線</p>
+                  <div className="mt-3 ml-7 flex flex-wrap gap-2 items-stretch">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowHomeMapPopup(true)
+                      }}
+                      className="inline-flex items-center justify-center rounded-lg bg-blue-500 px-3 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1"
+                    >
+                      點擊查看位置及路線
+                    </button>
+                    <a
+                      href={TOKYO_2026_TRIP_GOOGLE_MAP_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center justify-center rounded-lg border-2 border-sakura-400 bg-white px-3 py-2 text-xs font-medium text-sakura-700 shadow-sm transition-colors hover:bg-sakura-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sakura-300 focus-visible:ring-offset-1 text-center max-w-full min-w-0"
+                    >
+                      <span className="text-left leading-snug break-words">
+                        加入 2026 東京慶生之旅👶🏻❤️
+                      </span>
+                    </a>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -2214,7 +2239,7 @@ function MainPageContent() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden"
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-y-auto"
               style={{ maxHeight: '80vh' }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -2244,8 +2269,8 @@ function MainPageContent() {
                   </button>
                 </div>
               </div>
-              {/* Google Maps Embed */}
-              <div className="w-full" style={{ height: '400px' }}>
+              {/* Google Maps Embed — 較矮以便同屏顯示地址與入住連結 */}
+              <div className="w-full h-[min(260px,42vh)] min-h-[200px] shrink-0">
                 <iframe
                   width="100%"
                   height="100%"
