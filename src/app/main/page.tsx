@@ -1408,6 +1408,24 @@ function MainPageContent() {
               </div>
             )}
 
+            {/* Day Title Header */}
+            {(() => {
+              const daySchedule = settings?.daySchedules?.find(d => d.dayNumber === selectedDay)
+              const dayTitle = daySchedule?.theme
+              if (!dayTitle || dayTitle === `Day ${selectedDay}`) return null
+              return (
+                <div className="mb-4 px-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sakura-400">✦</span>
+                    <h3 className="text-base font-medium text-sakura-600 truncate">
+                      {dayTitle}
+                    </h3>
+                    <span className="text-sakura-400">✦</span>
+                  </div>
+                </div>
+              )
+            })()}
+
             {isLoading ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-center py-4">
