@@ -27,6 +27,13 @@ async function optimizeFile(filePath) {
   const ext = path.extname(filePath).toLowerCase()
   const rel = path.relative(publicDir, filePath)
 
+  // 副檔名為 .png 但內容為 GIF（動畫）時，sharp 會誤轉成靜態 PNG，務必略過
+  const magic = buf.slice(0, 6).toString('ascii')
+  if (ext === '.png' && magic.startsWith('GIF8')) {
+    console.log(`略過（PNG 副檔名但為 GIF 動畫）: ${rel}`)
+    return
+  }
+
   const meta = await sharp(buf).metadata()
   const didResize = Boolean(meta.width && meta.width > MAX_WIDTH)
   let pipeline = sharp(buf).rotate()

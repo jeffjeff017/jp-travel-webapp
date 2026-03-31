@@ -24,9 +24,9 @@ const LOGIN_CHARACTER_IMAGES = [
 
 // Pet images for mouse follower
 const PET_IMAGES = [
-  '/images/chiikawa-pet.png',
-  '/images/hachiware-pet.png',
-  '/images/chii-pet.png',
+  '/images/chiikawa-pet.gif',
+  '/images/hachiware-pet.gif',
+  '/images/chii-pet.gif',
 ]
 
 // Inner login form component that uses reCAPTCHA hook

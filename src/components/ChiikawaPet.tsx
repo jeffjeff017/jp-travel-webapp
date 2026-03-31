@@ -10,16 +10,16 @@ interface ChiikawaPetProps {
 
 // Array of character images (randomly selected on load)
 const CHARACTER_IMAGES = [
-  '/images/chii-pet.png',        // Chiikawa (small round white creature)
-  '/images/hachiware-pet.png',   // Hachiware (cat)
-  '/images/chiikawa-pet.png',    // Usagi (rabbit with pink ears)
+  '/images/chii-pet.gif',        // Chiikawa (small round white creature)
+  '/images/hachiware-pet.gif',   // Hachiware (cat)
+  '/images/chiikawa-pet.gif',    // Usagi (rabbit with pink ears)
 ]
 
 // Character key mapping - maps image file to character key for settings
 const CHARACTER_KEYS: Record<string, 'chiikawa' | 'hachiware' | 'usagi'> = {
-  '/images/chii-pet.png': 'chiikawa',       // Chiikawa → maps to 吉伊 dialogues
-  '/images/hachiware-pet.png': 'hachiware', // Hachiware → maps to 小八 dialogues
-  '/images/chiikawa-pet.png': 'usagi',      // Usagi → maps to 兔兔 dialogues
+  '/images/chii-pet.gif': 'chiikawa',       // Chiikawa → maps to 吉伊 dialogues
+  '/images/hachiware-pet.gif': 'hachiware', // Hachiware → maps to 小八 dialogues
+  '/images/chiikawa-pet.gif': 'usagi',      // Usagi → maps to 兔兔 dialogues
 }
 
 // Default character-specific messages - keyed by CHARACTER TYPE, not image path
