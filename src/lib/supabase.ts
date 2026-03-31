@@ -1,10 +1,36 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { FlightRecord } from './flightInfo'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+/**
+ * Lazily initialized so build-time SSR / static generation does not crash
+ * when env vars are absent (e.g. Vercel build before env vars are configured).
+ * The real client is only created when `supabase` is first called in the browser.
+ */
+let _client: SupabaseClient | null = null
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+function getClient(): SupabaseClient {
+  if (_client) return _client
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) {
+    throw new Error(
+      'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY are not set.\n' +
+        'Add them in Vercel Dashboard → Settings → Environment Variables.'
+    )
+  }
+  _client = createClient(url, key)
+  return _client
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getClient()
+    const val = (client as any)[prop]
+    if (typeof val === 'function') return val.bind(client)
+    return val
+  },
+})
 
 export type Trip = {
   id: number
