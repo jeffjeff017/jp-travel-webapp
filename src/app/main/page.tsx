@@ -897,6 +897,21 @@ function MainPageContent() {
     }
   }
 
+  /** 管理員：確認後累加當日 ❤️❤️（每日獨立） */
+  const handleDayHeartDevilClick = async () => {
+    if (!isActualAdmin) return
+    if (!confirm('確定新增一次❤️❤️次數?')) return
+    const base = settings ?? getSettings()
+    const prev = { ...(base.dayHeartCounts || {}) }
+    const nextCounts = { ...prev, [selectedDay]: (prev[selectedDay] || 0) + 1 }
+    lastLocalSaveRef.current = Date.now()
+    setSettings({ ...base, dayHeartCounts: nextCounts })
+    const r = await saveSettingsAsync({ dayHeartCounts: nextCounts })
+    if (!r.success) {
+      console.warn('[dayHeartCounts] save failed:', r.error)
+    }
+  }
+
   // Handle day reorder via drag and drop
   const handleDayReorder = async (fromDay: number, toDay: number) => {
     if (!settings || fromDay === toDay) return
@@ -1433,19 +1448,51 @@ function MainPageContent() {
               </div>
             )}
 
-            {/* Day Title Header */}
+            {/* Day Title Header — 標題靠左；管理員：0 次小 😈，&gt;0 顯示「❤️❤️次數 N 次」；成員顯示開發中 */}
             {(() => {
               const daySchedule = settings?.daySchedules?.find(d => d.dayNumber === selectedDay)
               const dayTitle = daySchedule?.theme
               if (!dayTitle || dayTitle === `Day ${selectedDay}`) return null
+              const heartTotal = settings?.dayHeartCounts?.[selectedDay] ?? 0
               return (
                 <div className="mb-4 px-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sakura-400">✦</span>
-                    <h3 className="text-base font-medium text-sakura-600 truncate">
-                      {dayTitle}
-                    </h3>
-                    <span className="text-sakura-400">✦</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="text-sakura-400 shrink-0">✦</span>
+                      <h3 className="text-base font-medium text-sakura-600 truncate">{dayTitle}</h3>
+                      <span className="text-sakura-400 shrink-0">✦</span>
+                    </div>
+                    <div className="flex items-center justify-end shrink-0">
+                      {isActualAdmin ? (
+                        heartTotal > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleDayHeartDevilClick()}
+                            className="max-w-[52vw] sm:max-w-none px-2 py-1.5 rounded-xl border border-sakura-100 bg-white shadow-sm hover:bg-sakura-50 active:scale-[0.98] transition-transform text-left"
+                            aria-label={`❤️❤️次數 ${heartTotal} 次，點擊可再新增`}
+                          >
+                            <span className="text-[10px] sm:text-[11px] font-medium text-sakura-700 leading-tight block whitespace-nowrap">
+                              ❤️❤️次數 {heartTotal} 次
+                            </span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void handleDayHeartDevilClick()}
+                            className="h-8 w-8 shrink-0 flex items-center justify-center rounded-xl border border-sakura-100 bg-white shadow-sm hover:bg-sakura-50 active:scale-95 transition-transform"
+                            aria-label="新增 ❤️❤️次數"
+                          >
+                            <span className="text-base leading-none select-none" style={{ fontSize: '0.95rem' }}>
+                              😈
+                            </span>
+                          </button>
+                        )
+                      ) : (
+                        <span className="text-[10px] sm:text-[11px] text-gray-400 text-right leading-snug max-w-[7.5rem] sm:max-w-[9rem]">
+                          😈功能開發中
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               )
@@ -2697,7 +2744,7 @@ function MainPageContent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4 pb-[max(1rem,calc(4.5rem+env(safe-area-inset-bottom,0px)))] overscroll-none"
             onClick={(e) => {
               if (e.target === e.currentTarget) closeForm()
             }}
@@ -2707,7 +2754,7 @@ function MainPageContent() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
               transition={{ type: 'spring', damping: 28, stiffness: 350 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[88vh] overflow-hidden flex flex-col"
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[min(88dvh,calc(100dvh-5.5rem-env(safe-area-inset-bottom,0px)))] overflow-hidden flex flex-col min-h-0"
             >
               {/* Fixed Header */}
               <div className="p-4 md:p-6 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
@@ -2739,7 +2786,7 @@ function MainPageContent() {
               )}
 
               {showPlacePicker ? (
-                <div className="flex-1 overflow-y-auto p-4 md:p-6">
+                <div className="flex-1 min-h-0 overflow-y-auto modal-scroll overscroll-contain p-4 md:p-6">
                   <PlacePicker
                     value={{
                       location: formData.location,
@@ -2753,7 +2800,7 @@ function MainPageContent() {
               ) : (
                 <>
                   {/* Scrollable Form Content */}
-                  <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+                  <div className="flex-1 min-h-0 overflow-y-auto modal-scroll overscroll-contain p-4 md:p-6 space-y-4">
                     {/* Title */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">

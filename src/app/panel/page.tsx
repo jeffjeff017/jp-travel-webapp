@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
@@ -41,6 +41,7 @@ import {
   setCurrentDestination,
   getDestinations,
   getDestinationsAsync,
+  getTotalDayHeartCounts,
 } from '@/lib/settings'
 import { useLanguage } from '@/lib/i18n'
 import LanguageSwitch from '@/components/LanguageSwitch'
@@ -225,6 +226,8 @@ export default function AdminPage() {
   // Wishlist management state
   const [showWishlistManagement, setShowWishlistManagement] = useState(false)
   const [showMyLikedFood, setShowMyLikedFood] = useState(false)
+  const [showDayHeartStatsPopup, setShowDayHeartStatsPopup] = useState(false)
+  const dayHeartAdjustBusyRef = useRef(false)
   const [wishlistItems, setWishlistItems] = useState<WishlistItemDB[]>([])
   const [editingWishlistItem, setEditingWishlistItem] = useState<WishlistItemDB | null>(null)
   const [wishlistSearchQuery, setWishlistSearchQuery] = useState('')
@@ -273,7 +276,7 @@ export default function AdminPage() {
   
   // Disable background scrolling when any popup/modal is active
   useEffect(() => {
-    const anyPopupOpen = showForm || showSettings || showUserManagement || showProfileEdit || showProfileCropper || profileAvatarLightboxUrl != null || showTravelNoticePopup || showDestinationModal || showTrashBin || showWishlistManagement || showMyLikedFood || showChiikawaEdit || showChiikawaEditDesktop || showWallet || showFlightInfo || showTripDetail
+    const anyPopupOpen = showForm || showSettings || showUserManagement || showProfileEdit || showProfileCropper || profileAvatarLightboxUrl != null || showTravelNoticePopup || showDestinationModal || showTrashBin || showWishlistManagement || showMyLikedFood || showDayHeartStatsPopup || showChiikawaEdit || showChiikawaEditDesktop || showWallet || showFlightInfo || showTripDetail
     if (anyPopupOpen) {
       document.body.style.overflow = 'hidden'
     } else {
@@ -282,7 +285,7 @@ export default function AdminPage() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, profileAvatarLightboxUrl, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showMyLikedFood, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showFlightInfo, showTripDetail])
+  }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, profileAvatarLightboxUrl, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showMyLikedFood, showDayHeartStatsPopup, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showFlightInfo, showTripDetail])
 
   // Refresh settingsForm from latest Supabase data whenever the dialog opens
   useEffect(() => {
@@ -543,6 +546,29 @@ export default function AdminPage() {
   // Refresh trips via TanStack Query invalidation
   const fetchTrips = async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
+  }
+
+  /** 個人資料 popup：管理員調整單日 ❤️❤️次數（+ / −） */
+  const adjustDayHeartCount = async (day: number, delta: number) => {
+    if (dayHeartAdjustBusyRef.current) return
+    const base = siteSettings ?? getSettings()
+    const prev = { ...(base.dayHeartCounts || {}) }
+    const cur = prev[day] ?? 0
+    const nextVal = Math.max(0, cur + delta)
+    if (delta < 0 && cur <= 0) return
+    const nextCounts: Record<number, number> = { ...prev }
+    if (nextVal === 0) delete nextCounts[day]
+    else nextCounts[day] = nextVal
+    dayHeartAdjustBusyRef.current = true
+    setSiteSettings({ ...base, dayHeartCounts: nextCounts })
+    try {
+      const r = await saveSettingsAsync({ dayHeartCounts: nextCounts })
+      if (!r.success) {
+        setMessage({ type: 'error', text: r.error || '❤️❤️次數同步失敗（已保留本機）' })
+      }
+    } finally {
+      dayHeartAdjustBusyRef.current = false
+    }
   }
 
   // Refresh wishlist via TanStack Query invalidation
@@ -929,7 +955,7 @@ export default function AdminPage() {
   }
 
   return (
-    <main className={`min-h-screen bg-gray-50 pb-20 md:pb-0 ${!isSakuraMode ? 'clean-mode' : ''}`}>
+    <main className={`min-h-[100dvh] bg-gray-50 pb-20 md:pb-0 ${!isSakuraMode ? 'clean-mode' : ''}`}>
       {/* Sakura Effect */}
       <SakuraCanvas enabled={isSakuraMode} />
       
@@ -1088,6 +1114,30 @@ export default function AdminPage() {
 
           {/* 已讚好的美食清單：全員；美食清單後台管理：管理員 */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            {isAdminUser && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const s = await refreshSettings()
+                    setSiteSettings(s)
+                  } catch {
+                    setSiteSettings(getSettings())
+                  }
+                  setShowDayHeartStatsPopup(true)
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+              >
+                <span className="text-lg w-6 text-center leading-none">❤️</span>
+                <p className="flex-1 text-left text-sm font-medium text-gray-800">❤️❤️次數</p>
+                <span className="text-xs font-semibold text-sakura-600 tabular-nums">
+                  {getTotalDayHeartCounts(siteSettings?.dayHeartCounts)}
+                </span>
+                <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setShowMyLikedFood(true)}
@@ -1416,6 +1466,38 @@ export default function AdminPage() {
               <span className="text-gray-400">→</span>
             </div>
           </a>
+
+          {/* Mobile：❤️❤️次數（僅管理員） */}
+          {isAdminUser && (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const s = await refreshSettings()
+                  setSiteSettings(s)
+                } catch {
+                  setSiteSettings(getSettings())
+                }
+                setShowDayHeartStatsPopup(true)
+              }}
+              className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-400 to-pink-600 flex items-center justify-center text-xl shrink-0">
+                    😈
+                  </div>
+                  <div className="text-left min-w-0">
+                    <h3 className="font-semibold text-gray-800 text-sm">❤️❤️次數</h3>
+                    <p className="text-xs text-gray-500 truncate">各日累計總覽</p>
+                  </div>
+                </div>
+                <span className="text-lg font-bold text-sakura-600 tabular-nums shrink-0">
+                  {getTotalDayHeartCounts(siteSettings?.dayHeartCounts)}
+                </span>
+              </div>
+            </button>
+          )}
 
           {/* Mobile: 已讚好的美食清單（全員） */}
           <button
@@ -3161,6 +3243,104 @@ export default function AdminPage() {
           open={showMyLikedFood}
           onClose={() => setShowMyLikedFood(false)}
         />
+
+        {/* ❤️❤️次數總覽（僅管理員） */}
+        <AnimatePresence>
+          {showDayHeartStatsPopup && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 overscroll-none"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setShowDayHeartStatsPopup(false)
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[min(88dvh,520px)] min-h-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                  <h3 className="text-base font-semibold text-gray-900">❤️❤️次數</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowDayHeartStatsPopup(false)}
+                    className="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center"
+                    aria-label="關閉"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto modal-scroll px-5 py-6 text-center">
+                  {(() => {
+                    const s = siteSettings ?? getSettings()
+                    const counts = s.dayHeartCounts ?? {}
+                    const total = getTotalDayHeartCounts(counts)
+                    const totalDays = s.totalDays ?? 0
+                    const rows = Array.from({ length: totalDays }, (_, i) => {
+                      const day = i + 1
+                      const theme = s.daySchedules?.find((d) => d.dayNumber === day)?.theme
+                      const label =
+                        theme && theme !== `Day ${day}` ? theme : `Day ${day}`
+                      return { day, label, c: counts[day] ?? 0 }
+                    })
+                    return (
+                      <>
+                        <div className="text-3xl leading-none mb-4 select-none" aria-hidden>
+                          😈
+                        </div>
+                        <p className="text-sm text-gray-500 tracking-wide">總 ❤️❤️ 次數</p>
+                        <p className="mt-2 text-4xl font-bold text-sakura-600 tabular-nums">{total}</p>
+                        <div className="mt-8 pt-6 border-t border-gray-100 text-left space-y-2.5">
+                          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                            各日明細（管理員可 ±）
+                          </p>
+                          {rows.map(({ day, label, c }) => (
+                            <div
+                              key={day}
+                              className="flex items-center justify-between gap-2 text-sm py-2 px-2 sm:px-3 rounded-xl bg-gray-50/80"
+                            >
+                              <span className="text-gray-600 truncate min-w-0 flex-1">
+                                <span className="font-medium text-gray-800">Day {day}</span>
+                                <span className="text-gray-400 mx-1.5">·</span>
+                                <span className="truncate">{label}</span>
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => void adjustDayHeartCount(day, -1)}
+                                  disabled={c <= 0}
+                                  className="w-8 h-8 rounded-lg bg-gray-200 text-gray-700 text-lg font-medium leading-none hover:bg-gray-300 disabled:opacity-35 disabled:pointer-events-none transition-colors"
+                                  aria-label={`Day ${day} 減少一次`}
+                                >
+                                  −
+                                </button>
+                                <span className="w-7 text-center font-semibold text-sakura-600 tabular-nums text-sm">
+                                  {c}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => void adjustDayHeartCount(day, 1)}
+                                  className="w-8 h-8 rounded-lg bg-sakura-500 text-white text-lg font-medium leading-none hover:bg-sakura-600 transition-colors"
+                                  aria-label={`Day ${day} 增加一次`}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Trash Bin Modal */}
         <AnimatePresence>

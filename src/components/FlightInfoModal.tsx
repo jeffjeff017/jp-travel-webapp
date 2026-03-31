@@ -1,17 +1,21 @@
 'use client'
 
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { FlightRecord } from '@/lib/flightInfo'
 import {
   airportCodeCityLine,
+  classifyFlightLeg,
   computeFlightDurationLabel,
   emptyFlightForm,
   flightRecordFromForm,
   formatFlightFooterLine,
 } from '@/lib/flightInfo'
 
-const BTN = '#4F46E5'
+/** 去程分頁主色 */
+const OUTBOUND_COLOR = 'rgb(112, 43, 145)'
+/** 回程分頁主色 */
+const RETURN_COLOR = '#002527'
 
 function FlightListCard({
   flight,
@@ -165,7 +169,7 @@ function FlightRecordFormFields({
   setForm: Dispatch<SetStateAction<Omit<FlightRecord, 'id'>>>
 }) {
   const inp =
-    'border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200 text-sm'
+    'border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200 text-base sm:text-sm'
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
       <label className="flex flex-col gap-1 sm:col-span-2">
@@ -388,12 +392,24 @@ export default function FlightInfoModal({
   const [showAddForm, setShowAddForm] = useState(false)
   const [form, setForm] = useState(emptyFlightForm)
   const [saving, setSaving] = useState(false)
+  const [legTab, setLegTab] = useState<'outbound' | 'return'>('outbound')
+
+  const { outboundFlights, returnFlights } = useMemo(() => {
+    const outbound: FlightRecord[] = []
+    const ret: FlightRecord[] = []
+    for (const f of list) {
+      if (classifyFlightLeg(f) === 'return') ret.push(f)
+      else outbound.push(f)
+    }
+    return { outboundFlights: outbound, returnFlights: ret }
+  }, [list])
 
   useEffect(() => {
     if (open) {
       setList(flights)
       setForm(emptyFlightForm())
       setShowAddForm(false)
+      setLegTab('outbound')
     }
   }, [open, flights])
 
@@ -450,7 +466,7 @@ export default function FlightInfoModal({
         disabled={saving}
         onClick={handleAdd}
         className="mt-4 w-full py-2.5 rounded-xl text-white font-medium text-sm disabled:opacity-50 transition-opacity"
-        style={{ backgroundColor: BTN }}
+        style={{ backgroundColor: OUTBOUND_COLOR }}
       >
         {saving ? '儲存中…' : '新增並儲存'}
       </button>
@@ -464,7 +480,7 @@ export default function FlightInfoModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 md:p-4"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-3 md:p-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,calc(4.5rem+env(safe-area-inset-bottom,0px)))] overscroll-none"
           onClick={(e) => {
             if (e.target === e.currentTarget) onClose()
           }}
@@ -473,7 +489,7 @@ export default function FlightInfoModal({
             initial={{ opacity: 0, scale: 0.96, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 16 }}
-            className="bg-gray-50 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
+            className="bg-gray-50 rounded-2xl shadow-xl w-full max-w-lg max-h-[min(90dvh,calc(100dvh-5.5rem-env(safe-area-inset-bottom,0px)))] flex flex-col min-h-0 overflow-hidden"
           >
             <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
               <h3 className="text-lg font-semibold text-gray-900">航班資料</h3>
@@ -487,7 +503,7 @@ export default function FlightInfoModal({
               </button>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain p-4 space-y-4">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain modal-scroll p-4 space-y-4">
               {list.length > 0 && (
                 <div
                   className={`flex items-center mb-1 ${isAdminUser ? 'justify-between' : ''}`}
@@ -498,7 +514,7 @@ export default function FlightInfoModal({
                       type="button"
                       onClick={() => setShowAddForm((v) => !v)}
                       className="px-3 py-1.5 text-xs font-medium rounded-lg text-white transition-colors"
-                      style={{ backgroundColor: BTN }}
+                      style={{ backgroundColor: OUTBOUND_COLOR }}
                     >
                       {showAddForm ? '取消新增' : '+ 新增航班'}
                     </button>
@@ -520,15 +536,63 @@ export default function FlightInfoModal({
               </AnimatePresence>
 
               {list.length > 0 ? (
-                <div className="space-y-3">
-                  {list.map((f) => (
-                    <FlightListCard
-                      key={f.id}
-                      flight={f}
-                      onDelete={isAdminUser ? () => handleRemove(f.id) : undefined}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div
+                    className="flex rounded-xl overflow-hidden border border-gray-200 bg-white p-0.5 gap-0.5"
+                    role="tablist"
+                    aria-label="去程與回程"
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={legTab === 'outbound'}
+                      onClick={() => setLegTab('outbound')}
+                      className={`flex-1 py-2.5 px-2 text-xs sm:text-sm font-semibold rounded-[10px] transition-colors ${
+                        legTab === 'outbound' ? 'text-white shadow-sm' : 'text-gray-600 bg-gray-50 hover:bg-gray-100'
+                      }`}
+                      style={
+                        legTab === 'outbound'
+                          ? { backgroundColor: OUTBOUND_COLOR }
+                          : undefined
+                      }
+                    >
+                      去程
+                      <span className="ml-1 opacity-80 font-normal">({outboundFlights.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={legTab === 'return'}
+                      onClick={() => setLegTab('return')}
+                      className={`flex-1 py-2.5 px-2 text-xs sm:text-sm font-semibold rounded-[10px] transition-colors ${
+                        legTab === 'return' ? 'text-white shadow-sm' : 'text-gray-600 bg-gray-50 hover:bg-gray-100'
+                      }`}
+                      style={
+                        legTab === 'return'
+                          ? { backgroundColor: RETURN_COLOR }
+                          : undefined
+                      }
+                    >
+                      回程
+                      <span className="ml-1 opacity-80 font-normal">({returnFlights.length})</span>
+                    </button>
+                  </div>
+                  <div className="space-y-3" role="tabpanel">
+                    {(legTab === 'outbound' ? outboundFlights : returnFlights).length > 0 ? (
+                      (legTab === 'outbound' ? outboundFlights : returnFlights).map((f) => (
+                        <FlightListCard
+                          key={f.id}
+                          flight={f}
+                          onDelete={isAdminUser ? () => handleRemove(f.id) : undefined}
+                        />
+                      ))
+                    ) : (
+                      <p className="text-center text-sm text-gray-500 py-6">
+                        {legTab === 'outbound' ? '此分頁尚無去程航班' : '此分頁尚無回程航班'}
+                      </p>
+                    )}
+                  </div>
+                </>
               ) : (
                 !showAddForm && (
                   <div className="text-center py-8">
@@ -540,7 +604,7 @@ export default function FlightInfoModal({
                         type="button"
                         onClick={() => setShowAddForm(true)}
                         className="px-4 py-2.5 rounded-xl text-white font-medium text-sm"
-                        style={{ backgroundColor: BTN }}
+                        style={{ backgroundColor: OUTBOUND_COLOR }}
                       >
                         + 新增航班
                       </button>

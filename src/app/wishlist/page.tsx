@@ -1461,7 +1461,7 @@ export default function WishlistPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,calc(4.5rem+env(safe-area-inset-bottom,0px)))] overscroll-none"
             onClick={closeWishlistForm}
           >
             <motion.div
@@ -1469,7 +1469,7 @@ export default function WishlistPage() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-md bg-white rounded-2xl max-h-[85vh] flex flex-col"
+              className="w-full max-w-md bg-white rounded-2xl max-h-[min(85dvh,calc(100dvh-5.5rem-env(safe-area-inset-bottom,0px)))] flex flex-col min-h-0 shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Fixed Header */}
@@ -1483,8 +1483,8 @@ export default function WishlistPage() {
                 </button>
               </div>
               
-              {/* Scrollable Content */}
-              <div className="flex-1 overflow-y-auto p-4 md:p-6">
+              {/* Scrollable Content — min-h-0 讓 flex 子項可縮小並出現捲軸 */}
+              <div className="flex-1 min-h-0 overflow-y-auto modal-scroll p-4 md:p-6 overscroll-contain">
                 <div className="space-y-4">
                   {/* Category Selector */}
                   <div>
@@ -1532,7 +1532,7 @@ export default function WishlistPage() {
                           />
                         </div>
                         {/* Option list — grouped by district */}
-                        <div className="max-h-60 overflow-y-auto">
+                        <div className="max-h-[min(15rem,45dvh)] overflow-y-auto modal-scroll overscroll-contain">
                           <button
                             type="button"
                             onClick={() => { setNewItemArea(''); setAreaDropdownOpen(false); setAreaSearch('') }}
@@ -1941,7 +1941,7 @@ export default function WishlistPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overscroll-none"
+            className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 pb-[max(1rem,calc(4.5rem+env(safe-area-inset-bottom,0px)))] overscroll-none"
             style={{ touchAction: 'none' }}
             onClick={() => { setSelectedItemPopup(null); setShowAddToTripForm(false); setPopupMoreMenuOpen(false) }}
           >
@@ -1950,7 +1950,7 @@ export default function WishlistPage() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-lg bg-white rounded-2xl overflow-hidden max-h-[85vh] overflow-y-auto overscroll-contain"
+              className="w-full max-w-lg bg-white rounded-2xl overflow-hidden max-h-[min(85dvh,calc(100dvh-5.5rem-env(safe-area-inset-bottom,0px)))] overflow-y-auto modal-scroll overscroll-contain min-h-0"
               style={{ WebkitOverflowScrolling: 'touch' }}
               onClick={(e) => e.stopPropagation()}
             >

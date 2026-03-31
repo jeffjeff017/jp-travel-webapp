@@ -378,6 +378,8 @@ export type SiteSettingsDB = {
     usagi?: string[]
   } | null
   flights?: FlightRecord[] | null
+  /** 各 Day 的 ❤️❤️ 累計，鍵為 "1","2",… */
+  day_heart_counts?: Record<string, number> | null
   updated_at: string
 }
 

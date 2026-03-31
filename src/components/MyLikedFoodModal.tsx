@@ -179,7 +179,7 @@ export default function MyLikedFoodModal({ open, onClose }: Props) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 40 }}
             transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-            className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] sm:max-h-[80vh] flex flex-col overflow-hidden"
+            className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[min(85dvh,calc(100dvh-5.5rem-env(safe-area-inset-bottom,0px)))] sm:max-h-[80vh] flex flex-col min-h-0 overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             {detailItem ? (
@@ -207,7 +207,7 @@ export default function MyLikedFoodModal({ open, onClose }: Props) {
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4">
+                <div className="flex-1 min-h-0 overflow-y-auto modal-scroll overscroll-contain p-4">
                   {isLoading ? (
                     <div className="flex justify-center py-16">
                       <div className="w-8 h-8 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
@@ -324,7 +324,7 @@ function LikedFoodDetailPanel({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-contain">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scroll">
         {images.length > 0 && (
           <div className="relative aspect-video bg-gray-100">
             {images.length === 1 ? (

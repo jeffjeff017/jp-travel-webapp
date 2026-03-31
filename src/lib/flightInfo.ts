@@ -126,6 +126,41 @@ export function airportCodeCityLine(code: string, city?: string): string {
   return c || '—'
 }
 
+/** 日本主要機場代碼（用於去程／回程分頁：香港→日本 vs 日本→香港） */
+const JP_AIRPORT_CODES = new Set([
+  'NRT',
+  'HND',
+  'KIX',
+  'CTS',
+  'FUK',
+  'OKA',
+  'NGO',
+  'SDJ',
+  'KOJ',
+  'HIJ',
+  'KMJ',
+  'NGS',
+  'OIT',
+  'TAK',
+  'TKS',
+])
+
+const HK_AIRPORT_CODES = new Set(['HKG'])
+
+/**
+ * 回程：由日本機場飛往香港；去程：由香港飛往日本。
+ * 無法判斷時（例如國內線）預設為去程。
+ */
+export function classifyFlightLeg(f: FlightRecord): 'outbound' | 'return' {
+  const dep = (f.depCode || '').toUpperCase().trim()
+  const arr = (f.arrCode || '').toUpperCase().trim()
+  if (JP_AIRPORT_CODES.has(dep) && HK_AIRPORT_CODES.has(arr)) return 'return'
+  if (HK_AIRPORT_CODES.has(dep) && JP_AIRPORT_CODES.has(arr)) return 'outbound'
+  if (HK_AIRPORT_CODES.has(arr) && dep && !HK_AIRPORT_CODES.has(dep)) return 'return'
+  if (HK_AIRPORT_CODES.has(dep) && arr && !HK_AIRPORT_CODES.has(arr)) return 'outbound'
+  return 'outbound'
+}
+
 export function emptyFlightForm(): Omit<FlightRecord, 'id'> {
   return {
     flightNumber: '',

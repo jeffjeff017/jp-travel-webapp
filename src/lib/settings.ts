@@ -49,6 +49,8 @@ export interface SiteSettings {
   sakuraModeEnabled?: boolean
   /** 個人資料「航班資料」列表（與 site_settings.flights 同步） */
   flights?: FlightRecord[]
+  /** 各 Day 的 ❤️❤️ 累計（管理員於行程頁 😈 新增） */
+  dayHeartCounts?: Record<number, number>
 }
 
 // Default travel notice items
@@ -67,6 +69,25 @@ export const defaultTravelPreparations: TravelNoticeItem[] = [
   { id: 'map', icon: '📋', text: '下載離線地圖' },
   { id: 'weather', icon: '🌡️', text: '查看天氣預報' },
 ]
+
+/** 解析 site_settings.day_heart_counts / localStorage */
+export function parseDayHeartCounts(raw: unknown): Record<number, number> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out: Record<number, number> = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const day = parseInt(k, 10)
+    const n = typeof v === 'number' && Number.isFinite(v) ? Math.floor(v) : parseInt(String(v), 10)
+    if (!Number.isFinite(day) || day < 1 || day > 99) continue
+    if (!Number.isFinite(n) || n < 0) continue
+    out[day] = Math.min(n, 99999)
+  }
+  return out
+}
+
+export function getTotalDayHeartCounts(counts: Record<number, number> | undefined): number {
+  if (!counts) return 0
+  return Object.values(counts).reduce((s, n) => s + (typeof n === 'number' ? n : 0), 0)
+}
 
 const defaultSettings: SiteSettings = {
   title: '日本旅遊',
@@ -109,6 +130,7 @@ function fromSupabaseFormat(db: SiteSettingsDB): SiteSettings | null {
     chiikawaMessages: db.chiikawa_messages || undefined,
     sakuraModeEnabled: db.sakura_mode_enabled ?? true,
     flights: Array.isArray(db.flights) ? db.flights : [],
+    dayHeartCounts: parseDayHeartCounts(db.day_heart_counts),
   }
 }
 
@@ -127,6 +149,14 @@ function toSupabaseFormat(settings: Partial<SiteSettings>): Partial<Omit<SiteSet
   if (settings.chiikawaMessages !== undefined) result.chiikawa_messages = settings.chiikawaMessages
   if (settings.sakuraModeEnabled !== undefined) result.sakura_mode_enabled = settings.sakuraModeEnabled
   if (settings.flights !== undefined) result.flights = settings.flights
+  if (settings.dayHeartCounts !== undefined) {
+    const o: Record<string, number> = {}
+    for (const [k, v] of Object.entries(settings.dayHeartCounts)) {
+      const n = typeof v === 'number' ? v : 0
+      o[String(k)] = n
+    }
+    result.day_heart_counts = o
+  }
 
   return result
 }
@@ -173,7 +203,11 @@ function getLocalSettings(): SiteSettings {
       ? merged.flights
       : defaultSettings.flights
 
-    return { ...merged, flights }
+    return {
+      ...merged,
+      flights,
+      dayHeartCounts: parseDayHeartCounts(merged.dayHeartCounts),
+    }
   } catch (e) {
     console.error('Error reading settings from localStorage:', e)
   }

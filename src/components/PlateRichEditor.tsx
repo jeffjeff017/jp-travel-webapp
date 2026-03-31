@@ -98,7 +98,7 @@ export default function PlateRichEditor({
           <MarkToolbar editor={editor} />
           <PlateContent
             placeholder={placeholder}
-            className="px-4 py-4 sm:px-5 sm:py-4 text-sm text-gray-800 leading-relaxed outline-none max-w-none [&_p+p]:mt-3 [&_[data-slate-placeholder]]:text-gray-400 [&_[data-slate-placeholder]]:opacity-100"
+            className="px-4 py-4 sm:px-5 sm:py-4 text-base sm:text-sm text-gray-800 leading-relaxed outline-none max-w-none [&_p+p]:mt-3 [&_[data-slate-placeholder]]:text-gray-400 [&_[data-slate-placeholder]]:opacity-100"
             style={{ minHeight }}
           />
         </Plate>

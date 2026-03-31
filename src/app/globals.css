@@ -13,6 +13,21 @@
 /* Mobile viewport height fix - prevents 100vh from extending behind browser chrome */
 html {
   height: -webkit-fill-available;
+  /* 減少 iOS 捲動到底時「底部突然被拉長」的橡皮筋效果 */
+  overscroll-behavior-y: none;
+}
+
+/*
+ * iOS Safari：可編輯區與帶 Tailwind text-sm 的 input 會覆蓋 base 字級，仍會觸發自動縮放。
+ * 窄螢幕強制表單控制項至少 16px（Apple 建議避免 focus  zoom）。
+ */
+@media (max-width: 640px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  textarea,
+  select,
+  [contenteditable='true'] {
+    font-size: 16px !important;
+  }
 }
 
 /* Prevent iOS Safari auto-zoom when focusing inputs (requires font-size >= 16px) */
@@ -29,6 +44,7 @@ body {
   );
   font-family: 'Noto Sans JP', sans-serif;
   min-height: -webkit-fill-available;
+  overscroll-behavior-y: none;
 }
 
 /* Hide all scrollbars globally while keeping scroll functionality */
@@ -49,6 +65,23 @@ body {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* 表單／彈窗內可捲區域：顯示細捲軸（全站其餘仍隱藏） */
+.modal-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+  -ms-overflow-style: auto;
+}
+
+.modal-scroll::-webkit-scrollbar {
+  display: block;
+  width: 6px;
+}
+
+.modal-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.22);
+  border-radius: 6px;
 }
 
 /* Sakura animation styles */
