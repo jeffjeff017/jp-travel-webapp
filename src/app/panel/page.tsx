@@ -57,6 +57,7 @@ import { OPEN_TRAVEL_WALLET_QUERY } from '@/lib/travelWalletUi'
 import { EMPTY_PLATE_JSON, isPlateJsonEffectivelyEmpty } from '@/lib/plateRich'
 import PlateRichEditor from '@/components/PlateRichEditor'
 import PlateRichView from '@/components/PlateRichView'
+import { compressImageFileToDataUrl } from '@/lib/compressImageClient'
 
 const PlacePicker = dynamic(() => import('@/components/PlacePicker'), {
   ssr: false,
@@ -2372,15 +2373,26 @@ export default function AdminPage() {
                           <input
                             type="file"
                             accept="image/*"
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const file = e.target.files?.[0]
-                              if (file) {
-                                const reader = new FileReader()
-                                reader.onloadend = () => {
-                                  setUserForm({ ...userForm, avatarUrl: reader.result as string })
-                                }
-                                reader.readAsDataURL(file)
+                              if (!file) return
+                              if (!file.type.startsWith('image/')) return
+                              if (file.size > 5 * 1024 * 1024) {
+                                alert('圖片不能超過 5MB')
+                                e.target.value = ''
+                                return
                               }
+                              try {
+                                const dataUrl = await compressImageFileToDataUrl(file, {
+                                  maxWidth: 512,
+                                  maxHeight: 512,
+                                  quality: 0.85,
+                                })
+                                setUserForm((prev) => ({ ...prev, avatarUrl: dataUrl }))
+                              } catch (err) {
+                                console.error(err)
+                              }
+                              e.target.value = ''
                             }}
                             className="w-full text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-sakura-50 file:text-sakura-600 hover:file:bg-sakura-100"
                           />
@@ -2617,16 +2629,26 @@ export default function AdminPage() {
                               type="file"
                               accept="image/*"
                               className="hidden"
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 const file = e.target.files?.[0]
-                                if (file) {
-                                  const reader = new FileReader()
-                                  reader.onloadend = () => {
-                                    setProfileCropImage(reader.result as string)
-                                    setShowProfileCropper(true)
-                                  }
-                                  reader.readAsDataURL(file)
+                                if (!file) return
+                                if (!file.type.startsWith('image/')) return
+                                if (file.size > 5 * 1024 * 1024) {
+                                  alert('圖片不能超過 5MB')
+                                  e.target.value = ''
+                                  return
                                 }
+                                try {
+                                  const dataUrl = await compressImageFileToDataUrl(file, {
+                                    maxWidth: 1920,
+                                    maxHeight: 1920,
+                                  })
+                                  setProfileCropImage(dataUrl)
+                                  setShowProfileCropper(true)
+                                } catch (err) {
+                                  console.error(err)
+                                }
+                                e.target.value = ''
                               }}
                             />
                           </label>

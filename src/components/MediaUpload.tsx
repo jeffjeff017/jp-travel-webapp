@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { compressImageFileToDataUrl } from '@/lib/compressImageClient'
 
 interface MediaUploadProps {
   value: string
@@ -43,20 +44,11 @@ export default function MediaUpload({
     setError(null)
 
     try {
-      // Convert to base64 for local storage
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string
-        onChange(base64)
-        setIsUploading(false)
-      }
-      reader.onerror = () => {
-        setError('讀取檔案失敗')
-        setIsUploading(false)
-      }
-      reader.readAsDataURL(file)
+      const base64 = await compressImageFileToDataUrl(file)
+      onChange(base64)
     } catch (err) {
-      setError('上傳失敗')
+      setError('讀取或壓縮檔案失敗')
+    } finally {
       setIsUploading(false)
     }
   }
@@ -158,7 +150,7 @@ export default function MediaUpload({
 
         {/* Help Text */}
         <p className="text-xs text-gray-400">
-          支援 JPG, PNG, GIF, WebP（最大 5MB）
+          支援 JPG, PNG, GIF, WebP（最大 5MB，上傳前會自動壓縮）
         </p>
       </div>
     </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { compressImageFileToDataUrl } from '@/lib/compressImageClient'
 
 interface MultiMediaUploadProps {
   value: string[] // Array of image URLs
@@ -53,12 +54,7 @@ export default function MultiMediaUpload({
       }
 
       try {
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = (event) => resolve(event.target?.result as string)
-          reader.onerror = () => reject(new Error('Failed to read file'))
-          reader.readAsDataURL(file)
-        })
+        const base64 = await compressImageFileToDataUrl(file)
         newImages.push(base64)
       } catch (err) {
         console.error('Error reading file:', err)
@@ -201,7 +197,7 @@ export default function MultiMediaUpload({
 
           {/* Help Text */}
           <p className="text-xs text-gray-400">
-            支援 JPG, PNG, GIF, WebP（每張最大 5MB）
+            支援 JPG, PNG, GIF, WebP（每張最大 5MB，上傳前會自動壓縮以加快儲存）
           </p>
         </div>
       )}
