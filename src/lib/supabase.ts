@@ -22,11 +22,12 @@ function getClient(): SupabaseClient {
   return _client
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// The Proxy defers actual Supabase client creation until first use,
+// avoiding top-level crashes during Next.js static generation (no env vars on server).
 export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     const client = getClient()
-    const val = (client as any)[prop]
+    const val = Reflect.get(client, prop)
     if (typeof val === 'function') return val.bind(client)
     return val
   },
