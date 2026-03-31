@@ -955,7 +955,11 @@ export default function AdminPage() {
   }
 
   return (
-    <main className={`min-h-[100dvh] bg-gray-50 pb-20 md:pb-0 ${!isSakuraMode ? 'clean-mode' : ''}`}>
+    <main
+      className={`min-h-[100dvh] bg-gray-50 ${
+        isSakuraMode ? 'pb-40 md:pb-0' : 'pb-20 md:pb-0'
+      } ${!isSakuraMode ? 'clean-mode' : ''}`}
+    >
       {/* Sakura Effect */}
       <SakuraCanvas enabled={isSakuraMode} />
       

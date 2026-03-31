@@ -1058,8 +1058,16 @@ export default function WishlistPage() {
     return () => ob.disconnect()
   }, [filteredItems, hasMore])
 
+  // 手機底欄 h-16 + 右下 Chiikawa（h-16、bottom-20）需額外留白；md 以上 Chiikawa 隱藏，維持原 pb-20／多選 pb-40
+  const mobileBottomPad =
+    isAdmin && bulkSelectMode
+      ? 'pb-48 md:pb-40'
+      : isSakuraMode
+        ? 'pb-40 md:pb-20'
+        : 'pb-20'
+
   return (
-    <main className={`bg-gray-50 ${isAdmin && bulkSelectMode ? 'pb-40' : 'pb-20'} ${!isSakuraMode ? 'clean-mode' : ''}`}>
+    <main className={`bg-gray-50 ${mobileBottomPad} ${!isSakuraMode ? 'clean-mode' : ''}`}>
       <SakuraCanvas enabled={isSakuraMode} />
       
       {/* Header - Airbnb style */}
