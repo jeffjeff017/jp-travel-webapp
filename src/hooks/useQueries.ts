@@ -132,14 +132,12 @@ export function useSaveSettings() {
 // Wishlist Items
 // ============================================
 
-export function useWishlistItems(options?: { enabled?: boolean }) {
+export function useWishlistItems(options?: { enabled?: boolean; initialData?: WishlistItemDB[] }) {
   return useQuery({
     queryKey: queryKeys.wishlistItems,
     queryFn: getSupabaseWishlistItems,
     enabled: options?.enabled,
-    // 60s staleTime: reduce unnecessary refetches on every tab focus.
-    // The wishlist data changes infrequently — manual mutations (add/edit/delete)
-    // will invalidate this query via queryClient.invalidateQueries on success.
+    initialData: options?.initialData,
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
   })
@@ -195,11 +193,12 @@ export function useDeleteWishlistItem() {
 // Checklist States
 // ============================================
 
-export function useChecklistStates(options?: { enabled?: boolean }) {
+export function useChecklistStates(options?: { enabled?: boolean; initialData?: ChecklistStateDB[] }) {
   return useQuery({
     queryKey: queryKeys.checklistStates,
     queryFn: getSupabaseChecklistStates,
     enabled: options?.enabled,
+    initialData: options?.initialData,
   })
 }
 
