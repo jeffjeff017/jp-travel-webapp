@@ -135,20 +135,10 @@ export function useSaveSettings() {
 export function useWishlistItems(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.wishlistItems,
-    queryFn: async () => {
-      // Fetch from Supabase (localStorage is handled via cache-first in the hook below)
-      return getSupabaseWishlistItems()
-    },
+    queryFn: getSupabaseWishlistItems,
     enabled: options?.enabled,
     staleTime: 10 * 1000,
     refetchOnWindowFocus: true,
-    // Return localStorage cache as initialData so page renders immediately on revisit,
-    // while TanStack still fetches in background for fresh data.
-    initialDataUpdatedAt: () => {
-      if (typeof window === 'undefined') return undefined
-      const t = localStorage.getItem('japan_travel_wishlist_cache_time')
-      return t ? parseInt(t, 10) : undefined
-    },
   })
 }
 

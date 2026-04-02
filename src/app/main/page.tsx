@@ -1238,7 +1238,7 @@ function MainPageContent() {
                             >
                               <div className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
                                 {thumbUrl ? (
-                                  <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
+                                  <img src={thumbUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
                                 ) : (
                                   <span className="text-xl" aria-hidden>{icon}</span>
                                 )}
@@ -1569,12 +1569,13 @@ function MainPageContent() {
                         return (
                           <div className="w-28 sm:w-36 flex-shrink-0 self-stretch overflow-hidden relative min-h-[90px]">
                             <div className="absolute inset-0">
-                              <ImageSlider 
-                                images={images} 
+                              <ImageSlider
+                                images={images}
                                 className="w-full h-full"
                                 autoPlay={images.length > 1}
                                 interval={6000}
                                 hideArrows
+                                priority
                               />
                             </div>
                           </div>
@@ -2032,6 +2033,7 @@ function MainPageContent() {
                       src={images[0]}
                       alt={selectedWishlistItem.name}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                     />
                   ) : (
                     <ImageSlider
@@ -2137,7 +2139,7 @@ function MainPageContent() {
                       return (
                         <>
                           {avatarUrl ? (
-                            <img src={avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
+                            <img src={avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" loading="lazy" />
                           ) : (
                             <div className="w-7 h-7 rounded-full bg-sakura-400 flex items-center justify-center text-white text-xs font-medium">
                               {displayName.charAt(0)}
@@ -2579,13 +2581,14 @@ function MainPageContent() {
                                     const userObj = users.find(u => u.username === user.username)
                                     const avatarUrl = userObj?.avatarUrl || user.avatarUrl
                                     return avatarUrl ? (
-                                      <img 
+                                      <img
                                         key={i}
-                                        src={avatarUrl} 
+                                        src={avatarUrl}
                                         alt={user.displayName}
                                         className="w-5 h-5 rounded-full border border-white object-cover shadow-sm"
                                         style={{ zIndex: checkedUsers.length - i }}
                                         title={user.displayName}
+                                        loading="lazy"
                                       />
                                     ) : (
                                       <div 
@@ -2674,13 +2677,14 @@ function MainPageContent() {
                                     const userObj = users.find(u => u.username === user.username)
                                     const avatarUrl = userObj?.avatarUrl || user.avatarUrl
                                     return avatarUrl ? (
-                                      <img 
+                                      <img
                                         key={i}
-                                        src={avatarUrl} 
+                                        src={avatarUrl}
                                         alt={user.displayName}
                                         className="w-5 h-5 rounded-full border border-white object-cover shadow-sm"
                                         style={{ zIndex: checkedUsers.length - i }}
                                         title={user.displayName}
+                                        loading="lazy"
                                       />
                                     ) : (
                                       <div 
@@ -3037,7 +3041,7 @@ function MainPageContent() {
                                       const imgs = parseImages(w.image_url || undefined)
                                       const src = imgs[0]
                                       return src ? (
-                                        <img src={src} alt={w.name} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
+                                        <img src={src} alt={w.name} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" loading="lazy" />
                                       ) : null
                                     })() ?? (
                                       <div className="w-9 h-9 rounded-lg bg-sakura-100 flex items-center justify-center flex-shrink-0 text-lg">💝</div>

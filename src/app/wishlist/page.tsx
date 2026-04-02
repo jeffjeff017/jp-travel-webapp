@@ -35,7 +35,6 @@ import { safeSetItem } from '@/lib/safeStorage'
 import { EMPTY_PLATE_JSON, extractPlainTextFromPlateJson, isPlateJsonEffectivelyEmpty } from '@/lib/plateRich'
 import PlateRichEditor from '@/components/PlateRichEditor'
 import PlateRichView from '@/components/PlateRichView'
-import WishlistCardImage from '@/components/WishlistCardImage'
 import { TOKYO_DISTRICTS, TOKYO_AREAS } from '@/lib/tokyoDistricts'
 
 // Main categories
@@ -199,7 +198,7 @@ export default function WishlistPage() {
     park: [],
     threads: [],
   })
-  const [isLoading, setIsLoading] = useState(false) // render from localStorage immediately, Supabase updates in background
+  const [isLoading, setIsLoading] = useState(true)
   const [settings, setSettings] = useState<SiteSettings | null>(null)
   // isSakuraMode derived from Supabase siteSettings (admin-controlled, synced via Realtime)
   const isSakuraMode = settings?.sakuraModeEnabled ?? true
@@ -210,8 +209,6 @@ export default function WishlistPage() {
   const [currentUser, setCurrentUser] = useState<{ username: string; role: string; displayName: string; avatarUrl?: string } | null>(null)
   // Users state (for avatar display)
   const [users, setUsers] = useState<User[]>([])
-  /** Tracks whether the added_by migration has been run this session — prevents redundant writes. */
-  const migrationDoneRef = useRef(false)
   
   
   // Add/Edit form state
@@ -249,40 +246,6 @@ export default function WishlistPage() {
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<number>>(() => new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [wishlistPlateSession, setWishlistPlateSession] = useState(0)
-
-  // Inject Supabase preconnect and restore wishlist from localStorage cache immediately on mount.
-  // This makes the page render instantly without waiting for Supabase on revisits.
-  useEffect(() => {
-    if (typeof document === 'undefined') return
-    if (!document.querySelector('link[rel="preconnect"][href*="supabase"]')) {
-      const preconnect = document.createElement('link')
-      preconnect.rel = 'preconnect'
-      preconnect.href = 'https://supabase.co'
-      document.head.appendChild(preconnect)
-    }
-    if (!document.querySelector('link[rel="dns-prefetch"][href*="supabase"]')) {
-      const dnsPrefetch = document.createElement('link')
-      dnsPrefetch.rel = 'dns-prefetch'
-      dnsPrefetch.href = 'https://supabase.co'
-      document.head.appendChild(dnsPrefetch)
-    }
-
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem(STORAGE_KEY)
-        const cacheTime = localStorage.getItem(CACHE_KEY)
-        if (cached && cacheTime) {
-          const age = Date.now() - parseInt(cacheTime, 10)
-          if (age < CACHE_DURATION * 2) {
-            const parsed: Wishlist = JSON.parse(cached)
-            setWishlist(parsed)
-          }
-        }
-      } catch {
-        // Cache corrupted — Supabase will fill it
-      }
-    }
-  }, [])
 
   const resetWishlistFormFields = useCallback(() => {
     setNewItemName('')
@@ -537,10 +500,12 @@ export default function WishlistPage() {
     return grouped
   }, [])
   
-  // Sync wishlist data from TanStack Query (localStorage renders first, this updates with fresh Supabase data).
-  // added_by migration uses migrationDoneRef to run only once per session.
+  // Sync wishlist data from TanStack Query（顯示全部美食清單項目）
   useEffect(() => {
-    if (wishlistDbItems === undefined) return
+    if (wishlistDbItems === undefined) {
+      if (!isWishlistLoading) setIsLoading(false)
+      return
+    }
 
     const user = currentUser || getCurrentUser()
     const filteredDb = wishlistDbItems.length ? wishlistDbItems : []
@@ -555,19 +520,15 @@ export default function WishlistPage() {
     }
 
     if (filteredDb.length > 0) {
-      // Run added_by migration exactly once per session to backfill legacy items.
-      if (user && !migrationDoneRef.current) {
-        migrationDoneRef.current = true
-        const itemsWithoutAddedBy = filteredDb.filter(db => !db.added_by)
-        if (itemsWithoutAddedBy.length > 0) {
-          const addedByData = {
-            username: user.username,
-            display_name: (user as any).displayName || (user as any).display_name || user.username,
-            avatar_url: (user as any).avatarUrl || (user as any).avatar_url || undefined,
-          }
-          for (const db of itemsWithoutAddedBy) {
-            updateSupabaseWishlistItem(db.id, { added_by: addedByData }).catch(() => {})
-          }
+      const itemsWithoutAddedBy = filteredDb.filter(db => !db.added_by)
+      if (user && itemsWithoutAddedBy.length > 0) {
+        const addedByData = {
+          username: user.username,
+          display_name: (user as any).displayName || (user as any).display_name || user.username,
+          avatar_url: (user as any).avatarUrl || (user as any).avatar_url || undefined,
+        }
+        for (const db of itemsWithoutAddedBy) {
+          updateSupabaseWishlistItem(db.id, { added_by: addedByData }).catch(() => {})
         }
       }
 
@@ -579,7 +540,11 @@ export default function WishlistPage() {
     } else {
       setWishlist(emptyGrouped)
     }
-  }, [wishlistDbItems, groupByCategory, currentUser])
+
+    if (!isWishlistLoading) {
+      setIsLoading(false)
+    }
+  }, [wishlistDbItems, isWishlistLoading, groupByCategory, currentUser])
   
   // Get filtered items based on active tab and search query
   const getFilteredItems = () => {
@@ -1249,7 +1214,7 @@ export default function WishlistPage() {
         ) : (
           <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {displayedItems.map((item, cardIndex) => {
+            {displayedItems.map((item) => {
               const numericId = Number(item.id)
               const isBulkSelected = !Number.isNaN(numericId) && bulkSelectedIds.has(numericId)
               return (
@@ -1293,11 +1258,10 @@ export default function WishlistPage() {
                     const imgs = parseWishlistImages(item.imageUrl)
                     const src = imgs[0]
                     return src ? (
-                    <WishlistCardImage
+                    <img
                       src={src}
                       alt={item.name}
-                      priority={cardIndex < 8}
-                      className="object-cover"
+                      className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
@@ -2005,11 +1969,10 @@ export default function WishlistPage() {
                 return (
                 <div className="relative aspect-video bg-gray-100">
                   {images.length === 1 ? (
-                    <WishlistCardImage
+                    <img
                       src={images[0]}
                       alt={selectedItemPopup.name}
-                      priority
-                      className="object-cover"
+                      className="w-full h-full object-cover"
                     />
                   ) : (
                     <ImageSlider

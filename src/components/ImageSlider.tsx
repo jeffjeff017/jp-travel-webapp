@@ -11,6 +11,7 @@ interface ImageSliderProps {
   showCounter?: boolean // Show prominent counter badge (Airbnb style)
   hideArrows?: boolean // Hide navigation arrows (useful for card view on mobile)
   largeArrows?: boolean // Larger, always-visible arrows for popup/detail view
+  priority?: boolean // True for above-fold images — enables eager loading
 }
 
 export default function ImageSlider({
@@ -21,6 +22,7 @@ export default function ImageSlider({
   showCounter = false,
   hideArrows = false,
   largeArrows = false,
+  priority = false,
 }: ImageSliderProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
 
@@ -60,6 +62,7 @@ export default function ImageSlider({
           src={images[0]}
           alt="Trip"
           className="w-full h-full object-cover"
+          loading={priority ? 'eager' : 'lazy'}
           onError={(e) => {
             (e.target as HTMLImageElement).style.display = 'none'
           }}
@@ -89,6 +92,7 @@ export default function ImageSlider({
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.5, ease: 'easeInOut' }}
                 className="absolute inset-0 w-full h-full object-cover"
+                loading={index === 0 ? (priority ? 'eager' : 'lazy') : 'lazy'}
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect fill="%23f3f4f6" width="100" height="100"/><text x="50%" y="50%" fill="%239ca3af" font-size="12" text-anchor="middle" dy=".3em">Error</text></svg>'
                 }}
@@ -102,6 +106,7 @@ export default function ImageSlider({
           alt=""
           className="w-full h-full object-cover invisible"
           aria-hidden="true"
+          loading="lazy"
         />
       </div>
 
