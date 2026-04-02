@@ -132,14 +132,23 @@ export function useSaveSettings() {
 // Wishlist Items
 // ============================================
 
-export function useWishlistItems(options?: { enabled?: boolean; initialData?: WishlistItemDB[] }) {
+export function useWishlistItems(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.wishlistItems,
-    queryFn: getSupabaseWishlistItems,
+    queryFn: async () => {
+      // Fetch from Supabase (localStorage is handled via cache-first in the hook below)
+      return getSupabaseWishlistItems()
+    },
     enabled: options?.enabled,
-    initialData: options?.initialData,
-    staleTime: 60 * 1000,
-    refetchOnWindowFocus: false,
+    staleTime: 10 * 1000,
+    refetchOnWindowFocus: true,
+    // Return localStorage cache as initialData so page renders immediately on revisit,
+    // while TanStack still fetches in background for fresh data.
+    initialDataUpdatedAt: () => {
+      if (typeof window === 'undefined') return undefined
+      const t = localStorage.getItem('japan_travel_wishlist_cache_time')
+      return t ? parseInt(t, 10) : undefined
+    },
   })
 }
 
@@ -193,12 +202,11 @@ export function useDeleteWishlistItem() {
 // Checklist States
 // ============================================
 
-export function useChecklistStates(options?: { enabled?: boolean; initialData?: ChecklistStateDB[] }) {
+export function useChecklistStates(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.checklistStates,
     queryFn: getSupabaseChecklistStates,
     enabled: options?.enabled,
-    initialData: options?.initialData,
   })
 }
 

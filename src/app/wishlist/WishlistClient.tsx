@@ -13,8 +13,7 @@ import {
   createTrip,
   syncTripsFromWishlistItem,
   removeWishlistItemFromItinerary,
-  type WishlistItemDB,
-  type ChecklistStateDB, 
+  type WishlistItemDB 
 } from '@/lib/supabase'
 import { geocodePlaceName } from '@/lib/geocode'
 import { useQueryClient } from '@tanstack/react-query'
@@ -183,20 +182,11 @@ function HeartOutline({ className = '' }: { className?: string }) {
   )
 }
 
-export interface WishlistClientProps {
-  prefetchedWishlistItems?: WishlistItemDB[]
-  prefetchedChecklistStates?: ChecklistStateDB[]
-}
-
-export default function WishlistPage(props: WishlistClientProps) {
+export default function WishlistPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { data: wishlistDbItems, isLoading: isWishlistLoading } = useWishlistItems({
-    initialData: props.prefetchedWishlistItems,
-  })
-  const { data: checklistData } = useChecklistStates({
-    initialData: props.prefetchedChecklistStates,
-  })
+  const { data: wishlistDbItems, isLoading: isWishlistLoading } = useWishlistItems()
+  const { data: checklistData } = useChecklistStates()
   const [activeTab, setActiveTab] = useState('all')
   const [wishlist, setWishlist] = useState<Wishlist>({
     cafe: [],
