@@ -35,6 +35,7 @@ import { safeSetItem } from '@/lib/safeStorage'
 import { EMPTY_PLATE_JSON, extractPlainTextFromPlateJson, isPlateJsonEffectivelyEmpty } from '@/lib/plateRich'
 import PlateRichEditor from '@/components/PlateRichEditor'
 import PlateRichView from '@/components/PlateRichView'
+import WishlistCardImage from '@/components/WishlistCardImage'
 import { TOKYO_DISTRICTS, TOKYO_AREAS } from '@/lib/tokyoDistricts'
 
 // Main categories
@@ -1248,7 +1249,7 @@ export default function WishlistPage() {
         ) : (
           <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {displayedItems.map((item) => {
+            {displayedItems.map((item, cardIndex) => {
               const numericId = Number(item.id)
               const isBulkSelected = !Number.isNaN(numericId) && bulkSelectedIds.has(numericId)
               return (
@@ -1292,10 +1293,11 @@ export default function WishlistPage() {
                     const imgs = parseWishlistImages(item.imageUrl)
                     const src = imgs[0]
                     return src ? (
-                    <img
+                    <WishlistCardImage
                       src={src}
                       alt={item.name}
-                      className="w-full h-full object-cover"
+                      priority={cardIndex < 8}
+                      className="object-cover"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
@@ -2003,10 +2005,11 @@ export default function WishlistPage() {
                 return (
                 <div className="relative aspect-video bg-gray-100">
                   {images.length === 1 ? (
-                    <img
+                    <WishlistCardImage
                       src={images[0]}
                       alt={selectedItemPopup.name}
-                      className="w-full h-full object-cover"
+                      priority
+                      className="object-cover"
                     />
                   ) : (
                     <ImageSlider
