@@ -693,8 +693,11 @@ function MainPageContent() {
     const isChange = !!selectedWishlistItem.added_to_trip
     try {
       if (!isChange) {
-        const content = selectedWishlistItem.note
-          ? `${selectedWishlistItem.name}（${selectedWishlistItem.note}）`
+        const notePlain = selectedWishlistItem.note
+          ? extractPlainTextFromPlateJson(selectedWishlistItem.note)
+          : ''
+        const content = notePlain
+          ? `${selectedWishlistItem.name}（${notePlain}）`
           : selectedWishlistItem.name
         const scheduleItem = {
           id: `add-${Date.now()}`,
@@ -1141,10 +1144,17 @@ function MainPageContent() {
                   </button>
                   
                   {/* Search in wishlist items by title */}
-                  {wishlistDbItems.filter(item => 
-                    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    (item.note && item.note.toLowerCase().includes(searchQuery.toLowerCase()))
-                  ).map(item => (
+                  {wishlistDbItems.filter(item => {
+                    const q = searchQuery.toLowerCase()
+                    const notePlain = extractPlainTextFromPlateJson(item.note || '')
+                    return (
+                      item.name.toLowerCase().includes(q) ||
+                      notePlain.toLowerCase().includes(q)
+                    )
+                  }).map(item => {
+                    const notePlain = extractPlainTextFromPlateJson(item.note || '')
+                    const subtitle = notePlain || item.category
+                    return (
                     <button
                       key={`wishlist-${item.id}`}
                       onClick={() => {
@@ -1157,13 +1167,14 @@ function MainPageContent() {
                       <span className="w-10 h-10 flex items-center justify-center bg-pink-100 text-pink-600 rounded-full">
                         {(item.favorited_by || []).includes(getCurrentUser()?.username || '') ? '⭐' : '📍'}
                       </span>
-                      <div className="flex-1 text-left">
-                        <p className="font-medium text-gray-800">{item.name}</p>
-                        <p className="text-xs text-gray-500">{item.note || item.category}</p>
+                      <div className="flex-1 text-left min-w-0">
+                        <p className="font-medium text-gray-800 truncate">{item.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{subtitle}</p>
                       </div>
                       <span className="text-gray-400">→</span>
                     </button>
-                  ))}
+                    )
+                  })}
                   
                   {/* Search in trips */}
                   {trips.filter(trip => 
@@ -1212,6 +1223,9 @@ function MainPageContent() {
                             shopping: '🛍️', park: '🌳', threads: '🔗',
                           }
                           const icon = categoryIcons[item.category] || '📍'
+                          const thumbUrl = parseImages(item.image_url || undefined)[0]
+                          const notePlain = extractPlainTextFromPlateJson(item.note || '')
+                          const subtitle = notePlain || item.category
                           return (
                             <button
                               key={`suggest-${item.id}`}
@@ -1223,15 +1237,15 @@ function MainPageContent() {
                               className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors"
                             >
                               <div className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
-                                {item.image_url ? (
-                                  <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                                {thumbUrl ? (
+                                  <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
                                 ) : (
-                                  <span className="text-xl">{icon}</span>
+                                  <span className="text-xl" aria-hidden>{icon}</span>
                                 )}
                               </div>
                               <div className="flex-1 text-left min-w-0">
                                 <p className="font-medium text-gray-800 text-sm truncate">{item.name}</p>
-                                <p className="text-xs text-gray-400 truncate">{item.note || item.category}</p>
+                                <p className="text-xs text-gray-400 truncate">{subtitle}</p>
                               </div>
                               <span className="text-gray-300 text-sm flex-shrink-0">→</span>
                             </button>
@@ -2074,10 +2088,13 @@ function MainPageContent() {
                 {/* Title */}
                 <h2 className="text-xl font-semibold text-gray-800 mb-2">{selectedWishlistItem.name}</h2>
                 
-                {/* Note */}
-                {selectedWishlistItem.note && (
-                  <p className="text-gray-600 mb-4">{selectedWishlistItem.note}</p>
-                )}
+                {/* Note (Plate JSON → rich view) */}
+                {selectedWishlistItem.note &&
+                  !isPlateJsonEffectivelyEmpty(selectedWishlistItem.note) && (
+                    <div className="text-gray-600 mb-4">
+                      <PlateRichView json={selectedWishlistItem.note} />
+                    </div>
+                  )}
                 
                 {/* Google Maps link (not for threads) */}
                 {selectedWishlistItem.category !== 'threads' && (
