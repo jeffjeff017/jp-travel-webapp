@@ -137,8 +137,11 @@ export function useWishlistItems(options?: { enabled?: boolean }) {
     queryKey: queryKeys.wishlistItems,
     queryFn: getSupabaseWishlistItems,
     enabled: options?.enabled,
-    staleTime: 10 * 1000,
-    refetchOnWindowFocus: true,
+    // 60s staleTime: reduce unnecessary refetches on every tab focus.
+    // The wishlist data changes infrequently — manual mutations (add/edit/delete)
+    // will invalidate this query via queryClient.invalidateQueries on success.
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
   })
 }
 
