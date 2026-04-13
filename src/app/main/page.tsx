@@ -185,6 +185,18 @@ const getWeatherIcon = (dayNum: number) => {
 }
 
 function MainPageContent() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-sakura-50">
+        <div className="w-10 h-10 border-2 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
+      </div>
+    }>
+      <MainPageInner />
+    </Suspense>
+  )
+}
+
+function MainPageInner() {
   // TanStack Query hooks for data fetching
   const queryClient = useQueryClient()
   const { data: trips = [], isLoading, error: tripsError } = useTrips({ refetchInterval: 30000 })
@@ -1512,28 +1524,48 @@ function MainPageContent() {
               )
             })()}
 
+            <AnimatePresence mode="wait">
             {isLoading ? (
-              <div className="space-y-3">
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="space-y-3"
+              >
                 <div className="flex items-center justify-center py-4">
                   <div className="w-8 h-8 border-4 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
                 </div>
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="animate-pulse rounded-xl border-2 border-sakura-100 overflow-hidden flex flex-row">
-                    <div className="w-28 sm:w-36 flex-shrink-0 h-24 bg-sakura-100/60" />
+                  <div key={i} className="rounded-xl border-2 border-sakura-100 overflow-hidden flex flex-row">
+                    <div className="w-28 sm:w-36 flex-shrink-0 h-24 bg-sakura-100/60 animate-pulse" />
                     <div className="flex-1 p-3 space-y-2">
-                      <div className="h-3 bg-sakura-100 rounded w-1/3" />
-                      <div className="h-4 bg-sakura-100 rounded w-4/5" />
-                      <div className="h-3 bg-sakura-100 rounded w-1/2" />
+                      <div className="h-3 bg-sakura-100 rounded w-1/3 animate-pulse" />
+                      <div className="h-4 bg-sakura-100 rounded w-4/5 animate-pulse" />
+                      <div className="h-3 bg-sakura-100 rounded w-1/2 animate-pulse" />
                     </div>
                   </div>
                 ))}
-              </div>
+              </motion.div>
             ) : tripsError ? (
-              <div className="text-center py-8">
+              <motion.div
+                key="error"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-center py-8"
+              >
                 <p className="text-red-500">{tripsError instanceof Error ? tripsError.message : '載入行程失敗'}</p>
-              </div>
+              </motion.div>
             ) : filteredTrips.length === 0 ? (
-              <div className="text-center py-8">
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-center py-8"
+              >
                 <span className="text-4xl mb-4 block">🗾</span>
                 <p className="text-gray-500">Day {selectedDay} 暫無行程</p>
                 {isAdmin && (
@@ -1544,9 +1576,15 @@ function MainPageContent() {
                     <span>+</span> 新增行程
                   </button>
                 )}
-              </div>
+              </motion.div>
             ) : (
-              <div className="space-y-3">
+              <motion.div
+                key="list"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="space-y-3"
+              >
                 {filteredTrips.map((trip, index) => (
                   <motion.div
                     key={trip.id}
@@ -1627,8 +1665,9 @@ function MainPageContent() {
                     <span>新增行程 ({filteredTrips.length}/10)</span>
                   </motion.button>
                 )}
-              </div>
+              </motion.div>
             )}
+          </AnimatePresence>
           </div>
         </motion.aside>
 
@@ -1885,7 +1924,7 @@ function MainPageContent() {
                                 className="flex items-start gap-2 p-3 bg-white border border-gray-100 rounded-xl min-w-0"
                               >
                                 {(item.time_start || item.time_end) && (
-                                  <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg whitespace-nowrap flex-shrink-0">
+                                  <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md whitespace-nowrap flex-shrink-0">
                                     {item.time_start}{item.time_end ? ` - ${item.time_end}` : ''}
                                   </span>
                                 )}
@@ -3134,13 +3173,5 @@ function MainPageContent() {
 }
 
 export default function MainPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-sakura-50">
-        <div className="w-10 h-10 border-2 border-sakura-300 border-t-sakura-600 rounded-full animate-spin" />
-      </div>
-    }>
-      <MainPageContent />
-    </Suspense>
-  )
+  return <MainPageContent />
 }

@@ -60,6 +60,7 @@ export function useTrips(options?: { refetchInterval?: number; enabled?: boolean
     queryFn: getTrips,
     refetchInterval: options?.refetchInterval,
     enabled: options?.enabled,
+    staleTime: 30 * 1000,
   })
 }
 
