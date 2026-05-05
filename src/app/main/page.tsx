@@ -273,6 +273,7 @@ function MainPageInner() {
   const [dayLabelSaving, setDayLabelSaving] = useState<number | null>(null)
   const [dayLabelSaveError, setDayLabelSaveError] = useState<number | null>(null)
   const dayLabelSavingRef = useRef(false) // prevent double-call from onBlur + onKeyDown(Enter)
+  const dayHeartDevilBusyRef = useRef(false) // prevent double-click spam
   const lastLocalSaveRef = useRef(0) // timestamp of last settings save — used to block Realtime from overwriting our own data
   const [currentUser, setCurrentUser] = useState<{ username: string; role: string; displayName: string; avatarUrl?: string } | null>(null)
   
@@ -912,16 +913,19 @@ function MainPageInner() {
     }
   }
 
-  /** 管理員：確認後累加當日 ❤️❤️（每日獨立） */
+  /** 所有已登入用戶：確認後累加當日 ❤️❤️（每日獨立） */
   const handleDayHeartDevilClick = async () => {
-    if (!isActualAdmin) return
+    if (dayHeartDevilBusyRef.current) return
+    if (!isAdmin) return
     if (!confirm('確定新增一次❤️❤️次數?')) return
+    dayHeartDevilBusyRef.current = true
     const base = settings ?? getSettings()
     const prev = { ...(base.dayHeartCounts || {}) }
     const nextCounts = { ...prev, [selectedDay]: (prev[selectedDay] || 0) + 1 }
     lastLocalSaveRef.current = Date.now()
     setSettings({ ...base, dayHeartCounts: nextCounts })
     const r = await saveSettingsAsync({ dayHeartCounts: nextCounts })
+    dayHeartDevilBusyRef.current = false
     if (!r.success) {
       console.warn('[dayHeartCounts] save failed:', r.error)
     }
@@ -1474,7 +1478,7 @@ function MainPageInner() {
               </div>
             )}
 
-            {/* Day Title Header — 標題靠左；管理員：0 次小 😈，&gt;0 顯示「❤️❤️次數 N 次」；成員顯示開發中 */}
+            {/* Day Title Header — 標題靠左；已登入用戶：0 次小 😈，>0 顯示「❤️❤️次數 N 次」；未登入顯示開發中 */}
             {(() => {
               const daySchedule = settings?.daySchedules?.find(d => d.dayNumber === selectedDay)
               const dayTitle = daySchedule?.theme
@@ -1489,7 +1493,7 @@ function MainPageInner() {
                       <span className="text-sakura-400 shrink-0">✦</span>
                     </div>
                     <div className="flex items-center justify-end shrink-0">
-                      {isActualAdmin ? (
+                      {isAdmin ? (
                         heartTotal > 0 ? (
                           <button
                             type="button"

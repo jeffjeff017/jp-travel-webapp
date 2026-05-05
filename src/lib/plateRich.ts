@@ -68,3 +68,13 @@ export function isPlateJsonEffectivelyEmpty(s: string | null | undefined): boole
   if (!s?.trim()) return true
   return extractPlainTextFromPlateJson(s) === ''
 }
+
+/** Compact inline rendering: extracts plain text from Plate JSON or returns as-is. */
+export function renderNoteText(s: string): string {
+  if (!s?.trim()) return ''
+  if (isLikelyPlateJsonString(s)) {
+    return extractPlainTextFromPlateJson(s)
+  }
+  return s.trim()
+}
+

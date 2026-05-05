@@ -52,6 +52,9 @@ import ImageSlider from '@/components/ImageSlider'
 import TravelWalletModal from '@/components/TravelWalletModal'
 import FlightInfoModal from '@/components/FlightInfoModal'
 import MyLikedFoodModal from '@/components/MyLikedFoodModal'
+import ProfileWishlistPopup from '@/components/ProfileWishlistPopup'
+import DayTripEditor from '@/components/DayTripEditor'
+import ItineraryManagerModal from '@/components/ItineraryManagerModal'
 import { safeSetItem } from '@/lib/safeStorage'
 import { OPEN_TRAVEL_WALLET_QUERY } from '@/lib/travelWalletUi'
 import { EMPTY_PLATE_JSON, isPlateJsonEffectivelyEmpty } from '@/lib/plateRich'
@@ -227,7 +230,9 @@ export default function AdminPage() {
   // Wishlist management state
   const [showWishlistManagement, setShowWishlistManagement] = useState(false)
   const [showMyLikedFood, setShowMyLikedFood] = useState(false)
+  const [showProfileWishlist, setShowProfileWishlist] = useState(false)
   const [showDayHeartStatsPopup, setShowDayHeartStatsPopup] = useState(false)
+  const [showItineraryManager, setShowItineraryManager] = useState(false)
   const dayHeartAdjustBusyRef = useRef(false)
   const [wishlistItems, setWishlistItems] = useState<WishlistItemDB[]>([])
   const [editingWishlistItem, setEditingWishlistItem] = useState<WishlistItemDB | null>(null)
@@ -256,6 +261,8 @@ export default function AdminPage() {
   const isSakuraMode = siteSettings?.sakuraModeEnabled ?? true
   // 必須與 SSR 初值一致（false），否則管理員在客戶端首屏會變 true，與伺服器「成員」文字衝突造成 hydration error
   const [isAdminUser, setIsAdminUser] = useState(false)
+  // 必須與 SSR 初值一致（false），否則已登入用戶在客戶端首屏會導致 hydration mismatch
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   // Travel Wallet state
   const [showWallet, setShowWallet] = useState(false)
   const [showFlightInfo, setShowFlightInfo] = useState(false)
@@ -277,7 +284,7 @@ export default function AdminPage() {
   
   // Disable background scrolling when any popup/modal is active
   useEffect(() => {
-    const anyPopupOpen = showForm || showSettings || showUserManagement || showProfileEdit || showProfileCropper || profileAvatarLightboxUrl != null || showTravelNoticePopup || showDestinationModal || showTrashBin || showWishlistManagement || showMyLikedFood || showDayHeartStatsPopup || showChiikawaEdit || showChiikawaEditDesktop || showWallet || showFlightInfo || showTripDetail
+    const anyPopupOpen = showForm || showSettings || showUserManagement || showProfileEdit || showProfileCropper || profileAvatarLightboxUrl != null || showTravelNoticePopup || showDestinationModal || showTrashBin || showWishlistManagement || showMyLikedFood || showProfileWishlist || showDayHeartStatsPopup || showChiikawaEdit || showChiikawaEditDesktop || showWallet || showFlightInfo || showTripDetail
     if (anyPopupOpen) {
       document.body.style.overflow = 'hidden'
     } else {
@@ -286,7 +293,7 @@ export default function AdminPage() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, profileAvatarLightboxUrl, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showMyLikedFood, showDayHeartStatsPopup, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showFlightInfo, showTripDetail])
+  }, [showForm, showSettings, showUserManagement, showProfileEdit, showProfileCropper, profileAvatarLightboxUrl, showTravelNoticePopup, showDestinationModal, showTrashBin, showWishlistManagement, showMyLikedFood, showProfileWishlist, showDayHeartStatsPopup, showChiikawaEdit, showChiikawaEditDesktop, showWallet, showFlightInfo, showTripDetail])
 
   // Refresh settingsForm from latest Supabase data whenever the dialog opens
   useEffect(() => {
@@ -326,6 +333,8 @@ export default function AdminPage() {
     // 摸摸 Chiikawa now lives in Supabase siteSettings (default: true)
     // Check if user is admin
     setIsAdminUser(isAdmin())
+    // Sync login state for hydration-safe auth checks
+    setIsLoggedIn(isAuthenticated())
     // Load current user
     const user = getCurrentUser()
     setCurrentUser(user)
@@ -438,6 +447,9 @@ export default function AdminPage() {
         window.location.href = '/login'
         return
       }
+
+      // Sync login state to avoid hydration mismatch (server always sees false)
+      setIsLoggedIn(true)
       
       // Trips are now managed by TanStack Query (useTrips)
       setIsLoading(false)
@@ -1052,22 +1064,24 @@ export default function AdminPage() {
 
           {/* Feature Cards Grid */}
           <div className="grid grid-cols-2 gap-3">
-            <a
-              href="/main"
-              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95"
+            <button
+              type="button"
+              onClick={() => setShowItineraryManager(true)}
+              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95 text-left"
             >
               <span className="text-3xl block mb-2">📋</span>
               <p className="font-semibold text-gray-900 text-sm">行程管理</p>
               <p className="text-xs text-gray-400 mt-0.5">查看及編輯旅行行程</p>
-            </a>
-            <a
-              href="/wishlist"
-              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95"
+            </button>
+            <button
+              type="button"
+              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95 text-left"
+              onClick={() => setShowProfileWishlist(true)}
             >
               <span className="text-3xl block mb-2">💝</span>
               <p className="font-semibold text-gray-900 text-sm">美食清單</p>
-              <p className="text-xs text-gray-400 mt-0.5">你已讚好的店家</p>
-            </a>
+              <p className="text-xs text-gray-400 mt-0.5">查看及編輯美食清單</p>
+            </button>
             <button
               type="button"
               className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95 text-left"
@@ -1117,42 +1131,44 @@ export default function AdminPage() {
             )}
           </div>
 
-          {/* 已讚好的美食清單：全員；美食清單後台管理：管理員 */}
+          {/* ❤️❤️次數 + 已讚好：所有已登入用戶；美食清單後台管理：管理員 */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            {isAdminUser && (
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    const s = await refreshSettings()
-                    setSiteSettings(s)
-                  } catch {
-                    setSiteSettings(getSettings())
-                  }
-                  setShowDayHeartStatsPopup(true)
-                }}
-                className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors"
-              >
-                <span className="text-lg w-6 text-center leading-none">❤️</span>
-                <p className="flex-1 text-left text-sm font-medium text-gray-800">❤️❤️次數</p>
-                <span className="text-xs font-semibold text-sakura-600 tabular-nums">
-                  {getTotalDayHeartCounts(siteSettings?.dayHeartCounts)}
-                </span>
-                <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
+            {isLoggedIn && (
+              <>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const s = await refreshSettings()
+                      setSiteSettings(s)
+                    } catch {
+                      setSiteSettings(getSettings())
+                    }
+                    setShowDayHeartStatsPopup(true)
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                >
+                  <span className="text-lg w-6 text-center leading-none">❤️</span>
+                  <p className="flex-1 text-left text-sm font-medium text-gray-800">❤️❤️次數</p>
+                  <span className="text-xs font-semibold text-sakura-600 tabular-nums">
+                    {getTotalDayHeartCounts(siteSettings?.dayHeartCounts)}
+                  </span>
+                  <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMyLikedFood(true)}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                >
+                  <span className="text-lg w-6 text-center">💝</span>
+                  <p className="flex-1 text-left text-sm font-medium text-gray-800">已讚好</p>
+                  <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                </button>
+              </>
             )}
-            <button
-              type="button"
-              onClick={() => setShowMyLikedFood(true)}
-              className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors"
-            >
-              <span className="text-lg w-6 text-center">💝</span>
-              <p className="flex-1 text-left text-sm font-medium text-gray-800">已讚好</p>
-              <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-            </button>
-          {isAdminUser && (
+            {isAdminUser && (
             <>
               <button
                 onClick={() => setShowChiikawaEdit(true)}
@@ -1454,9 +1470,10 @@ export default function AdminPage() {
           </div>
 
           {/* Mobile - Trip Management Card - Full row (for all users) */}
-          <a 
-            href="/main"
-            className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+          <button
+            type="button"
+            onClick={() => setShowItineraryManager(true)}
+            className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer text-left"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1470,54 +1487,54 @@ export default function AdminPage() {
               </div>
               <span className="text-gray-400">→</span>
             </div>
-          </a>
-
-          {/* Mobile：❤️❤️次數（僅管理員） */}
-          {isAdminUser && (
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  const s = await refreshSettings()
-                  setSiteSettings(s)
-                } catch {
-                  setSiteSettings(getSettings())
-                }
-                setShowDayHeartStatsPopup(true)
-              }}
-              className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-400 to-pink-600 flex items-center justify-center text-xl shrink-0">
-                    😈
-                  </div>
-                  <div className="text-left min-w-0">
-                    <h3 className="font-semibold text-gray-800 text-sm">❤️❤️次數</h3>
-                    <p className="text-xs text-gray-500 truncate">各日累計總覽</p>
-                  </div>
-                </div>
-                <span className="text-lg font-bold text-sakura-600 tabular-nums shrink-0">
-                  {getTotalDayHeartCounts(siteSettings?.dayHeartCounts)}
-                </span>
-              </div>
-            </button>
-          )}
-
-          {/* Mobile: 已讚好的美食清單（全員） */}
-          <button
-            type="button"
-            onClick={() => setShowMyLikedFood(true)}
-            className="md:hidden col-span-1 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer flex flex-col items-center text-center gap-2"
-          >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center">
-              <span className="text-xl">💝</span>
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-800 text-sm">已讚好</h3>
-              <p className="text-xs text-gray-500">查看你讚好的店家</p>
-            </div>
           </button>
+
+          {/* Mobile：❤️❤️次數 + 已讚好（所有已登入用戶） */}
+          {isLoggedIn && (
+            <>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const s = await refreshSettings()
+                    setSiteSettings(s)
+                  } catch {
+                    setSiteSettings(getSettings())
+                  }
+                  setShowDayHeartStatsPopup(true)
+                }}
+                className="md:hidden col-span-2 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-400 to-pink-600 flex items-center justify-center text-xl shrink-0">
+                      😈
+                    </div>
+                    <div className="text-left min-w-0">
+                      <h3 className="font-semibold text-gray-800 text-sm">❤️❤️次數</h3>
+                      <p className="text-xs text-gray-500 truncate">各日累計總覽</p>
+                    </div>
+                  </div>
+                  <span className="text-lg font-bold text-sakura-600 tabular-nums shrink-0">
+                    {getTotalDayHeartCounts(siteSettings?.dayHeartCounts)}
+                  </span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMyLikedFood(true)}
+                className="md:hidden col-span-1 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer flex flex-col items-center text-center gap-2"
+              >
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center">
+                  <span className="text-xl">💝</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800 text-sm">已讚好</h3>
+                  <p className="text-xs text-gray-500">查看你讚好的店家</p>
+                </div>
+              </button>
+            </>
+          )}
 
           {/* Mobile Admin Cards Row */}
           {isAdminUser && (
@@ -1622,9 +1639,28 @@ export default function AdminPage() {
           {/* Admin Only Content Below */}
           {isAdminUser && (
             <>
-          {/* Destination Switcher - Large Card (Desktop only - mobile version above) */}
+          {/* Day Trip Editor - Left card (Desktop only) - Opens ItineraryManagerModal */}
+          <div className="hidden md:block col-span-1 bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                <span className="text-lg">📅</span> 行程管理
+              </h3>
+              <span className="text-xs text-gray-400">拖放排序</span>
+            </div>
+            {siteSettings && (
+              <button
+                type="button"
+                onClick={() => setShowItineraryManager(true)}
+                className="w-full py-3 text-sm text-sakura-600 bg-sakura-50 hover:bg-sakura-100 rounded-xl transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <span>📋</span> 開啟行程管理
+              </button>
+            )}
+          </div>
+
+          {/* Destination Switcher - Right card (Desktop only) */}
           <div 
-            className="hidden md:block col-span-2 lg:col-span-2 bg-gradient-to-br rounded-2xl p-4 md:p-6 text-white relative overflow-hidden"
+            className="hidden md:block col-span-1 lg:col-span-1 bg-gradient-to-br rounded-2xl p-4 md:p-6 text-white relative overflow-hidden"
             style={{ background: `linear-gradient(135deg, ${themeColor} 0%, ${adjustColor(themeColor, -30)} 100%)` }}
           >
             <div className="absolute top-0 right-0 text-[120px] opacity-20 -mr-4 -mt-4">
@@ -3268,6 +3304,23 @@ export default function AdminPage() {
         <MyLikedFoodModal
           open={showMyLikedFood}
           onClose={() => setShowMyLikedFood(false)}
+        />
+
+        {/* 美食清單 Popup（個人資料頁面） */}
+        <ProfileWishlistPopup
+          isOpen={showProfileWishlist}
+          onClose={() => setShowProfileWishlist(false)}
+        />
+
+        {/* 行程管理 Popup */}
+        <ItineraryManagerModal
+          open={showItineraryManager}
+          onClose={() => setShowItineraryManager(false)}
+          trips={trips || []}
+          totalDays={siteSettings?.totalDays || 1}
+          tripStartDate={siteSettings?.tripStartDate || ''}
+          daySchedules={siteSettings?.daySchedules || []}
+          themeColor={themeColor}
         />
 
         {/* ❤️❤️次數總覽（僅管理員） */}

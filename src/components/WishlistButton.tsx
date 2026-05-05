@@ -15,6 +15,8 @@ import { getSettings, getSettingsAsync, type DaySchedule } from '@/lib/settings'
 import { formatTripDaySelectOption, formatTripDayListBadge } from '@/lib/tripDayLabels'
 import { parseFavoritedBy, isWishlistLocalItemLikedByUser } from '@/lib/wishlistLikeUtils'
 import { getCurrentUser } from '@/lib/auth'
+import PlateRichView from '@/components/PlateRichView'
+import { renderNoteText } from '@/lib/plateRich'
 
 // Main categories (tabs)
 const CATEGORIES = [
@@ -169,6 +171,7 @@ export default function WishlistButton({
   const [isSavingWishlistItem, setIsSavingWishlistItem] = useState(false)
   const saveItemInFlightRef = useRef(false)
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null)
+  const [showEditPopup, setShowEditPopup] = useState(false)
   const [showAddToTrip, setShowAddToTrip] = useState<string | null>(null)
   const [selectedDay, setSelectedDay] = useState(1)
   const [selectedTime, setSelectedTime] = useState('12:00')
@@ -458,6 +461,7 @@ export default function WishlistButton({
     setNewItemLink('')
     setIsAdding(false)
     setEditingItem(null)
+    setShowEditPopup(false)
   }
 
   // Edit item
@@ -469,7 +473,8 @@ export default function WishlistButton({
     setNewItemNote(item.note || '')
     setNewItemImages(parseWishlistImages(item.imageUrl))
     setNewItemLink(item.link || '')
-    setIsAdding(true)
+    setIsAdding(false)
+    setShowEditPopup(true)
   }
 
   // Remove item
@@ -639,7 +644,6 @@ export default function WishlistButton({
                 <div className="bg-gradient-to-r from-pink-400 to-rose-500 text-white p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-2xl">💝</span>
                       <h2 className="text-lg font-bold">💝 美食清單</h2>
                       <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
                         {totalCount} 項
@@ -973,7 +977,7 @@ export default function WishlistButton({
                                       )}
                                     </div>
                                     {item.note && (
-                                      <p className="text-xs text-gray-500 mt-0.5">{item.note}</p>
+                                      <p className="text-xs text-gray-500 mt-0.5">{renderNoteText(item.note)}</p>
                                     )}
                                     {/* Link - Google Maps or custom link */}
                                     {item.link && !item.link.includes('google.com/maps') && !item.link.includes('maps.google') ? (
@@ -1118,6 +1122,125 @@ export default function WishlistButton({
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Item Popup */}
+      <AnimatePresence>
+        {showEditPopup && editingItem && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) resetForm()
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-pink-400 to-rose-500 text-white p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-base">✏️ 編輯項目</h3>
+                  <button
+                    onClick={resetForm}
+                    className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-4 max-h-[60vh] overflow-y-auto">
+                {/* Different form for Threads (link-only) vs other categories */}
+                {isLinkOnlyCategory ? (
+                  <>
+                    <input
+                      type="text"
+                      value={newItemName}
+                      onChange={(e) => setNewItemName(e.target.value)}
+                      placeholder="標題（選填）"
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm mb-3"
+                      autoFocus
+                    />
+                    <input
+                      type="url"
+                      value={newItemLink}
+                      onChange={(e) => setNewItemLink(e.target.value)}
+                      placeholder="貼上 Threads 鏈結 (必填)"
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm mb-1"
+                    />
+                    <p className="text-xs text-gray-400 mb-3">
+                      例如：https://www.threads.net/@user/post/xxx
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    {/* Image upload */}
+                    <div className="mb-3">
+                      <MultiMediaUpload
+                        value={newItemImages}
+                        onChange={setNewItemImages}
+                        label="圖片"
+                        maxImages={5}
+                      />
+                    </div>
+
+                    <input
+                      type="text"
+                      value={newItemName}
+                      onChange={(e) => setNewItemName(e.target.value)}
+                      placeholder="名稱 (必填)"
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm mb-3"
+                      autoFocus
+                    />
+                    <textarea
+                      value={newItemNote}
+                      onChange={(e) => setNewItemNote(e.target.value)}
+                      placeholder="備註 (選填)"
+                      rows={3}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm mb-3 resize-none"
+                    />
+                    <input
+                      type="url"
+                      value={newItemLink}
+                      onChange={(e) => setNewItemLink(e.target.value)}
+                      placeholder="連結 (選填) - 例如：Instagram, 食記等"
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm"
+                    />
+                  </>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-gray-100 flex gap-2">
+                <button
+                  onClick={resetForm}
+                  className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveItem()}
+                  disabled={
+                    isSavingWishlistItem ||
+                    (isLinkOnlyCategory ? !newItemLink.trim() : !newItemName.trim())
+                  }
+                  className="flex-1 py-2.5 bg-pink-500 hover:bg-pink-600 disabled:bg-pink-300 text-white rounded-xl text-sm font-medium transition-colors"
+                >
+                  {isSavingWishlistItem ? '儲存中…' : '儲存'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </>
