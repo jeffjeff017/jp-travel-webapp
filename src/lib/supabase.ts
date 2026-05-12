@@ -47,6 +47,7 @@ export type Trip = {
   lng: number
   image_url?: string // Optional image URL
   wishlist_item_id?: number // Link to wishlist item for syncing name/note updates
+  sort_order?: number // Display order within the same day
   created_at?: string
   updated_at?: string
 }
@@ -61,35 +62,55 @@ const TRIPS_CACHE_DURATION = 60 * 1000 // 1 minute
 
 export async function getTrips(): Promise<Trip[]> {
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('trips')
       .select('*')
       .order('date', { ascending: true })
+      .order('sort_order', { ascending: true, nullsFirst: true })
       .order('created_at', { ascending: true })
+
+    // Fallback if sort_order column doesn't exist yet
+    if (error && (error.message?.includes('sort_order') || error.message?.includes('column') || error.message?.includes('does not exist'))) {
+      console.warn('sort_order column not found, using fallback sort')
+      const res = await supabase
+        .from('trips')
+        .select('*')
+        .order('date', { ascending: true })
+        .order('created_at', { ascending: true })
+      data = res.data
+      error = res.error
+    }
 
     if (error) {
       console.error('Error fetching trips:', error.message)
-      // Return cached data if available and recent
       if (tripsCache.length > 0 && Date.now() - tripsCacheTime < TRIPS_CACHE_DURATION * 5) {
-        console.log('Using cached trips due to error')
-        return tripsCache
+        return [...tripsCache].sort((a, b) => {
+          if (a.date !== b.date) return a.date.localeCompare(b.date)
+          if (a.sort_order !== b.sort_order) return (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)
+          return (a.created_at || '').localeCompare(b.created_at || '')
+        })
       }
       return []
     }
 
-    // Update cache
     if (data && data.length > 0) {
       tripsCache = data
       tripsCacheTime = Date.now()
     }
 
-    return data || []
+    return [...(data || [])].sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date)
+      if (a.sort_order !== b.sort_order) return (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)
+      return (a.created_at || '').localeCompare(b.created_at || '')
+    })
   } catch (err) {
     console.error('Supabase connection error:', err)
-    // Return cached data if available
     if (tripsCache.length > 0) {
-      console.log('Using cached trips due to connection error')
-      return tripsCache
+      return [...tripsCache].sort((a, b) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date)
+        if (a.sort_order !== b.sort_order) return (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)
+        return (a.created_at || '').localeCompare(b.created_at || '')
+      })
     }
     return []
   }
@@ -113,6 +134,9 @@ export async function createTrip(trip: Omit<Trip, 'id' | 'created_at' | 'updated
     }
     if (trip.trip_notes_rich != null && String(trip.trip_notes_rich).trim() !== '') {
       insertPayload.trip_notes_rich = trip.trip_notes_rich
+    }
+    if (trip.sort_order != null) {
+      insertPayload.sort_order = trip.sort_order
     }
 
     let { data, error } = await supabase
@@ -147,6 +171,20 @@ export async function createTrip(trip: Omit<Trip, 'id' | 'created_at' | 'updated
         .single()
       data = retry2.data
       error = retry2.error
+    }
+
+    // Retry without sort_order if column missing
+    if (error && insertPayload.sort_order != null && (
+      error.message?.includes('sort_order') || error.message?.includes('column')
+    )) {
+      delete insertPayload.sort_order
+      const retry3 = await supabase
+        .from('trips')
+        .insert([insertPayload])
+        .select()
+        .single()
+      data = retry3.data
+      error = retry3.error
     }
 
     if (error) {

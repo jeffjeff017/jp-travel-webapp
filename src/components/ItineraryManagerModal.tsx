@@ -9,14 +9,17 @@ import ImageSlider from '@/components/ImageSlider'
 import PlateRichView from '@/components/PlateRichView'
 import { isPlateJsonEffectivelyEmpty } from '@/lib/plateRich'
 
+type DayScheduleEntry = { dayNumber: number; theme: string; imageUrl?: string }
+
 type Props = {
   open: boolean
   onClose: () => void
   trips: Trip[]
   totalDays: number
   tripStartDate: string
-  daySchedules: Array<{ dayNumber: number; theme: string; imageUrl?: string }>
+  daySchedules: DayScheduleEntry[]
   themeColor: string
+  onUpdateDaySchedules?: (schedules: DayScheduleEntry[]) => void
 }
 
 function parseImages(imageUrl: string | undefined): string[] {
@@ -50,16 +53,20 @@ function parseScheduleItems(description: string | undefined | null): ScheduleIte
   return []
 }
 
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').trim()
-}
-
 function getDateForDay(tripStartDate: string, dayNumber: number): string {
   if (!tripStartDate) return ''
   const startDate = new Date(tripStartDate)
   const targetDate = new Date(startDate)
   targetDate.setDate(startDate.getDate() + dayNumber - 1)
   return targetDate.toISOString().split('T')[0]
+}
+
+function getDayNumFromDate(tripStartDate: string, dateStr: string): number {
+  if (!tripStartDate || !dateStr) return 1
+  const start = new Date(tripStartDate)
+  const target = new Date(dateStr)
+  const diff = Math.floor((target.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+  return diff + 1
 }
 
 function formatDate(dateStr: string): string {
@@ -78,6 +85,7 @@ export default function ItineraryManagerModal({
   tripStartDate,
   daySchedules,
   themeColor,
+  onUpdateDaySchedules,
 }: Props) {
   const queryClient = useQueryClient()
   const [selectedDay, setSelectedDay] = useState<number>(1)
@@ -85,9 +93,126 @@ export default function ItineraryManagerModal({
   const tabContainerRef = useRef<any>(null)
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
-  const [draggingTripId, setDraggingTripId] = useState<number | null>(null)
-  const [dragOverTripId, setDragOverTripId] = useState<number | null>(null)
   const [localTrips, setLocalTrips] = useState<Trip[]>(trips)
+
+  // ── Trip Order Popup (day-level reordering) ───────────────────────────────
+  const [tripOrderPopupOpen, setTripOrderPopupOpen] = useState(false)
+  const [tripOrderDay, setTripOrderDay] = useState<number>(1)
+  const [tripOrderList, setTripOrderList] = useState<Trip[]>([])
+  const [tripOrderDragFrom, setTripOrderDragFrom] = useState<number | null>(null)
+  const [tripOrderDragOver, setTripOrderDragOver] = useState<number | null>(null)
+  const [tripOrderSaving, setTripOrderSaving] = useState(false)
+
+  const handleOpenTripOrderPopup = (day: number, tripsForDay: Trip[]) => {
+    setTripOrderDay(day)
+    setTripOrderList([...tripsForDay])
+    setTripOrderPopupOpen(true)
+  }
+
+  const handleTripDragStart = (idx: number) => setTripOrderDragFrom(idx)
+  const handleTripDragEnd = () => {
+    if (tripOrderDragFrom !== null && tripOrderDragOver !== null && tripOrderDragFrom !== tripOrderDragOver) {
+      setTripOrderList(prev => {
+        const next = [...prev]
+        const [moved] = next.splice(tripOrderDragFrom, 1)
+        next.splice(tripOrderDragOver, 0, moved)
+        return next
+      })
+    }
+    setTripOrderDragFrom(null)
+    setTripOrderDragOver(null)
+  }
+
+  const handleSaveTripOrder = async () => {
+    setTripOrderSaving(true)
+    try {
+      // Build updated trips immediately for local state
+      const updatedTrips = localTrips.map(t => {
+        const ordered = tripOrderList.find((ot, idx) => ot.id === t.id)
+        if (ordered) {
+          const newIdx = tripOrderList.findIndex((ot, idx) => ot.id === t.id)
+          return { ...t, sort_order: newIdx + 1 }
+        }
+        return t
+      })
+
+      const updates: Promise<unknown>[] = []
+      tripOrderList.forEach((trip, idx) => {
+        updates.push(
+          updateTrip(trip.id, { sort_order: idx + 1 })
+        )
+      })
+      await Promise.all(updates)
+
+      // Update local state immediately
+      setLocalTrips(updatedTrips)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
+      setTripOrderPopupOpen(false)
+    } finally {
+      setTripOrderSaving(false)
+    }
+  }
+
+  // ── Day Order Popup (bottom sheet) ─────────────────────────────────────────
+  const [dayOrderPopupOpen, setDayOrderPopupOpen] = useState(false)
+  const [dayList, setDayList] = useState<number[]>([])
+  const [dayOrderSaving, setDayOrderSaving] = useState(false)
+
+  const handleOpenDayOrderPopup = () => {
+    const ordered = Array.from({ length: totalDays }, (_, i) => i + 1)
+    setDayList(ordered)
+    setDayOrderPopupOpen(true)
+  }
+
+  const handleSaveDayOrder = async () => {
+    setDayOrderSaving(true)
+    try {
+      // Update localTrips dates first for immediate UI feedback
+      const updatedTrips = localTrips.map(t => {
+        const currentDayNum = getDayNumFromDate(tripStartDate, t.date)
+        const newDayNum = dayList.indexOf(currentDayNum) + 1
+        if (newDayNum !== currentDayNum) {
+          return { ...t, date: getDateForDay(tripStartDate, newDayNum) }
+        }
+        return t
+      })
+      setLocalTrips(updatedTrips)
+
+      // If day order changed, switch to the new position of the current day
+      const currentDayIdx = dayList.indexOf(selectedDay)
+      if (currentDayIdx !== -1 && currentDayIdx !== selectedDay - 1) {
+        setSelectedDay(currentDayIdx + 1)
+      }
+
+      const updates: Promise<unknown>[] = []
+      for (let i = 0; i < dayList.length; i++) {
+        const day = dayList[i]
+        const currentDate = getDateForDay(tripStartDate, day)
+        const newDate = getDateForDay(tripStartDate, i + 1)
+        if (currentDate !== newDate) {
+          const tripsOnDay = localTrips.filter(t => {
+            const td = new Date(t.date).toISOString().split('T')[0]
+            return td === currentDate
+          })
+          tripsOnDay.forEach(t => {
+            updates.push(updateTrip(t.id, { date: newDate }))
+          })
+        }
+      }
+      if (onUpdateDaySchedules) {
+        const newSchedules = daySchedules.map(s => {
+          const newDayNumber = dayList.indexOf(s.dayNumber) + 1
+          return { ...s, dayNumber: newDayNumber }
+        })
+        await onUpdateDaySchedules(newSchedules)
+      }
+      await Promise.all(updates)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
+      setDayOrderPopupOpen(false)
+    } finally {
+      setDayOrderSaving(false)
+    }
+  }
 
   // Sync local trips when props change
   useEffect(() => {
@@ -100,6 +225,7 @@ export default function ItineraryManagerModal({
     return localTrips
       .filter(t => new Date(t.date).toISOString().split('T')[0] === targetDate)
       .sort((a, b) => {
+        if (a.sort_order !== b.sort_order) return (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)
         if (!a.time_start && !b.time_start) return (a.created_at || '').localeCompare(b.created_at || '')
         if (!a.time_start) return 1
         if (!b.time_start) return -1
@@ -108,25 +234,6 @@ export default function ItineraryManagerModal({
   }, [localTrips, tripStartDate])
 
   const dayTrips = getTripsForDay(selectedDay)
-
-  // Swap two trips (reorder within same day)
-  const handleTripReorder = async (tripA: Trip, tripB: Trip) => {
-    if (tripA.id === tripB.id) return
-    // For simplicity, swap their dates (if same day) or just swap order
-    const dateA = tripA.date
-    const dateB = tripB.date
-
-    await updateTrip(tripA.id, { date: dateB })
-    await updateTrip(tripB.id, { date: dateA })
-
-    const updated = localTrips.map(t => {
-      if (t.id === tripA.id) return { ...t, date: dateB }
-      if (t.id === tripB.id) return { ...t, date: dateA }
-      return t
-    })
-    setLocalTrips(updated)
-    await queryClient.invalidateQueries({ queryKey: queryKeys.trips })
-  }
 
   // Delete a trip
   const handleDeleteTrip = async (tripId: number) => {
@@ -183,6 +290,7 @@ export default function ItineraryManagerModal({
     setTabScrollLeft(el.scrollLeft)
   }
 
+
   const canScrollLeft = tabScrollLeft > 5
   const maxDaysToShow = 3
   const canScrollRight = totalDays > maxDaysToShow
@@ -225,14 +333,23 @@ export default function ItineraryManagerModal({
                     {localTrips.length} 項
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors"
-                  aria-label="關閉"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenDayOrderPopup}
+                    className="flex items-center gap-1 text-sm font-medium text-white/90 hover:text-white py-1.5 px-3 rounded-lg hover:bg-white/10 transition-colors"
+                  >
+                    ↕ 排序
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+                    aria-label="關閉"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
               {/* Day Tabs */}
@@ -277,6 +394,7 @@ export default function ItineraryManagerModal({
                     const schedule = daySchedules.find(d => d.dayNumber === day)
                     const dateStr = getDateForDay(tripStartDate, day)
                     const isActive = selectedDay === day
+
                     return (
                       <button
                         key={day}
@@ -291,12 +409,16 @@ export default function ItineraryManagerModal({
                       >
                         <div className="flex items-center gap-1">
                           <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
-                            isActive ? 'bg-sakura-500 text-white' : 'bg-gray-100 text-gray-500'
+                            isActive
+                              ? 'bg-sakura-500 text-white'
+                              : 'bg-gray-100 text-gray-500'
                           }`}>
                             {formatDate(dateStr)}
                           </span>
                         </div>
-                        <span className={`text-xs font-semibold ${isActive ? 'text-sakura-600' : 'text-gray-400'}`}>
+                        <span className={`text-xs font-semibold ${
+                          isActive ? 'text-sakura-600' : 'text-gray-400'
+                        }`}>
                           Day {day}
                         </span>
                         {schedule?.theme && schedule.theme !== `Day ${day}` && (
@@ -324,130 +446,100 @@ export default function ItineraryManagerModal({
                     <p className="text-xs mt-1">可到行程頁新增行程</p>
                   </div>
                 ) : (
-                  <div className="p-4 space-y-3">
-                    {dayTrips.map((trip, index) => {
-                      const images = parseImages(trip.image_url)
-                      const isDragOver = dragOverTripId === trip.id && draggingTripId !== trip.id
-                      return (
-                        <div
-                          key={trip.id}
-                          draggable
-                          onDragStart={(e) => {
-                            setDraggingTripId(trip.id)
-                            e.dataTransfer.setData('tripId', trip.id.toString())
-                            e.dataTransfer.setData('sourceDay', selectedDay.toString())
-                            e.currentTarget.classList.add('opacity-50')
-                          }}
-                          onDragEnd={(e) => {
-                            setDraggingTripId(null)
-                            setDragOverTripId(null)
-                            e.currentTarget.classList.remove('opacity-50')
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            if (draggingTripId !== trip.id) setDragOverTripId(trip.id)
-                          }}
-                          onDragLeave={() => setDragOverTripId(null)}
-                          onDrop={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            setDragOverTripId(null)
-                            const tripIdA = parseInt(e.dataTransfer.getData('tripId'))
-                            const sourceDay = parseInt(e.dataTransfer.getData('sourceDay'))
-                            const tripA = localTrips.find(t => t.id === tripIdA)
-                            if (!tripA) return
-                            if (sourceDay === selectedDay && tripA.id !== trip.id) {
-                              void handleTripReorder(tripA, trip)
-                            }
-                            setDraggingTripId(null)
-                          }}
-                          className={`bg-white rounded-xl border overflow-hidden transition-all ${
-                            isDragOver
-                              ? 'border-sakura-400 ring-2 ring-sakura-200 shadow-lg scale-[1.02]'
-                              : 'border-gray-100 hover:border-gray-200 hover:shadow-sm'
-                          }`}
-                        >
-                          {/* Trip Header Row */}
-                          <div className="flex items-center gap-3 p-3">
-                            {/* Drag Handle */}
-                            <span className="text-gray-300 cursor-grab active:cursor-grabbing shrink-0 select-none">⠿</span>
+                  <>
+                    {/* Trip List Header */}
+                    <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                      <span className="text-xs text-gray-400">{dayTrips.length} 項行程</span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenTripOrderPopup(selectedDay, dayTrips)}
+                        className="flex items-center gap-1 text-xs font-medium text-sakura-500 hover:text-sakura-600 px-2 py-1 rounded-lg hover:bg-sakura-50 transition-colors"
+                      >
+                        ↕ 排序
+                      </button>
+                    </div>
+                    <div className="px-4 space-y-3 pb-4">
+                      {dayTrips.map((trip, index) => {
+                        const images = parseImages(trip.image_url)
+                        return (
+                          <div
+                            key={trip.id}
+                            className="bg-white rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm overflow-hidden transition-all"
+                          >
+                            {/* Trip Header Row */}
+                            <div className="flex items-center gap-3 p-3">
+                              {/* Order Number */}
+                              <span className="text-xs font-medium text-gray-400 w-5 text-center shrink-0">{index + 1}</span>
 
-                            {/* Order Number */}
-                            <span className="text-xs font-medium text-gray-400 w-5 text-center shrink-0">{index + 1}</span>
-
-                            {/* Image Thumb */}
-                            {images.length > 0 ? (
-                              <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
-                                <img
-                                  src={images[0]}
-                                  alt={trip.title}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                            ) : (
-                              <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                                <span className="text-2xl opacity-30">🗾</span>
-                              </div>
-                            )}
-
-                            {/* Content */}
-                            <div className="flex-1 min-w-0 space-y-0.5">
-                              {/* Line 1: Title */}
-                              <p className="text-sm font-medium text-gray-800 truncate">{trip.title}</p>
-                              {/* Line 2: Time */}
-                              <div className="flex items-center gap-2">
-                                {trip.time_start && (
-                                  <span className="text-xs text-sakura-500 font-medium">
-                                    {trip.time_start}{trip.time_end ? ` - ${trip.time_end}` : ''}
-                                  </span>
-                                )}
-                              </div>
-                              {/* Line 3: Location */}
-                              {trip.location && (
-                                <p className="text-xs text-gray-400 truncate">📍 {trip.location}</p>
+                              {/* Image Thumb */}
+                              {images.length > 0 ? (
+                                <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                                  <img
+                                    src={images[0]}
+                                    alt={trip.title}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-2xl opacity-30">🗾</span>
+                                </div>
                               )}
-                              {/* Line 4: Schedule items */}
-                              {(() => {
-                                const items = parseScheduleItems(trip.description)
-                                if (items.length === 0) return null
-                                return (
-                                  <p className="text-xs text-gray-400 truncate">
-                                    {items.map(item => item.content).join(' · ')}
-                                  </p>
-                                )
-                              })()}
-                            </div>
 
-                            {/* Actions */}
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenDetail(trip)}
-                                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
-                                title="查看詳情"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEdit(trip)}
-                                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-sakura-500 hover:bg-sakura-50 transition-colors"
-                                title="編輯行程"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              </button>
+                              {/* Content */}
+                              <div className="flex-1 min-w-0 space-y-0.5">
+                                <p className="text-sm font-medium text-gray-800 truncate">{trip.title}</p>
+                                <div className="flex items-center gap-2">
+                                  {trip.time_start && (
+                                    <span className="text-xs text-sakura-500 font-medium">
+                                      {trip.time_start}{trip.time_end ? ` - ${trip.time_end}` : ''}
+                                    </span>
+                                  )}
+                                </div>
+                                {trip.location && (
+                                  <p className="text-xs text-gray-400 truncate">📍 {trip.location}</p>
+                                )}
+                                {(() => {
+                                  const items = parseScheduleItems(trip.description)
+                                  if (items.length === 0) return null
+                                  return (
+                                    <p className="text-xs text-gray-400 truncate">
+                                      {items.map(item => item.content).join(' · ')}
+                                    </p>
+                                  )
+                                })()}
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDetail(trip)}
+                                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                                  title="查看詳情"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEdit(trip)}
+                                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-sakura-500 hover:bg-sakura-50 transition-colors"
+                                  title="編輯行程"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )
-                    }                    )}
-                  </div>
+                        )
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
             </>
@@ -475,6 +567,31 @@ export default function ItineraryManagerModal({
               themeColor={themeColor}
             />
           ) : null}
+
+          {/* Day Order Popup */}
+          <DayOrderPopup
+            open={dayOrderPopupOpen}
+            onClose={() => setDayOrderPopupOpen(false)}
+            dayList={dayList}
+            setDayList={setDayList}
+            tripStartDate={tripStartDate}
+            themeColor={themeColor}
+            daySchedules={daySchedules}
+            onSave={handleSaveDayOrder}
+            saving={dayOrderSaving}
+          />
+
+          {/* Trip Order Popup */}
+          <TripOrderPopup
+            open={tripOrderPopupOpen}
+            onClose={() => setTripOrderPopupOpen(false)}
+            day={tripOrderDay}
+            tripList={tripOrderList}
+            setTripList={setTripOrderList}
+            themeColor={themeColor}
+            onSave={handleSaveTripOrder}
+            saving={tripOrderSaving}
+          />
         </motion.div>
       </motion.div>
     </AnimatePresence>
@@ -785,5 +902,355 @@ function TripEditView({
         </button>
       </div>
     </>
+  )
+}
+
+// ── Day Order Popup (bottom sheet) ─────────────────────────────────────────
+
+function DayOrderPopup({
+  open,
+  onClose,
+  dayList,
+  setDayList,
+  tripStartDate,
+  themeColor,
+  daySchedules,
+  onSave,
+  saving,
+}: {
+  open: boolean
+  onClose: () => void
+  dayList: number[]
+  setDayList: React.Dispatch<React.SetStateAction<number[]>>
+  tripStartDate: string
+  themeColor: string
+  daySchedules: DayScheduleEntry[]
+  onSave: () => void
+  saving: boolean
+}) {
+  const [dragDayFrom, setDragDayFrom] = useState<number | null>(null)
+  const [dragDayOver, setDragDayOver] = useState<number | null>(null)
+
+  const handleDragStart = (day: number) => setDragDayFrom(day)
+  const handleDragEnd = () => {
+    if (dragDayFrom !== null && dragDayOver !== null && dragDayFrom !== dragDayOver) {
+      setDayList(prev => {
+        const next = [...prev]
+        const fromIdx = next.indexOf(dragDayFrom)
+        const toIdx = next.indexOf(dragDayOver)
+        next.splice(fromIdx, 1)
+        next.splice(toIdx, 0, dragDayFrom)
+        return next
+      })
+    }
+    setDragDayFrom(null)
+    setDragDayOver(null)
+  }
+
+  if (!open) return null
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 z-[80] flex items-end justify-center"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 80 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 80 }}
+          transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+          className="bg-white rounded-t-3xl shadow-2xl w-full max-w-md max-h-[70dvh] flex flex-col"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div
+            className="flex items-center justify-between px-5 py-4 rounded-t-3xl flex-shrink-0"
+            style={{ background: `linear-gradient(135deg, ${themeColor} 0%, ${themeColor}cc 100%)` }}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-lg">↕</span>
+              <h3 className="text-white font-semibold text-base">調整天數順序</h3>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+              aria-label="關閉"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Instruction */}
+          <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0">
+            <p className="text-xs text-gray-400 text-center">
+              拖曳列以調整順序，完成後按下「確認」
+            </p>
+          </div>
+
+          {/* Day List */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
+            {dayList.map((day, displayOrder) => {
+              const schedule = daySchedules.find(d => d.dayNumber === day)
+              const dateStr = getDateForDay(tripStartDate, day)
+              const isDragging = dragDayFrom === day
+              const isOver = dragDayOver === day && dragDayFrom !== day
+
+              return (
+                <div
+                  key={day}
+                  draggable
+                  onDragStart={() => handleDragStart(day)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={e => {
+                    e.preventDefault()
+                    if (dragDayFrom !== day) setDragDayOver(day)
+                  }}
+                  onDragLeave={() => setDragDayOver(null)}
+                  onDrop={e => {
+                    e.preventDefault()
+                    handleDragEnd()
+                  }}
+                  className={`flex items-center gap-3 px-4 py-3 bg-white rounded-xl border transition-all select-none ${
+                    isOver
+                      ? 'border-sakura-400 ring-2 ring-sakura-200 shadow-md scale-[1.02]'
+                      : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                  } ${isDragging ? 'opacity-50 scale-95' : ''}`}
+                >
+                  {/* Drag Handle */}
+                  <span className="text-gray-300 cursor-grab active:cursor-grabbing shrink-0">⠿</span>
+
+                  {/* Position Badge */}
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                    style={{ backgroundColor: themeColor }}
+                  >
+                    {displayOrder + 1}
+                  </div>
+
+                  {/* Day Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-gray-800">Day {day}</span>
+                      {schedule?.theme && schedule.theme !== `Day ${day}` && (
+                        <span className="text-xs text-gray-400 truncate">{schedule.theme}</span>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-400">{formatDate(dateStr)}</span>
+                  </div>
+
+                  {/* Trip count dot */}
+                  <div
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: themeColor }}
+                  />
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Footer Actions */}
+          <div className="flex-shrink-0 px-5 py-4 border-t border-gray-100 flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="flex-1 py-3 text-sm font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors disabled:opacity-50"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving}
+              className="flex-1 py-3 text-sm font-medium text-white rounded-xl transition-colors disabled:opacity-50"
+              style={{ backgroundColor: themeColor }}
+            >
+              {saving ? '儲存中...' : '確認'}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
+// ── Trip Order Popup (day-level reordering) ─────────────────────────────────
+
+function TripOrderPopup({
+  open,
+  onClose,
+  day,
+  tripList,
+  setTripList,
+  themeColor,
+  onSave,
+  saving,
+}: {
+  open: boolean
+  onClose: () => void
+  day: number
+  tripList: Trip[]
+  setTripList: React.Dispatch<React.SetStateAction<Trip[]>>
+  themeColor: string
+  onSave: () => void
+  saving: boolean
+}) {
+  const [dragFrom, setDragFrom] = useState<number | null>(null)
+  const [dragOver, setDragOver] = useState<number | null>(null)
+
+  const handleDragStart = (idx: number) => setDragFrom(idx)
+  const handleDragEnd = () => {
+    if (dragFrom !== null && dragOver !== null && dragFrom !== dragOver) {
+      setTripList(prev => {
+        const next = [...prev]
+        const [moved] = next.splice(dragFrom, 1)
+        next.splice(dragOver, 0, moved)
+        return next
+      })
+    }
+    setDragFrom(null)
+    setDragOver(null)
+  }
+
+  if (!open) return null
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 z-[80] flex items-end justify-center"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 80 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 80 }}
+          transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+          className="bg-white rounded-t-3xl shadow-2xl w-full max-w-md max-h-[70dvh] flex flex-col"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div
+            className="flex items-center justify-between px-5 py-4 rounded-t-3xl flex-shrink-0"
+            style={{ background: `linear-gradient(135deg, ${themeColor} 0%, ${themeColor}cc 100%)` }}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-lg">↕</span>
+              <h3 className="text-white font-semibold text-base">Day {day} 行程排序</h3>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+              aria-label="關閉"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Instruction */}
+          <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0">
+            <p className="text-xs text-gray-400 text-center">
+              拖曳列以調整順序，完成後按下「確認」
+            </p>
+          </div>
+
+          {/* Trip List */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
+            {tripList.map((trip, idx) => {
+              const images = parseImages(trip.image_url)
+              const isDragging = dragFrom === idx
+              const isOver = dragOver === idx && dragFrom !== idx
+
+              return (
+                <div
+                  key={trip.id}
+                  draggable
+                  onDragStart={() => handleDragStart(idx)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={e => {
+                    e.preventDefault()
+                    if (dragFrom !== idx) setDragOver(idx)
+                  }}
+                  onDragLeave={() => setDragOver(null)}
+                  onDrop={e => {
+                    e.preventDefault()
+                    handleDragEnd()
+                  }}
+                  className={`flex items-center gap-3 px-4 py-3 bg-white rounded-xl border transition-all select-none ${
+                    isOver
+                      ? 'border-sakura-400 ring-2 ring-sakura-200 shadow-md scale-[1.02]'
+                      : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                  } ${isDragging ? 'opacity-50 scale-95' : ''}`}
+                >
+                  {/* Drag Handle */}
+                  <span className="text-gray-300 cursor-grab active:cursor-grabbing shrink-0">⠿</span>
+
+                  {/* Order Badge */}
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                    style={{ backgroundColor: themeColor }}
+                  >
+                    {idx + 1}
+                  </div>
+
+                  {/* Image Thumb */}
+                  {images.length > 0 ? (
+                    <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                      <img src={images[0]} alt={trip.title} className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg opacity-30">🗾</span>
+                    </div>
+                  )}
+
+                  {/* Trip Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{trip.title}</p>
+                    {trip.time_start && (
+                      <p className="text-xs text-sakura-500 truncate">
+                        {trip.time_start}{trip.time_end ? ` - ${trip.time_end}` : ''}
+                      </p>
+                    )}
+                    {trip.location && (
+                      <p className="text-xs text-gray-400 truncate">📍 {trip.location}</p>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Footer Actions */}
+          <div className="flex-shrink-0 px-5 py-4 border-t border-gray-100 flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="flex-1 py-3 text-sm font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors disabled:opacity-50"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving}
+              className="flex-1 py-3 text-sm font-medium text-white rounded-xl transition-colors disabled:opacity-50"
+              style={{ backgroundColor: themeColor }}
+            >
+              {saving ? '儲存中...' : '確認'}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   )
 }

@@ -2378,22 +2378,22 @@ export default function WishlistPage() {
                             </select>
                           </div>
                           <div className="flex gap-2">
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <label className="block text-xs text-gray-500 mb-1">開始時段</label>
                               <input
                                 type="time"
                                 value={addToTripTimeStart}
                                 onChange={(e) => setAddToTripTimeStart(e.target.value)}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-sakura-400 outline-none"
+                                className="w-full min-w-0 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-sakura-400 outline-none"
                               />
                             </div>
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <label className="block text-xs text-gray-500 mb-1">結束時段</label>
                               <input
                                 type="time"
                                 value={addToTripTimeEnd}
                                 onChange={(e) => setAddToTripTimeEnd(e.target.value)}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-sakura-400 outline-none"
+                                className="w-full min-w-0 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-sakura-400 outline-none"
                               />
                             </div>
                           </div>

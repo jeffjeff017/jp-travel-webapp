@@ -20,6 +20,7 @@ import {
   deleteSupabaseWishlistItem,
   type WishlistItemDB,
   saveSupabaseChecklistState,
+  saveSupabaseSiteSettings,
 } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -1645,7 +1646,7 @@ export default function AdminPage() {
               <h3 className="font-semibold text-gray-800 flex items-center gap-2">
                 <span className="text-lg">📅</span> 行程管理
               </h3>
-              <span className="text-xs text-gray-400">拖放排序</span>
+              <span className="text-xs text-gray-400">行程管理</span>
             </div>
             {siteSettings && (
               <button
@@ -3321,6 +3322,12 @@ export default function AdminPage() {
           tripStartDate={siteSettings?.tripStartDate || ''}
           daySchedules={siteSettings?.daySchedules || []}
           themeColor={themeColor}
+          onUpdateDaySchedules={async (newSchedules) => {
+            const { success } = await saveSupabaseSiteSettings({ day_schedules: newSchedules })
+            if (success) {
+              setSiteSettings(prev => prev ? { ...prev, daySchedules: newSchedules } : prev)
+            }
+          }}
         />
 
         {/* ❤️❤️次數總覽（僅管理員） */}
