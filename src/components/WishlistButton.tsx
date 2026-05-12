@@ -1090,7 +1090,7 @@ export default function WishlistButton({
                                           type="time"
                                           value={selectedTime}
                                           onChange={(e) => setSelectedTime(e.target.value)}
-                                          className="px-2 py-1.5 text-sm border border-pink-200 rounded-lg focus:outline-none focus:border-pink-400"
+                                          className="w-28 bg-white px-2 py-1.5 text-sm border border-pink-200 rounded-lg focus:outline-none focus:border-pink-400"
                                         />
                                       </div>
                                       <div className="flex gap-2 mt-2">
