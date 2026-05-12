@@ -99,28 +99,12 @@ export default function ItineraryManagerModal({
   const [tripOrderPopupOpen, setTripOrderPopupOpen] = useState(false)
   const [tripOrderDay, setTripOrderDay] = useState<number>(1)
   const [tripOrderList, setTripOrderList] = useState<Trip[]>([])
-  const [tripOrderDragFrom, setTripOrderDragFrom] = useState<number | null>(null)
-  const [tripOrderDragOver, setTripOrderDragOver] = useState<number | null>(null)
   const [tripOrderSaving, setTripOrderSaving] = useState(false)
 
   const handleOpenTripOrderPopup = (day: number, tripsForDay: Trip[]) => {
     setTripOrderDay(day)
     setTripOrderList([...tripsForDay])
     setTripOrderPopupOpen(true)
-  }
-
-  const handleTripDragStart = (idx: number) => setTripOrderDragFrom(idx)
-  const handleTripDragEnd = () => {
-    if (tripOrderDragFrom !== null && tripOrderDragOver !== null && tripOrderDragFrom !== tripOrderDragOver) {
-      setTripOrderList(prev => {
-        const next = [...prev]
-        const [moved] = next.splice(tripOrderDragFrom, 1)
-        next.splice(tripOrderDragOver, 0, moved)
-        return next
-      })
-    }
-    setTripOrderDragFrom(null)
-    setTripOrderDragOver(null)
   }
 
   const handleSaveTripOrder = async () => {
@@ -928,23 +912,22 @@ function DayOrderPopup({
   onSave: () => void
   saving: boolean
 }) {
-  const [dragDayFrom, setDragDayFrom] = useState<number | null>(null)
-  const [dragDayOver, setDragDayOver] = useState<number | null>(null)
+  const moveUp = (idx: number) => {
+    if (idx === 0) return
+    setDayList(prev => {
+      const next = [...prev]
+      ;[next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
+      return next
+    })
+  }
 
-  const handleDragStart = (day: number) => setDragDayFrom(day)
-  const handleDragEnd = () => {
-    if (dragDayFrom !== null && dragDayOver !== null && dragDayFrom !== dragDayOver) {
-      setDayList(prev => {
-        const next = [...prev]
-        const fromIdx = next.indexOf(dragDayFrom)
-        const toIdx = next.indexOf(dragDayOver)
-        next.splice(fromIdx, 1)
-        next.splice(toIdx, 0, dragDayFrom)
-        return next
-      })
-    }
-    setDragDayFrom(null)
-    setDragDayOver(null)
+  const moveDown = (idx: number) => {
+    setDayList(prev => {
+      if (idx >= prev.length - 1) return prev
+      const next = [...prev]
+      ;[next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+      return next
+    })
   }
 
   if (!open) return null
@@ -988,7 +971,7 @@ function DayOrderPopup({
           {/* Instruction */}
           <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0">
             <p className="text-xs text-gray-400 text-center">
-              拖曳列以調整順序，完成後按下「確認」
+              使用上下箭頭調整順序，完成後按下「確認」
             </p>
           </div>
 
@@ -997,33 +980,12 @@ function DayOrderPopup({
             {dayList.map((day, displayOrder) => {
               const schedule = daySchedules.find(d => d.dayNumber === day)
               const dateStr = getDateForDay(tripStartDate, day)
-              const isDragging = dragDayFrom === day
-              const isOver = dragDayOver === day && dragDayFrom !== day
 
               return (
                 <div
                   key={day}
-                  draggable
-                  onDragStart={() => handleDragStart(day)}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={e => {
-                    e.preventDefault()
-                    if (dragDayFrom !== day) setDragDayOver(day)
-                  }}
-                  onDragLeave={() => setDragDayOver(null)}
-                  onDrop={e => {
-                    e.preventDefault()
-                    handleDragEnd()
-                  }}
-                  className={`flex items-center gap-3 px-4 py-3 bg-white rounded-xl border transition-all select-none ${
-                    isOver
-                      ? 'border-sakura-400 ring-2 ring-sakura-200 shadow-md scale-[1.02]'
-                      : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
-                  } ${isDragging ? 'opacity-50 scale-95' : ''}`}
+                  className="flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition-all"
                 >
-                  {/* Drag Handle */}
-                  <span className="text-gray-300 cursor-grab active:cursor-grabbing shrink-0">⠿</span>
-
                   {/* Position Badge */}
                   <div
                     className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
@@ -1048,6 +1010,32 @@ function DayOrderPopup({
                     className="w-2 h-2 rounded-full shrink-0"
                     style={{ backgroundColor: themeColor }}
                   />
+
+                  {/* Move Up Button */}
+                  <button
+                    type="button"
+                    onClick={() => moveUp(displayOrder)}
+                    disabled={displayOrder === 0}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-sakura-500 hover:bg-sakura-50 transition-colors disabled:opacity-25 disabled:cursor-not-allowed shrink-0"
+                    aria-label="往上移動"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+
+                  {/* Move Down Button */}
+                  <button
+                    type="button"
+                    onClick={() => moveDown(displayOrder)}
+                    disabled={displayOrder === dayList.length - 1}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-sakura-500 hover:bg-sakura-50 transition-colors disabled:opacity-25 disabled:cursor-not-allowed shrink-0"
+                    aria-label="往下移動"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
                 </div>
               )
             })}
@@ -1100,21 +1088,22 @@ function TripOrderPopup({
   onSave: () => void
   saving: boolean
 }) {
-  const [dragFrom, setDragFrom] = useState<number | null>(null)
-  const [dragOver, setDragOver] = useState<number | null>(null)
+  const moveUp = (idx: number) => {
+    if (idx === 0) return
+    setTripList(prev => {
+      const next = [...prev]
+      ;[next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
+      return next
+    })
+  }
 
-  const handleDragStart = (idx: number) => setDragFrom(idx)
-  const handleDragEnd = () => {
-    if (dragFrom !== null && dragOver !== null && dragFrom !== dragOver) {
-      setTripList(prev => {
-        const next = [...prev]
-        const [moved] = next.splice(dragFrom, 1)
-        next.splice(dragOver, 0, moved)
-        return next
-      })
-    }
-    setDragFrom(null)
-    setDragOver(null)
+  const moveDown = (idx: number) => {
+    setTripList(prev => {
+      if (idx >= prev.length - 1) return prev
+      const next = [...prev]
+      ;[next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+      return next
+    })
   }
 
   if (!open) return null
@@ -1158,7 +1147,7 @@ function TripOrderPopup({
           {/* Instruction */}
           <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0">
             <p className="text-xs text-gray-400 text-center">
-              拖曳列以調整順序，完成後按下「確認」
+              使用上下箭頭調整順序，完成後按下「確認」
             </p>
           </div>
 
@@ -1166,33 +1155,12 @@ function TripOrderPopup({
           <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
             {tripList.map((trip, idx) => {
               const images = parseImages(trip.image_url)
-              const isDragging = dragFrom === idx
-              const isOver = dragOver === idx && dragFrom !== idx
 
               return (
                 <div
                   key={trip.id}
-                  draggable
-                  onDragStart={() => handleDragStart(idx)}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={e => {
-                    e.preventDefault()
-                    if (dragFrom !== idx) setDragOver(idx)
-                  }}
-                  onDragLeave={() => setDragOver(null)}
-                  onDrop={e => {
-                    e.preventDefault()
-                    handleDragEnd()
-                  }}
-                  className={`flex items-center gap-3 px-4 py-3 bg-white rounded-xl border transition-all select-none ${
-                    isOver
-                      ? 'border-sakura-400 ring-2 ring-sakura-200 shadow-md scale-[1.02]'
-                      : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
-                  } ${isDragging ? 'opacity-50 scale-95' : ''}`}
+                  className="flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition-all"
                 >
-                  {/* Drag Handle */}
-                  <span className="text-gray-300 cursor-grab active:cursor-grabbing shrink-0">⠿</span>
-
                   {/* Order Badge */}
                   <div
                     className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
@@ -1224,6 +1192,32 @@ function TripOrderPopup({
                       <p className="text-xs text-gray-400 truncate">📍 {trip.location}</p>
                     )}
                   </div>
+
+                  {/* Move Up Button */}
+                  <button
+                    type="button"
+                    onClick={() => moveUp(idx)}
+                    disabled={idx === 0}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-sakura-500 hover:bg-sakura-50 transition-colors disabled:opacity-25 disabled:cursor-not-allowed shrink-0"
+                    aria-label="往上移動"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+
+                  {/* Move Down Button */}
+                  <button
+                    type="button"
+                    onClick={() => moveDown(idx)}
+                    disabled={idx === tripList.length - 1}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-sakura-500 hover:bg-sakura-50 transition-colors disabled:opacity-25 disabled:cursor-not-allowed shrink-0"
+                    aria-label="往下移動"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
                 </div>
               )
             })}
