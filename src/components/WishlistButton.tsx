@@ -291,9 +291,10 @@ export default function WishlistButton({
             threads: parsed.threads || [],
           }
           // Deduplicate from localStorage too
-          for (const cat of Object.keys(merged)) {
+          const CATEGORIES = ['cafe', 'restaurant', 'bakery', 'shopping', 'park', 'threads'] as const;
+          for (const cat of CATEGORIES) {
             const seenIds = new Set<string | number>()
-            merged[cat] = merged[cat].filter((item: WishlistItem) => {
+            ;(merged as Record<string, WishlistItem[]>)[cat] = merged[cat].filter((item: WishlistItem) => {
               if (seenIds.has(item.id)) return false
               seenIds.add(item.id)
               return true
