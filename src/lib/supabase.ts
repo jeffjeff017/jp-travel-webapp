@@ -677,9 +677,9 @@ export async function getSupabaseWishlistItems(): Promise<WishlistItemDB[]> {
 
     const rows = data || []
     // Defensive: same id should not appear twice; keeps UI stable if data is ever odd
-    const byId = new Map<number, WishlistItemDB>()
+    const byId = new Map<string | number, WishlistItemDB>()
     for (const row of rows) {
-      if (row && typeof row.id === 'number' && !byId.has(row.id)) {
+      if (row && row.id != null && !byId.has(row.id)) {
         byId.set(row.id, row)
       }
     }

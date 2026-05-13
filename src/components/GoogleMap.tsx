@@ -484,7 +484,7 @@ export default function GoogleMapComponent({
               <h3 className="font-medium text-gray-800 mb-1">{searchMarker.name}</h3>
               <p className="text-xs text-gray-500 mb-2">搜尋結果</p>
               <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${searchMarker.lat},${searchMarker.lng}`}
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchMarker.name + ' Japan')}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-block px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs rounded-full transition-colors"

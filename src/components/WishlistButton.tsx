@@ -156,9 +156,16 @@ export default function WishlistButton({
   
   // Get filtered items based on search query
   const getFilteredItems = (items: WishlistItem[]) => {
-    if (!searchQuery.trim()) return items
+    // Deduplicate by id so that the same item never renders twice
+    const seen = new Set<string | number>()
+    const deduped = items.filter(item => {
+      if (seen.has(item.id)) return false
+      seen.add(item.id)
+      return true
+    })
+    if (!searchQuery.trim()) return deduped
     const query = searchQuery.toLowerCase().trim()
-    return items.filter(item => 
+    return deduped.filter(item =>
       item.name.toLowerCase().includes(query) ||
       (item.note && item.note.toLowerCase().includes(query))
     )
@@ -245,12 +252,34 @@ export default function WishlistButton({
   useEffect(() => {
     const loadWishlist = async () => {
       setIsLoading(true)
-      
-      // Check cache first
-      const cacheTime = localStorage.getItem(CACHE_KEY)
+
+      // Always refresh from Supabase to get deduped data
+      try {
+        const dbItems = await getSupabaseWishlistItems()
+        if (dbItems.length > 0) {
+          const items = dbItems.map(fromSupabaseFormat)
+          // Deduplicate items by id before grouping
+          const seenIds = new Set<string | number>()
+          const dedupedItems = items.filter(item => {
+            if (seenIds.has(item.id)) return false
+            seenIds.add(item.id)
+            return true
+          })
+          const grouped = groupByCategory(dedupedItems)
+          setWishlist(grouped)
+          // Save to cache
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(grouped))
+          localStorage.setItem(CACHE_KEY, Date.now().toString())
+          setIsLoading(false)
+          return
+        }
+      } catch (err) {
+        console.error('Error loading wishlist from Supabase:', err)
+      }
+
+      // Fallback to localStorage if Supabase is empty or failed
       const saved = localStorage.getItem(STORAGE_KEY)
-      
-      if (cacheTime && saved && Date.now() - parseInt(cacheTime) < CACHE_DURATION) {
+      if (saved) {
         try {
           const parsed = JSON.parse(saved)
           const merged = {
@@ -261,68 +290,26 @@ export default function WishlistButton({
             park: parsed.park || [],
             threads: parsed.threads || [],
           }
-          setWishlist(merged)
-          setIsLoading(false)
-          return
-        } catch (e) {
-          console.error('Failed to parse cached wishlist:', e)
-        }
-      }
-      
-      // Load from Supabase
-      try {
-        const dbItems = await getSupabaseWishlistItems()
-        if (dbItems.length > 0) {
-          const items = dbItems.map(fromSupabaseFormat)
-          const grouped = groupByCategory(items)
-          setWishlist(grouped)
-          // Save to cache
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(grouped))
-          localStorage.setItem(CACHE_KEY, Date.now().toString())
-        } else {
-          // Try loading from local storage if Supabase is empty
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved)
-              const merged = {
-                cafe: parsed.cafe || [],
-                restaurant: parsed.restaurant || [],
-                bakery: parsed.bakery || [],
-                shopping: parsed.shopping || [],
-                park: parsed.park || [],
-                threads: parsed.threads || [],
-              }
-              setWishlist(merged)
-              // Migrate local data to Supabase
-              migrateToSupabase(merged)
-            } catch (e) {
-              console.error('Failed to parse wishlist:', e)
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Error loading wishlist from Supabase:', err)
-        // Fallback to localStorage
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved)
-            setWishlist({
-              cafe: parsed.cafe || [],
-              restaurant: parsed.restaurant || [],
-              bakery: parsed.bakery || [],
-              shopping: parsed.shopping || [],
-              park: parsed.park || [],
-              threads: parsed.threads || [],
+          // Deduplicate from localStorage too
+          for (const cat of Object.keys(merged)) {
+            const seenIds = new Set<string | number>()
+            merged[cat] = merged[cat].filter((item: WishlistItem) => {
+              if (seenIds.has(item.id)) return false
+              seenIds.add(item.id)
+              return true
             })
-          } catch (e) {
-            console.error('Failed to parse wishlist:', e)
           }
+          setWishlist(merged)
+          // Migrate local data to Supabase
+          migrateToSupabase(merged)
+        } catch (e) {
+          console.error('Failed to parse wishlist:', e)
         }
       }
-      
+
       setIsLoading(false)
     }
-    
+
     loadWishlist()
   }, [groupByCategory])
 

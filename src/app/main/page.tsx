@@ -2013,7 +2013,7 @@ function MainPageInner() {
                     </div>
                     <div className="flex items-center gap-2 ml-3">
                       <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${detailTrip.lat},${detailTrip.lng}`}
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(detailTrip.title + ' ' + detailTrip.location + ' Japan')}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs text-blue-500 hover:underline whitespace-nowrap"
@@ -2360,7 +2360,7 @@ function MainPageInner() {
                 </div>
                 <div className="flex items-center gap-2">
                   <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${settings.homeLocation.lat},${settings.homeLocation.lng}`}
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings.homeLocation.name + ' ' + settings.homeLocation.address + ' Japan')}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-blue-500 hover:text-blue-600 transition-colors"

@@ -531,7 +531,16 @@ export default function WishlistPage() {
       }
 
       const items = filteredDb.map(fromSupabaseFormat)
-      const grouped = groupByCategory(items)
+
+      // Deduplicate items by id before grouping and storing in state
+      const seenIds = new Set<string | number>()
+      const dedupedItems = items.filter(item => {
+        if (seenIds.has(item.id)) return false
+        seenIds.add(item.id)
+        return true
+      })
+
+      const grouped = groupByCategory(dedupedItems)
       setWishlist(grouped)
       safeSetItem(STORAGE_KEY, JSON.stringify(stripImagesForCache(grouped)))
       safeSetItem(CACHE_KEY, Date.now().toString())
@@ -553,6 +562,14 @@ export default function WishlistPage() {
     } else {
       items = wishlist[activeTab] || []
     }
+
+    // Deduplicate by id so that the same item never renders twice
+    const seen = new Set<string | number>()
+    items = items.filter(item => {
+      if (seen.has(item.id)) return false
+      seen.add(item.id)
+      return true
+    })
     
     // Apply area filter (exact area match)
     if (activeAreaFilter) {
