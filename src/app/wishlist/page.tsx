@@ -681,7 +681,7 @@ export default function WishlistPage() {
     // Guard: prevent duplicate items with the same name + category
     const trimmedName = newItemName.trim()
     const category = newItemCategory
-    const existingDuplicate = wishlistDbItems.find(
+    const existingDuplicate = (wishlistDbItems ?? []).find(
       db => db.category === category && db.name.trim() === trimmedName
     )
     if (existingDuplicate) {
