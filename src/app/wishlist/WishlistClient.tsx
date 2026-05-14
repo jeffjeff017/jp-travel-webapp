@@ -675,11 +675,22 @@ export default function WishlistPage() {
   const handleAddItem = async () => {
     if (!newItemName.trim()) return
     if (wishlistFormSubmitRef.current) return
+
+    // Guard: prevent duplicate items with the same name + category
+    const trimmedName = newItemName.trim()
+    const category = newItemCategory
+    const existingDuplicate = wishlistDbItems.find(
+      db => db.category === category && db.name.trim() === trimmedName
+    )
+    if (existingDuplicate) {
+      alert(`「${trimmedName}」已經在這個分類中了！`)
+      return
+    }
+
     wishlistFormSubmitRef.current = true
     setIsSubmitting(true)
 
     try {
-      const category = newItemCategory
       const user = currentUser || getCurrentUser()
       const imageUrlValue = newItemImages.length > 0 ? JSON.stringify(newItemImages) : undefined
       const newItem: Omit<WishlistItem, 'id' | 'addedAt'> = {

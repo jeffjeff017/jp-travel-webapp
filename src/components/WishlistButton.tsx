@@ -369,6 +369,16 @@ export default function WishlistButton({
     }
 
     const catId = getActiveCategoryId()
+    const trimmedName = (isLinkOnlyCategory ? newItemLink.trim() : newItemName.trim())
+    // Guard: prevent duplicate items with the same name + category
+    const existingDuplicate = Object.values(wishlist).flat().find(
+      item => item.category === catId && item.name.trim() === trimmedName
+    )
+    if (existingDuplicate) {
+      alert(`「${trimmedName}」已經在這個分類中了！`)
+      return
+    }
+
     saveItemInFlightRef.current = true
     setIsSavingWishlistItem(true)
     try {
